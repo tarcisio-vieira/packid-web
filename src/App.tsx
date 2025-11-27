@@ -263,6 +263,8 @@ function App() {
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       {/* Top bar with hamburger menu, language selector and clock */}
@@ -293,8 +295,8 @@ function App() {
               displayEmpty
               inputProps={{ "aria-label": "Language selection" }}
             >
-              <MenuItem value="pt">Português</MenuItem>
               <MenuItem value="en">English</MenuItem>
+              <MenuItem value="pt">Português</MenuItem>
               <MenuItem value="es">Español</MenuItem>
             </Select>
           </FormControl>
@@ -334,7 +336,22 @@ function App() {
       </Drawer>
 
       {/* Main content */}
-      <Box sx={{ p: 2 }}>{renderContent()}</Box>
+      <Box sx={{ p: 2, flex: 1 }}>{renderContent()}</Box>
+
+      {/* Footer with user info */}
+      {user && (
+        <Box
+          component="footer"
+          sx={{
+            p: 2,
+            textAlign: "right",
+            fontSize: "0.875rem",
+            opacity: 0.8,
+          }}
+        >
+        {user.email}
+        </Box>
+      )}
     </Box>
   );
 }
