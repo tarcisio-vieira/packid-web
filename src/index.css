@@ -1,0 +1,83 @@
+:root {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Force light mode */
+  color-scheme: light;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+/* Links basic style */
+a {
+  text-decoration: none;
+  color: inherit;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* Buttons inherit MUI styles; keep base reset only */
+button {
+  font-family: inherit;
+}
+
+/* Print area is hidden on screen by default */
+#print-area {
+  display: none;
+}
+
+/* Print-only styles */
+@media print {
+  body {
+    margin: 0;
+  }
+
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the print area */
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+
+  #print-area {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 1mm;              /* 1mm margin around the content */
+    padding: 0;
+    font-family: Arial, sans-serif;
+    font-size: 20pt;           /* base size for package code */
+    text-align: center;
+    line-height: 1.0;          /* lines closer together */
+  }
+
+  #print-package-code {
+    font-weight: normal;
+    margin-bottom: 1mm;        /* bem perto do apartamento */
+  }
+
+  #print-apartment {
+    font-weight: bold;
+    font-size: 30pt;           /* apartment code bigger */
+    margin-top: 0;
+  }
+}
+
