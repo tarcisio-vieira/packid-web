@@ -3,27 +3,27 @@
     sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  /* Força tema claro */
   color-scheme: light;
 
-  font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  /* Ocupa a tela toda */
-  background-color: #f5f5f5;
 }
 
-html,
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  padding: 0;
   min-width: 320px;
   min-height: 100vh;
+  background-color: #f5efe3; /* mesmo fundo do MUI */
 }
 
+/* O React monta aqui; deixamos full height e sem max-width */
 #root {
   min-height: 100vh;
 }
@@ -37,22 +37,21 @@ a:hover {
   text-decoration: underline;
 }
 
-/* Botões herdam estilo do MUI; mantemos só o reset base */
+/* Botões herdam a fonte do app */
 button {
   font-family: inherit;
 }
 
-/* Área de impressão fica oculta na tela */
+/* Área de impressão escondida na tela */
 #print-area {
   display: none;
 }
 
-/* Estilos apenas para impressão */
+/* ===== ESTILOS DE IMPRESSÃO ===== */
 @media print {
-  html,
   body {
     margin: 0;
-    padding: 0;
+    background: #fff;
   }
 
   /* Esconde tudo por padrão */
@@ -72,12 +71,12 @@ button {
     left: 0;
     top: 0;
     width: 100%;
-    margin: 1mm; /* margem em volta do conteúdo */
+    margin: 1mm; /* margem pequena ao redor */
     padding: 0;
     font-family: Arial, sans-serif;
-    font-size: 20pt; /* tamanho base para o código do pacote */
+    font-size: 20pt; /* tamanho base do código do pacote */
     text-align: center;
-    line-height: 1; /* linhas mais próximas */
+    line-height: 1.0;
   }
 
   #print-package-code {

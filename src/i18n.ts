@@ -21,23 +21,28 @@ const resources = {
       menu: {
         main: "Main menu",
         home: "Home",
-        identifyPackage: "Identify Package",
+        identifyPackage: "Labels", // mais curto no menu
       },
       home: {
         title: "Home",
         welcome: "Welcome to PackID",
         useMenu:
-          'Use the menu to access available features. For now, you can choose "Identify Package" from the side menu.',
+          'Use the menu to access the features. For now, you can choose "Identify Package".',
       },
       identify: {
         title: "Identify Package",
         description:
-          "Scan the package code or type it manually, then enter the apartment number. Press Enter to move between fields and open the print dialog.",
+          "Scan the package code (QR or barcode) or type it manually, then enter the apartment/room number and print the label.",
         packageCode: "Package code",
         apartment: "Apartment / Room",
         printLabel: "Print label",
-        scanCode: "Scan package code",
-        scanTitle: "Scan the package code",
+        scanButton: "Scan",
+        scanTitle: "Scan code",
+        scanHelp:
+          "Point the camera at the QR code or barcode. When the code is read, the field will be filled automatically.",
+      },
+      common: {
+        close: "Close",
       },
     },
   },
@@ -58,23 +63,28 @@ const resources = {
       menu: {
         main: "Menu principal",
         home: "Início",
-        identifyPackage: "Identificar Pacote",
+        identifyPackage: "Etiquetas", // curto para caber bem no celular
       },
       home: {
         title: "Início",
         welcome: "Bem-vindo ao PackID",
         useMenu:
-          'Use o menu para acessar as funcionalidades. Por enquanto, você pode escolher "Identificar Pacote" no menu lateral.',
+          'Use o menu para acessar as funcionalidades. Por enquanto, você pode escolher "Etiquetas" no menu lateral.',
       },
       identify: {
-        title: "Identificar Pacote",
+        title: "Identificar pacote",
         description:
-          "Leia o código do pacote (câmera ou manual) e depois informe o apartamento. No teclado, use Enter para avançar e abrir a tela de impressão.",
+          "Leia o código do pacote (QR ou código de barras) ou digite manualmente. Depois informe o número do apartamento/sala e imprima a etiqueta.",
         packageCode: "Código do pacote",
         apartment: "Apartamento / Sala",
         printLabel: "Imprimir etiqueta",
-        scanCode: "Ler código com a câmera",
-        scanTitle: "Ler código do pacote",
+        scanButton: "Ler código",
+        scanTitle: "Ler código",
+        scanHelp:
+          "Aponte a câmera para o QR code ou código de barras. Quando o código for lido, o campo será preenchido automaticamente.",
+      },
+      common: {
+        close: "Fechar",
       },
     },
   },
@@ -95,23 +105,28 @@ const resources = {
       menu: {
         main: "Menú principal",
         home: "Inicio",
-        identifyPackage: "Identificar Paquete",
+        identifyPackage: "Etiquetas",
       },
       home: {
         title: "Inicio",
         welcome: "Bienvenido a PackID",
         useMenu:
-          'Use el menú para acceder a las funciones disponibles. Por ahora, puede elegir "Identificar Paquete" en el menú lateral.',
+          'Use el menú para acceder a las funciones disponibles. Por ahora, puede elegir "Etiquetas" en el menú lateral.',
       },
       identify: {
-        title: "Identificar Paquete",
+        title: "Identificar paquete",
         description:
-          "Escanee el código del paquete o escríbalo manualmente y luego introduzca el número del apartamento. Con Enter puede cambiar de campo y abrir la pantalla de impresión.",
+          "Escanee el código del paquete (QR o código de barras) o escríbalo manualmente. Luego introduzca el número del apartamento/habitación e imprima la etiqueta.",
         packageCode: "Código del paquete",
         apartment: "Apartamento / Habitación",
         printLabel: "Imprimir etiqueta",
-        scanCode: "Leer código con la cámara",
-        scanTitle: "Leer código del paquete",
+        scanButton: "Escanear",
+        scanTitle: "Escanear código",
+        scanHelp:
+          "Apunte la cámara al código QR o código de barras. Cuando se lea el código, el campo se rellenará automáticamente.",
+      },
+      common: {
+        close: "Cerrar",
       },
     },
   },

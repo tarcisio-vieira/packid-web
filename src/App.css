@@ -1,6 +1,6 @@
-/* Deixamos o layout todo com MUI.
-   Aqui só uma casca mínima, se quiser usar. */
-
-.App {
-  text-align: left;
+/* Garante que o root ocupe a tela toda e não tenha padding centralizado */
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
 }
