@@ -21,9 +21,21 @@ import {
   FormControl,
   Select,
   MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  InputAdornment,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material/Select";
+
 import MenuIcon from "@mui/icons-material/Menu";
+import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import CloseIcon from "@mui/icons-material/Close";
+
+import { Html5QrcodeScanner } from "html5-qrcode";
 
 type ActiveView = "home" | "identifyPackage";
 
@@ -31,8 +43,11 @@ function HomeScreen() {
   const { t } = useTranslation();
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4 }}>
-      <Paper elevation={2} sx={{ p: 3 }}>
+    <Container
+      maxWidth="md"
+      sx={{ mt: { xs: 2, md: 4 }, mb: { xs: 4, md: 6 } }}
+    >
+      <Paper elevation={2} sx={{ p: { xs: 2, md: 3 } }}>
         <Typography variant="h4" gutterBottom>
           {t("home.title")}
         </Typography>
@@ -47,28 +62,86 @@ function HomeScreen() {
 
 function IdentifyPackageScreen() {
   const { t } = useTranslation();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [packageCode, setPackageCode] = useState<string>("");
   const [apartment, setApartment] = useState<string>("");
 
-  // Refs used to control focus between fields
+  // Scanner de câmera (QR / código de barras)
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+
+  // Refs para controle de foco
   const packageCodeRef = useRef<HTMLInputElement | null>(null);
   const apartmentRef = useRef<HTMLInputElement | null>(null);
 
-  // Focus the first field when this screen is mounted
+  // Foca no primeiro campo ao montar
   useEffect(() => {
     packageCodeRef.current?.focus();
   }, []);
+
+  // Inicializa / limpa o scanner quando o Dialog abre/fecha
+  useEffect(() => {
+    if (!scannerOpen) return;
+
+    const scanner = new Html5QrcodeScanner(
+      "packid-scanner-view",
+      {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+      },
+      false
+    );
+
+    scanner.render(
+      (decodedText) => {
+        // Sucesso na leitura
+        setPackageCode(decodedText);
+        setScannerOpen(false);
+
+        // Depois que fechar o dialog, foca no próximo campo
+        setTimeout(() => {
+          apartmentRef.current?.focus();
+        }, 0);
+      },
+      (errorMessage) => {
+        // Erros de leitura contínuos (ruído normal do scanner)
+        console.debug("Scanner error", errorMessage);
+      }
+    );
+
+    scannerRef.current = scanner;
+
+    return () => {
+      scanner
+        .clear()
+        .catch(() => {
+          // ignore
+        })
+        .finally(() => {
+          scannerRef.current = null;
+        });
+    };
+  }, [scannerOpen]);
+
+  const openScanner = () => {
+    setScannerOpen(true);
+  };
+
+  const closeScanner = () => {
+    setScannerOpen(false);
+  };
 
   const openPrintAndReset = () => {
     if (!packageCode.trim() || !apartment.trim()) {
       return;
     }
 
-    // Open browser print dialog
+    // Abre o diálogo de impressão do navegador
     globalThis.print();
 
-    // After printing, clear fields and focus on the first one again
+    // Depois de imprimir, limpa campos e volta o foco
     setPackageCode("");
     setApartment("");
     setTimeout(() => {
@@ -100,9 +173,15 @@ function IdentifyPackageScreen() {
 
   return (
     <>
-      <Container maxWidth="sm" sx={{ mt: 4 }}>
-        <Paper elevation={2} sx={{ p: 3 }}>
-          <Typography variant="h4" gutterBottom>
+      <Container
+        maxWidth="sm"
+        sx={{
+          mt: { xs: 2, md: 4 },
+          mb: { xs: 4, md: 6 },
+        }}
+      >
+        <Paper elevation={2} sx={{ p: { xs: 2, md: 3 } }}>
+          <Typography variant={isMobile ? "h5" : "h4"} gutterBottom>
             {t("identify.title")}
           </Typography>
           <Typography variant="body2" gutterBottom>
@@ -119,6 +198,19 @@ function IdentifyPackageScreen() {
               onKeyDown={handlePackageCodeKeyDown}
               fullWidth
               autoComplete="off"
+              InputProps={{
+                endAdornment: isMobile ? (
+                  <InputAdornment position="end">
+                    <IconButton
+                      edge="end"
+                      onClick={openScanner}
+                      aria-label={t("identify.scanCode")}
+                    >
+                      <QrCodeScannerIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ) : undefined,
+              }}
             />
 
             <TextField
@@ -146,11 +238,43 @@ function IdentifyPackageScreen() {
         </Paper>
       </Container>
 
-      {/* Print area – only visible when printing */}
+      {/* Área de impressão – só aparece no @media print */}
       <div id="print-area">
         <div id="print-package-code">{packageCode}</div>
         <div id="print-apartment">{apartment}</div>
       </div>
+
+      {/* Dialog do scanner (câmera) */}
+      <Dialog fullScreen={isMobile} open={scannerOpen} onClose={closeScanner}>
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          {t("identify.scanTitle")}
+          <IconButton onClick={closeScanner}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Box
+            id="packid-scanner-view"
+            sx={{
+              width: "100%",
+              maxWidth: 400,
+              mx: "auto",
+              aspectRatio: "1",
+            }}
+          />
+        </DialogContent>
+        {!isMobile && (
+          <DialogActions>
+            <Button onClick={closeScanner}>Fechar</Button>
+          </DialogActions>
+        )}
+      </Dialog>
     </>
   );
 }
@@ -166,7 +290,7 @@ function App() {
 
   const [language, setLanguage] = useState<string>(i18n.language || "en");
 
-  // Load authenticated user on mount
+  // Carrega o usuário autenticado ao montar
   useEffect(() => {
     fetchCurrentUser()
       .then(setUser)
@@ -177,7 +301,7 @@ function App() {
       });
   }, []);
 
-  // Update clock every second
+  // Atualiza relógio a cada segundo
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
@@ -213,7 +337,7 @@ function App() {
   const renderContent = () => {
     if (user === undefined) {
       return (
-        <Typography variant="body1" align="center">
+        <Typography variant="body1" align="center" sx={{ mt: 4 }}>
           {t("auth.loading")}
         </Typography>
       );
@@ -250,7 +374,7 @@ function App() {
       );
     }
 
-    // Authenticated views
+    // Views autenticadas
     if (activeView === "identifyPackage") {
       return <IdentifyPackageScreen />;
     }
@@ -267,7 +391,7 @@ function App() {
         flexDirection: "column",
       }}
     >
-      {/* Top bar with hamburger menu, language selector and clock */}
+      {/* Top bar com menu, idioma e relógio */}
       <AppBar position="static" color="default" elevation={1}>
         <Toolbar>
           <IconButton
@@ -311,7 +435,7 @@ function App() {
         </Toolbar>
       </AppBar>
 
-      {/* Side drawer menu */}
+      {/* Menu lateral */}
       <Drawer anchor="left" open={drawerOpen} onClose={toggleDrawer(false)}>
         <Box
           sx={{ width: 260 }}
@@ -335,21 +459,21 @@ function App() {
         </Box>
       </Drawer>
 
-      {/* Main content */}
-      <Box sx={{ p: 2, flex: 1 }}>{renderContent()}</Box>
+      {/* Conteúdo principal */}
+      <Box sx={{ p: { xs: 1, sm: 2 }, flex: 1 }}>{renderContent()}</Box>
 
-      {/* Footer with user info */}
+      {/* Rodapé com info do usuário */}
       {user && (
         <Box
           component="footer"
           sx={{
-            p: 2,
+            p: { xs: 1, sm: 2 },
             textAlign: "right",
             fontSize: "0.875rem",
             opacity: 0.8,
           }}
         >
-        {user.email}
+          {user.email}
         </Box>
       )}
     </Box>

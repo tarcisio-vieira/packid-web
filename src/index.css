@@ -4,22 +4,31 @@
   line-height: 1.5;
   font-weight: 400;
 
-  /* Force light mode */
+  /* Força tema claro */
   color-scheme: light;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Ocupa a tela toda */
+  background-color: #f5f5f5;
 }
 
+html,
 body {
   margin: 0;
+  padding: 0;
   min-width: 320px;
   min-height: 100vh;
 }
 
-/* Links basic style */
+#root {
+  min-height: 100vh;
+}
+
+/* Links básicos */
 a {
   text-decoration: none;
   color: inherit;
@@ -28,28 +37,30 @@ a:hover {
   text-decoration: underline;
 }
 
-/* Buttons inherit MUI styles; keep base reset only */
+/* Botões herdam estilo do MUI; mantemos só o reset base */
 button {
   font-family: inherit;
 }
 
-/* Print area is hidden on screen by default */
+/* Área de impressão fica oculta na tela */
 #print-area {
   display: none;
 }
 
-/* Print-only styles */
+/* Estilos apenas para impressão */
 @media print {
+  html,
   body {
     margin: 0;
+    padding: 0;
   }
 
-  /* Hide everything by default */
+  /* Esconde tudo por padrão */
   body * {
     visibility: hidden;
   }
 
-  /* Show only the print area */
+  /* Mostra apenas a área de impressão */
   #print-area,
   #print-area * {
     visibility: visible;
@@ -61,23 +72,22 @@ button {
     left: 0;
     top: 0;
     width: 100%;
-    margin: 1mm;              /* 1mm margin around the content */
+    margin: 1mm; /* margem em volta do conteúdo */
     padding: 0;
     font-family: Arial, sans-serif;
-    font-size: 20pt;           /* base size for package code */
+    font-size: 20pt; /* tamanho base para o código do pacote */
     text-align: center;
-    line-height: 1.0;          /* lines closer together */
+    line-height: 1; /* linhas mais próximas */
   }
 
   #print-package-code {
     font-weight: normal;
-    margin-bottom: 1mm;        /* bem perto do apartamento */
+    margin-bottom: 1mm; /* bem perto do apartamento */
   }
 
   #print-apartment {
     font-weight: bold;
-    font-size: 30pt;           /* apartment code bigger */
+    font-size: 30pt; /* apartamento maior */
     margin-top: 0;
   }
 }
-

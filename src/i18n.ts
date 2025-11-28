@@ -7,7 +7,7 @@ const resources = {
   en: {
     translation: {
       app: {
-        title: "PackID – Package Identification System",
+        title: "PackID",
       },
       header: {
         signOut: "Sign out",
@@ -25,7 +25,7 @@ const resources = {
       },
       home: {
         title: "Home",
-        welcome: "Welcome to PackID – Package Identification System.",
+        welcome: "Welcome to PackID",
         useMenu:
           'Use the menu to access available features. For now, you can choose "Identify Package" from the side menu.',
       },
@@ -36,13 +36,15 @@ const resources = {
         packageCode: "Package code",
         apartment: "Apartment / Room",
         printLabel: "Print label",
+        scanCode: "Scan package code",
+        scanTitle: "Scan the package code",
       },
     },
   },
   pt: {
     translation: {
       app: {
-        title: "PackID – Sistema de Identificação de Encomendas",
+        title: "PackID",
       },
       header: {
         signOut: "Sair",
@@ -60,25 +62,26 @@ const resources = {
       },
       home: {
         title: "Início",
-        welcome:
-          "Bem-vindo ao PackID – Sistema de Identificação de Encomendas.",
+        welcome: "Bem-vindo ao PackID",
         useMenu:
           'Use o menu para acessar as funcionalidades. Por enquanto, você pode escolher "Identificar Pacote" no menu lateral.',
       },
       identify: {
         title: "Identificar Pacote",
         description:
-          "Leia o código do pacote ou digite manualmente, depois informe o número do apartamento. Pressione Enter para alternar entre os campos e abrir a tela de impressão.",
+          "Leia o código do pacote (câmera ou manual) e depois informe o apartamento. No teclado, use Enter para avançar e abrir a tela de impressão.",
         packageCode: "Código do pacote",
         apartment: "Apartamento / Sala",
         printLabel: "Imprimir etiqueta",
+        scanCode: "Ler código com a câmera",
+        scanTitle: "Ler código do pacote",
       },
     },
   },
   es: {
     translation: {
       app: {
-        title: "PackID – Sistema de Identificación de Paquetes",
+        title: "PackID",
       },
       header: {
         signOut: "Cerrar sesión",
@@ -96,17 +99,19 @@ const resources = {
       },
       home: {
         title: "Inicio",
-        welcome: "Bienvenido a PackID – Sistema de Identificación de Paquetes.",
+        welcome: "Bienvenido a PackID",
         useMenu:
           'Use el menú para acceder a las funciones disponibles. Por ahora, puede elegir "Identificar Paquete" en el menú lateral.',
       },
       identify: {
         title: "Identificar Paquete",
         description:
-          "Escanee el código del paquete o escríbalo manualmente, luego introduzca el número del apartamento. Presione Enter para cambiar entre los campos y abrir la pantalla de impresión.",
+          "Escanee el código del paquete o escríbalo manualmente y luego introduzca el número del apartamento. Con Enter puede cambiar de campo y abrir la pantalla de impresión.",
         packageCode: "Código del paquete",
         apartment: "Apartamento / Habitación",
         printLabel: "Imprimir etiqueta",
+        scanCode: "Leer código con la cámara",
+        scanTitle: "Leer código del paquete",
       },
     },
   },
