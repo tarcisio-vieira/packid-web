@@ -41,6 +41,18 @@ const resources = {
         scanHelp:
           "Point the camera at the QR code or barcode. When the code is read, the field will be filled automatically.",
       },
+      history: {
+        title: "Recent labels",
+        empty: "No labels yet.",
+        clear: "Clear",
+        columns: {
+          time: "Time",
+          apartment: "Apt",
+          packageCode: "Package code",
+          status: "Status",
+        },
+        status: { saving: "Saving...", saved: "Saved", error: "Error" },
+      },
       common: {
         close: "Close",
       },
@@ -83,6 +95,18 @@ const resources = {
         scanHelp:
           "Aponte a câmera para o QR code ou código de barras. Quando o código for lido, o campo será preenchido automaticamente.",
       },
+      history: {
+        title: "Últimas etiquetas",
+        empty: "Nenhuma etiqueta registrada ainda.",
+        clear: "Limpar",
+        columns: {
+          time: "Hora",
+          apartment: "Apto",
+          packageCode: "Código",
+          status: "Status",
+        },
+        status: { saving: "Salvando...", saved: "Salvo", error: "Erro" },
+      },
       common: {
         close: "Fechar",
       },
@@ -124,6 +148,18 @@ const resources = {
         scanTitle: "Escanear código",
         scanHelp:
           "Apunte la cámara al código QR o código de barras. Cuando se lea el código, el campo se rellenará automáticamente.",
+      },
+      history: {
+        title: "Etiquetas recientes",
+        empty: "Aún no hay etiquetas.",
+        clear: "Limpiar",
+        columns: {
+          time: "Hora",
+          apartment: "Apto",
+          packageCode: "Código",
+          status: "Estado",
+        },
+        status: { saving: "Guardando...", saved: "Guardado", error: "Error" },
       },
       common: {
         close: "Cerrar",

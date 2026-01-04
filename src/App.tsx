@@ -1,7 +1,17 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchCurrentUser, getLoginUrl, getLogoutUrl } from "./api";
+import {
+  fetchCurrentUser,
+  getLoginUrl,
+  getLogoutUrl,
+  registerPackIdFromLabel,
+  fetchRecentPackIds,
+} from "./api";
 import type { User } from "./api";
+
+import LabelHistoryGrid, {
+  type LabelHistoryRow,
+} from "./components/LabelHistoryGrid";
 
 import {
   AppBar,
@@ -32,11 +42,10 @@ import type { SelectChangeEvent } from "@mui/material/Select";
 import MenuIcon from "@mui/icons-material/Menu";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 
-// >>> NOVO: scanner React
+// scanner
 import { Scanner } from "@yudiel/react-qr-scanner";
 
 // ----- Tipos -----
-
 type ActiveView = "home" | "identifyPackage";
 
 type CodeScannerDialogProps = Readonly<{
@@ -52,12 +61,16 @@ type IdentifyPackageScreenProps = Readonly<{
   onApartmentChange: (value: string) => void;
   onRequestPrint: () => void;
   onOpenScanner: () => void;
+
+  saveError: string | null;
+
+  historyRows: LabelHistoryRow[];
+  onClearHistory: () => void;
 }>;
 
 // ============================
 // Dialog do leitor (QR + barras)
 // ============================
-
 function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
   const { t } = useTranslation();
 
@@ -70,16 +83,8 @@ function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
             {t("identify.scanHelp")}
           </Typography>
 
-          <Box
-            sx={{
-              mt: 2,
-              width: "100%",
-              maxWidth: 480,
-              mx: "auto",
-            }}
-          >
+          <Box sx={{ mt: 2, width: "100%", maxWidth: 480, mx: "auto" }}>
             <Scanner
-              // limita os formatos mais comuns (QR + códigos de barras)
               formats={[
                 "qr_code",
                 "code_128",
@@ -89,22 +94,15 @@ function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
                 "upc_a",
                 "upc_e",
               ]}
-              components={{
-                finder: true,
-                torch: true,
-                zoom: true,
-              }}
+              components={{ finder: true, torch: true, zoom: true }}
               onScan={(detectedCodes) => {
                 if (!detectedCodes || detectedCodes.length === 0) return;
-
                 const value = detectedCodes[0].rawValue;
                 onScan(value);
-                onClose(); // fecha o diálogo ao ler
+                onClose();
               }}
               onError={(error) => {
-                if (import.meta.env.DEV) {
-                  console.error("Scanner error:", error);
-                }
+                if (import.meta.env.DEV) console.error("Scanner error:", error);
               }}
             />
           </Box>
@@ -120,7 +118,6 @@ function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
 // ============
 // Tela inicial
 // ============
-
 function HomeScreen() {
   const { t } = useTranslation();
 
@@ -142,7 +139,6 @@ function HomeScreen() {
 // =====================================
 // Tela de identificação (controlada)
 // =====================================
-
 function IdentifyPackageScreen({
   packageCode,
   apartment,
@@ -150,6 +146,8 @@ function IdentifyPackageScreen({
   onApartmentChange,
   onRequestPrint,
   onOpenScanner,
+  saveError,
+  historyRows,
 }: IdentifyPackageScreenProps) {
   const { t } = useTranslation();
   const packageCodeRef = useRef<HTMLInputElement | null>(null);
@@ -226,6 +224,12 @@ function IdentifyPackageScreen({
               autoComplete="off"
             />
 
+            {saveError && (
+              <Typography variant="body2" color="error">
+                {saveError}
+              </Typography>
+            )}
+
             <Box display="flex" justifyContent="flex-end" mt={1}>
               <Button
                 variant="contained"
@@ -238,6 +242,14 @@ function IdentifyPackageScreen({
             </Box>
           </Stack>
         </Paper>
+
+        {/* GRID LOGO ABAIXO DO BOX */}
+        <Box sx={{ mt: 2 }}>
+          <LabelHistoryGrid
+            rows={historyRows}
+            maxRows={10}
+          />
+        </Box>
       </Container>
 
       {/* Área de impressão – só aparece no @media print (index.css) */}
@@ -252,20 +264,91 @@ function IdentifyPackageScreen({
 // =========================================
 // Container da tela de etiquetas + scanner
 // =========================================
-
 function IdentifyPackageContainer() {
   const [packageCode, setPackageCode] = useState<string>("");
   const [apartment, setApartment] = useState<string>("");
   const [scannerOpen, setScannerOpen] = useState<boolean>(false);
 
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [historyRows, setHistoryRows] = useState<LabelHistoryRow[]>([]);
+
+  // 1) loadRecent NÃO faz setState (evita a regra react-hooks/set-state-in-effect)
+  const loadRecent = useCallback(async (): Promise<LabelHistoryRow[]> => {
+    const items = await fetchRecentPackIds(50);
+
+    // garante ordenação mais recente primeiro (caso o back não ordene)
+    const sorted = [...items].sort(
+      (a, b) =>
+        new Date(b.arrivedAt).getTime() - new Date(a.arrivedAt).getTime()
+    );
+
+    return sorted.map((it) => ({
+      id: it.id,
+      createdAt: it.arrivedAt,
+      apartment: it.apartment,
+      packageCode: it.packageCode,
+      status: "saved",
+    }));
+  }, []);
+
+  const refreshHistory = useCallback(() => {
+    return loadRecent().then((rows) => setHistoryRows(rows));
+  }, [loadRecent]);
+
+  // 2) primeiro carregamento da grid (busca do banco)
+  useEffect(() => {
+    let cancelled = false;
+
+    loadRecent()
+      .then((rows) => {
+        if (!cancelled) setHistoryRows(rows);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.error(e);
+        setSaveError(
+          e instanceof Error ? e.message : "Erro ao carregar histórico."
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadRecent]);
+
+  // 3) imprimir + salvar + recarregar do banco
   const handlePrint = () => {
-    if (!packageCode.trim() || !apartment.trim()) return;
+    const pc = packageCode.trim();
+    const ap = apartment.trim();
+    if (!pc || !ap || saving) return;
+
+    setSaving(true);
+    setSaveError(null);
+
+    // dispara o POST antes do print (o print pode “travar” a UI do browser, mas o request já iniciou)
+    const savePromise = registerPackIdFromLabel({
+      packageCode: pc,
+      apartment: ap,
+    });
 
     globalThis.print();
 
-    setPackageCode("");
-    setApartment("");
-    // foco volta pelo useEffect da tela de identificação
+    savePromise
+      .then(() => {
+        setPackageCode("");
+        setApartment("");
+      })
+      .catch((e) => {
+        const msg =
+          e instanceof Error ? e.message : "Falha ao registrar o pacote.";
+        setSaveError(msg);
+      })
+      .finally(() => {
+        // importante: a grid passa a refletir o que REALMENTE está no banco
+        refreshHistory().catch(() => {});
+        setSaving(false);
+      });
   };
 
   const handleScan = (text: string) => {
@@ -282,6 +365,13 @@ function IdentifyPackageContainer() {
         onApartmentChange={setApartment}
         onRequestPrint={handlePrint}
         onOpenScanner={() => setScannerOpen(true)}
+        saving={saving}
+        saveError={saveError}
+        historyRows={historyRows}
+        // “Limpar” agora vira “recarregar do banco” (mantém a verdade do BD)
+        onClearHistory={() => {
+          refreshHistory().catch(() => {});
+        }}
       />
 
       <CodeScannerDialog
@@ -296,7 +386,6 @@ function IdentifyPackageContainer() {
 // ===============
 // App principal
 // ===============
-
 function App() {
   const { t, i18n } = useTranslation();
 
@@ -336,7 +425,6 @@ function App() {
   };
 
   const renderContent = () => {
-    // ainda carregando /me
     if (user === undefined) {
       return (
         <Typography variant="body1" align="center" sx={{ mt: 4 }}>
@@ -345,16 +433,12 @@ function App() {
       );
     }
 
-    // não autenticado
     if (user === null) {
       return (
         <Container maxWidth="sm">
           <Paper
             elevation={3}
-            sx={{
-              p: { xs: 3, sm: 4 },
-              mt: { xs: 6, sm: 8 },
-            }}
+            sx={{ p: { xs: 3, sm: 4 }, mt: { xs: 6, sm: 8 } }}
           >
             <Stack spacing={2} alignItems="center">
               <Typography variant="h3" component="h1" gutterBottom>
@@ -377,10 +461,7 @@ function App() {
       );
     }
 
-    // autenticado
-    if (activeView === "identifyPackage") {
-      return <IdentifyPackageContainer />;
-    }
+    if (activeView === "identifyPackage") return <IdentifyPackageContainer />;
 
     return <HomeScreen />;
   };
@@ -394,7 +475,6 @@ function App() {
         flexDirection: "column",
       }}
     >
-      {/* Barra superior */}
       <AppBar position="static" color="default" elevation={1}>
         <Toolbar>
           <IconButton
@@ -415,16 +495,11 @@ function App() {
             {t("app.title")}
           </Typography>
 
-          <FormControl
-            size="small"
-            sx={{ mr: 2, minWidth: 110 }}
-            aria-label="Language selection"
-          >
+          <FormControl size="small" sx={{ mr: 2, minWidth: 110 }}>
             <Select
               value={language}
               onChange={handleChangeLanguage}
               displayEmpty
-              inputProps={{ "aria-label": "Language selection" }}
             >
               <MenuItem value="en">English</MenuItem>
               <MenuItem value="pt">Português</MenuItem>
@@ -440,7 +515,6 @@ function App() {
         </Toolbar>
       </AppBar>
 
-      {/* Menu lateral */}
       <Drawer anchor="left" open={drawerOpen} onClose={toggleDrawer(false)}>
         <Box
           sx={{ width: 260 }}
@@ -464,10 +538,8 @@ function App() {
         </Box>
       </Drawer>
 
-      {/* Conteúdo principal */}
       <Box sx={{ p: { xs: 1, sm: 2 }, flex: 1 }}>{renderContent()}</Box>
 
-      {/* Rodapé */}
       {user && (
         <Box
           component="footer"
