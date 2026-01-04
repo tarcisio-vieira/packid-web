@@ -94,19 +94,30 @@ export async function createPackIdFromLabel(
 export type PackIdRecentItem = {
   id: string;
   apartment: string;
-  packageCode: string;
+  packageCode: string; // pode continuar vindo (interno)
+  labelPackageCode?: string; // NOVO: o que foi digitado no front
   arrivedAt: string; // ISO
   createdBy: string;
 };
 
 export async function fetchRecentPackIds(
-  limit = 50
+  limit = 50,
+  from?: string,
+  to?: string
 ): Promise<PackIdRecentItem[]> {
-  const resp = await fetch(`${API_URL}/api/pack-ids/recent?limit=${limit}`, {
-    credentials: "include",
-  });
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+
+  const resp = await fetch(
+    `${API_URL}/api/pack-ids/recent?${params.toString()}`,
+    {
+      credentials: "include",
+    }
+  );
 
   if (resp.status === 401) return [];
   if (!resp.ok) throw new Error("Falha ao buscar histórico do PackID.");
   return resp.json();
 }
+

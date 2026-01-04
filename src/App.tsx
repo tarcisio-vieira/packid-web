@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import type { KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   fetchCurrentUser,
@@ -62,10 +63,15 @@ type IdentifyPackageScreenProps = Readonly<{
   onRequestPrint: () => void;
   onOpenScanner: () => void;
 
+  saving: boolean;
   saveError: string | null;
 
   historyRows: LabelHistoryRow[];
-  onClearHistory: () => void;
+
+  historyFromDate: string; // YYYY-MM-DD
+  historyToDate: string; // YYYY-MM-DD
+  onHistoryFromDateChange: (value: string) => void;
+  onHistoryToDateChange: (value: string) => void;
 }>;
 
 // ============================
@@ -146,8 +152,13 @@ function IdentifyPackageScreen({
   onApartmentChange,
   onRequestPrint,
   onOpenScanner,
+  saving,
   saveError,
   historyRows,
+  historyFromDate,
+  historyToDate,
+  onHistoryFromDateChange,
+  onHistoryToDateChange,
 }: IdentifyPackageScreenProps) {
   const { t } = useTranslation();
   const packageCodeRef = useRef<HTMLInputElement | null>(null);
@@ -159,21 +170,17 @@ function IdentifyPackageScreen({
 
   const canPrint = packageCode.trim().length > 0 && apartment.trim().length > 0;
 
-  const handlePackageCodeKeyDown = (
-    event: React.KeyboardEvent<HTMLInputElement>
-  ) => {
+  const handlePackageCodeKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
       apartmentRef.current?.focus();
     }
   };
 
-  const handleApartmentKeyDown = (
-    event: React.KeyboardEvent<HTMLInputElement>
-  ) => {
+  const handleApartmentKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      if (canPrint) onRequestPrint();
+      if (canPrint && !saving) onRequestPrint();
     }
   };
 
@@ -235,7 +242,7 @@ function IdentifyPackageScreen({
                 variant="contained"
                 color="primary"
                 onClick={onRequestPrint}
-                disabled={!canPrint}
+                disabled={!canPrint || saving}
               >
                 {t("identify.printLabel")}
               </Button>
@@ -248,6 +255,10 @@ function IdentifyPackageScreen({
           <LabelHistoryGrid
             rows={historyRows}
             maxRows={10}
+            fromDate={historyFromDate}
+            toDate={historyToDate}
+            onFromDateChange={onHistoryFromDateChange}
+            onToDateChange={onHistoryToDateChange}
           />
         </Box>
       </Container>
@@ -273,51 +284,92 @@ function IdentifyPackageContainer() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [historyRows, setHistoryRows] = useState<LabelHistoryRow[]>([]);
 
-  // 1) loadRecent NÃO faz setState (evita a regra react-hooks/set-state-in-effect)
-  const loadRecent = useCallback(async (): Promise<LabelHistoryRow[]> => {
-    const items = await fetchRecentPackIds(50);
+  // filtros do grid (YYYY-MM-DD)
+  const [historyFromDate, setHistoryFromDate] = useState<string>("");
+  const [historyToDate, setHistoryToDate] = useState<string>("");
 
-    // garante ordenação mais recente primeiro (caso o back não ordene)
-    const sorted = [...items].sort(
-      (a, b) =>
-        new Date(b.arrivedAt).getTime() - new Date(a.arrivedAt).getTime()
-    );
+  const seqRef = useRef(0);
 
-    return sorted.map((it) => ({
-      id: it.id,
-      createdAt: it.arrivedAt,
-      apartment: it.apartment,
-      packageCode: it.packageCode,
-      status: "saved",
-    }));
+  const toInstantStart = (dateStr: string): string | undefined => {
+    if (!dateStr) return undefined;
+    const d = new Date(`${dateStr}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return undefined;
+    return d.toISOString();
+  };
+
+  // "to" exclusivo: soma 1 dia e usa 00:00
+  const toInstantEndExclusive = (dateStr: string): string | undefined => {
+    if (!dateStr) return undefined;
+    const d = new Date(`${dateStr}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return undefined;
+    d.setDate(d.getDate() + 1);
+    return d.toISOString();
+  };
+
+  const refreshHistory = useCallback(
+    async (fromDate: string, toDate: string) => {
+      const mySeq = ++seqRef.current;
+
+      const items = await fetchRecentPackIds(
+        200,
+        toInstantStart(fromDate),
+        toInstantEndExclusive(toDate)
+      );
+
+      // se veio uma resposta antiga (mudou filtro rápido), ignora
+      if (mySeq !== seqRef.current) return;
+
+      const sorted = [...items].sort(
+        (a, b) =>
+          new Date(b.arrivedAt).getTime() - new Date(a.arrivedAt).getTime()
+      );
+
+      setHistoryRows(
+        sorted.map((it) => ({
+          id: it.id,
+          createdAt: it.arrivedAt,
+          apartment: it.apartment,
+          // mostra SEMPRE o que o usuário digitou (label_package_code)
+          packageCode: it.labelPackageCode ?? it.packageCode,
+          status: "saved",
+        }))
+      );
+    },
+    []
+  );
+
+  // primeiro carregamento do grid (do banco)
+  useEffect(() => {
+    refreshHistory(historyFromDate, historyToDate).catch((e) => {
+      console.error(e);
+      setSaveError(
+        e instanceof Error ? e.message : "Erro ao carregar histórico."
+      );
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const refreshHistory = useCallback(() => {
-    return loadRecent().then((rows) => setHistoryRows(rows));
-  }, [loadRecent]);
+  const handleHistoryFromDateChange = (value: string) => {
+    setHistoryFromDate(value);
+    refreshHistory(value, historyToDate).catch((e) => {
+      console.error(e);
+      setSaveError(
+        e instanceof Error ? e.message : "Erro ao carregar histórico."
+      );
+    });
+  };
 
-  // 2) primeiro carregamento da grid (busca do banco)
-  useEffect(() => {
-    let cancelled = false;
+  const handleHistoryToDateChange = (value: string) => {
+    setHistoryToDate(value);
+    refreshHistory(historyFromDate, value).catch((e) => {
+      console.error(e);
+      setSaveError(
+        e instanceof Error ? e.message : "Erro ao carregar histórico."
+      );
+    });
+  };
 
-    loadRecent()
-      .then((rows) => {
-        if (!cancelled) setHistoryRows(rows);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        console.error(e);
-        setSaveError(
-          e instanceof Error ? e.message : "Erro ao carregar histórico."
-        );
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [loadRecent]);
-
-  // 3) imprimir + salvar + recarregar do banco
+  // imprimir + salvar + recarregar do banco (respeitando filtro atual)
   const handlePrint = () => {
     const pc = packageCode.trim();
     const ap = apartment.trim();
@@ -326,7 +378,6 @@ function IdentifyPackageContainer() {
     setSaving(true);
     setSaveError(null);
 
-    // dispara o POST antes do print (o print pode “travar” a UI do browser, mas o request já iniciou)
     const savePromise = registerPackIdFromLabel({
       packageCode: pc,
       apartment: ap,
@@ -345,8 +396,7 @@ function IdentifyPackageContainer() {
         setSaveError(msg);
       })
       .finally(() => {
-        // importante: a grid passa a refletir o que REALMENTE está no banco
-        refreshHistory().catch(() => {});
+        refreshHistory(historyFromDate, historyToDate).catch(() => {});
         setSaving(false);
       });
   };
@@ -368,10 +418,10 @@ function IdentifyPackageContainer() {
         saving={saving}
         saveError={saveError}
         historyRows={historyRows}
-        // “Limpar” agora vira “recarregar do banco” (mantém a verdade do BD)
-        onClearHistory={() => {
-          refreshHistory().catch(() => {});
-        }}
+        historyFromDate={historyFromDate}
+        historyToDate={historyToDate}
+        onHistoryFromDateChange={handleHistoryFromDateChange}
+        onHistoryToDateChange={handleHistoryToDateChange}
       />
 
       <CodeScannerDialog
