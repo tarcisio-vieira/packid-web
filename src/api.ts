@@ -94,8 +94,10 @@ export async function createPackIdFromLabel(
 export type PackIdRecentItem = {
   id: string;
   apartment: string;
+  residentFullName?: string;
   packageCode: string; // pode continuar vindo (interno)
   labelPackageCode?: string; // NOVO: o que foi digitado no front
+  observations?: string;
   arrivedAt: string; // ISO
   createdBy: string;
 };

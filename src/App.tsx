@@ -186,7 +186,7 @@ function IdentifyPackageScreen({
 
   return (
     <>
-      <Container maxWidth="sm" sx={{ mt: 3, mb: 3 }}>
+      <Container maxWidth="lg" sx={{ mt: 3, mb: 3 }}>
         <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 } }}>
           <Typography variant="h5" gutterBottom>
             {t("identify.title")}
@@ -329,10 +329,11 @@ function IdentifyPackageContainer() {
           id: it.id,
           createdAt: it.arrivedAt,
           apartment: it.apartment,
-          // mostra SEMPRE o que o usuário digitou (label_package_code)
+          residentFullName: it.residentFullName ?? "",
           packageCode: it.labelPackageCode ?? it.packageCode,
+          observations: it.observations ?? "",
           status: "saved",
-        }))
+        })),
       );
     },
     []
@@ -390,7 +391,7 @@ function IdentifyPackageContainer() {
         setPackageCode("");
         setApartment("");
       })
-      .catch((e) => {
+      .catch((e: { message: unknown; }) => {
         const msg =
           e instanceof Error ? e.message : "Falha ao registrar o pacote.";
         setSaveError(msg);
@@ -448,7 +449,7 @@ function App() {
   useEffect(() => {
     fetchCurrentUser()
       .then(setUser)
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error(err);
         setError("Authentication check failed.");
         setUser(null);

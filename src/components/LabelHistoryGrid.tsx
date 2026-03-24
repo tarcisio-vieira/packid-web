@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Paper,
   Table,
@@ -18,9 +19,11 @@ import PrintIcon from "@mui/icons-material/Print";
 
 export type LabelHistoryRow = {
   id: string;
-  createdAt: string; // ISO
+  createdAt: string;
   apartment: string;
-  packageCode: string; // o que você quer exibir (label_package_code)
+  residentFullName?: string;
+  packageCode: string;
+  observations?: string;
   status?: "saving" | "saved" | "error";
   errorMessage?: string;
 };
@@ -36,17 +39,32 @@ type Props = Readonly<{
   onToDateChange: (value: string) => void;
 }>;
 
-function formatDateTimeParts(iso: string): { date: string; time: string } {
+function getLocale(language: string): string {
+  switch (language) {
+    case "pt":
+      return "pt-BR";
+    case "es":
+      return "es-ES";
+    case "en":
+    default:
+      return "en-US";
+  }
+}
+
+function formatDateTimeParts(
+  iso: string,
+  locale: string,
+): { date: string; time: string } {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return { date: "-", time: "-" };
 
-  const date = d.toLocaleDateString("pt-BR", {
+  const date = d.toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
 
-  const time = d.toLocaleTimeString("pt-BR", {
+  const time = d.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -55,7 +73,7 @@ function formatDateTimeParts(iso: string): { date: string; time: string } {
 }
 
 function escapeHtml(str: string): string {
-  return str
+  return String(str)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -71,6 +89,9 @@ export default function LabelHistoryGrid({
   onFromDateChange,
   onToDateChange,
 }: Props) {
+  const { t, i18n } = useTranslation();
+
+  const locale = getLocale(i18n.resolvedLanguage || i18n.language || "en");
   const visibleRows = useMemo(() => rows.slice(0, maxRows), [rows, maxRows]);
 
   const handlePrintTable = () => {
@@ -80,9 +101,10 @@ export default function LabelHistoryGrid({
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>PackID</title>
+  <title>${escapeHtml(t("app.title"))}</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 16px; }
+    h1 { margin: 0 0 16px 0; font-size: 20px; }
     table { width: 100%; border-collapse: collapse; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     th { font-weight: 700; }
@@ -92,25 +114,30 @@ export default function LabelHistoryGrid({
   </style>
 </head>
 <body>
+  <h1>${escapeHtml(t("history.title"))}</h1>
   <table>
     <thead>
       <tr>
-        <th class="center">date</th>
-        <th class="center">apartment</th>
-        <th>packageCode</th>
+        <th class="center">${escapeHtml(t("history.columns.time"))}</th>
+        <th class="center">${escapeHtml(t("history.columns.apartment"))}</th>
+        <th>${escapeHtml(t("history.columns.residentFullName"))}</th>
+        <th>${escapeHtml(t("history.columns.packageCode"))}</th>
+        <th>${escapeHtml(t("history.columns.observations"))}</th>
       </tr>
     </thead>
     <tbody>
       ${visibleRows
         .map((r) => {
-          const { date, time } = formatDateTimeParts(r.createdAt);
+          const { date, time } = formatDateTimeParts(r.createdAt, locale);
           return `<tr>
             <td class="center">
               ${escapeHtml(date)}<br/>
               <span class="small">${escapeHtml(time)}</span>
             </td>
             <td class="center">${escapeHtml(r.apartment)}</td>
+            <td>${escapeHtml(r.residentFullName || "-")}</td>
             <td>${escapeHtml(r.packageCode)}</td>
+            <td>${escapeHtml(r.observations || "-")}</td>
           </tr>`;
         })
         .join("")}
@@ -140,12 +167,10 @@ export default function LabelHistoryGrid({
     doc.write(html);
     doc.close();
 
-    // dá tempo do browser “assentar” o layout do iframe antes de imprimir
     setTimeout(() => {
       win.focus();
       win.print();
 
-      // remove depois para não acumular iframes
       setTimeout(() => {
         try {
           document.body.removeChild(iframe);
@@ -158,13 +183,12 @@ export default function LabelHistoryGrid({
 
   return (
     <Paper elevation={1} sx={{ p: { xs: 1.5, sm: 2 } }}>
-      {/* Barra de ações do grid: filtro + imprimir */}
       <Box
         sx={{
           display: "flex",
           gap: 1,
           alignItems: "center",
-          justifyContent: "flex-end",
+          justifyContent: "flex-start",
           flexWrap: "wrap",
           mb: 1,
         }}
@@ -172,7 +196,7 @@ export default function LabelHistoryGrid({
         <TextField
           size="small"
           type="date"
-          label="from"
+          label={t("history.filters.from")}
           value={fromDate}
           onChange={(e) => onFromDateChange(e.target.value)}
           InputLabelProps={{ shrink: true }}
@@ -181,7 +205,7 @@ export default function LabelHistoryGrid({
         <TextField
           size="small"
           type="date"
-          label="to"
+          label={t("history.filters.to")}
           value={toDate}
           onChange={(e) => onToDateChange(e.target.value)}
           InputLabelProps={{ shrink: true }}
@@ -193,28 +217,34 @@ export default function LabelHistoryGrid({
           onClick={handlePrintTable}
           disabled={!visibleRows.length}
         >
-          Imprimir
+          {t("history.print")}
         </Button>
       </Box>
 
       {!visibleRows.length ? (
         <Typography variant="body2" sx={{ opacity: 0.8, p: 1 }}>
-          Nenhum registro.
+          {t("history.noRecords")}
         </Typography>
       ) : (
         <TableContainer>
-          <Table size="small" aria-label="label history">
+          <Table size="small" aria-label={t("history.title")}>
             <TableHead>
               <TableRow>
-                <TableCell align="center">date</TableCell>
-                <TableCell align="center">apartment</TableCell>
-                <TableCell>packageCode</TableCell>
+                <TableCell align="center">
+                  {t("history.columns.time")}
+                </TableCell>
+                <TableCell align="center">
+                  {t("history.columns.apartment")}
+                </TableCell>
+                <TableCell>{t("history.columns.residentFullName")}</TableCell>
+                <TableCell>{t("history.columns.packageCode")}</TableCell>
+                <TableCell>{t("history.columns.observations")}</TableCell>
               </TableRow>
             </TableHead>
 
             <TableBody>
               {visibleRows.map((r) => {
-                const { date, time } = formatDateTimeParts(r.createdAt);
+                const { date, time } = formatDateTimeParts(r.createdAt, locale);
 
                 return (
                   <TableRow key={r.id} hover>
@@ -236,7 +266,19 @@ export default function LabelHistoryGrid({
                     </TableCell>
 
                     <TableCell>
+                      <Typography variant="body2">
+                        {r.residentFullName || "-"}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell>
                       <Typography variant="body2">{r.packageCode}</Typography>
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography variant="body2">
+                        {r.observations || "-"}
+                      </Typography>
                     </TableCell>
                   </TableRow>
                 );
