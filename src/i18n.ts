@@ -21,7 +21,7 @@ const resources = {
       menu: {
         main: "Main menu",
         home: "Home",
-        identifyPackage: "Labels", // mais curto no menu
+        identifyPackage: "Labels",
       },
       home: {
         title: "Home",
@@ -46,6 +46,8 @@ const resources = {
         empty: "No labels yet.",
         clear: "Clear",
         print: "Print",
+        printTable: "Print table",
+        printSingleLabel: "Print label",
         noRecords: "No records.",
         filters: {
           from: "From",
@@ -58,6 +60,7 @@ const resources = {
           packageCode: "Package code",
           observations: "Observations",
           status: "Status",
+          actions: "Actions",
         },
         status: { saving: "Saving...", saved: "Saved", error: "Error" },
       },
@@ -83,7 +86,7 @@ const resources = {
       menu: {
         main: "Menu principal",
         home: "Início",
-        identifyPackage: "Etiquetas", // curto para caber bem no celular
+        identifyPackage: "Etiquetas",
       },
       home: {
         title: "Início",
@@ -108,6 +111,8 @@ const resources = {
         empty: "Nenhuma etiqueta registrada ainda.",
         clear: "Limpar",
         print: "Imprimir",
+        printTable: "Imprimir tabela",
+        printSingleLabel: "Imprimir etiqueta",
         noRecords: "Nenhum registro.",
         filters: {
           from: "De",
@@ -120,6 +125,7 @@ const resources = {
           packageCode: "pacote",
           observations: "Assinatura",
           status: "Status",
+          actions: "Ações",
         },
         status: { saving: "Salvando...", saved: "Salvo", error: "Erro" },
       },
@@ -170,6 +176,8 @@ const resources = {
         empty: "Aún no hay etiquetas.",
         clear: "Limpiar",
         print: "Imprimir",
+        printTable: "Imprimir tabla",
+        printSingleLabel: "Imprimir etiqueta",
         noRecords: "No hay registros.",
         filters: {
           from: "Desde",
@@ -182,6 +190,7 @@ const resources = {
           packageCode: "Código del paquete",
           observations: "Observaciones",
           status: "Estado",
+          actions: "Acciones",
         },
         status: { saving: "Guardando...", saved: "Guardado", error: "Error" },
       },

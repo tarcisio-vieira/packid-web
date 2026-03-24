@@ -43,9 +43,6 @@ import type { SelectChangeEvent } from "@mui/material/Select";
 import MenuIcon from "@mui/icons-material/Menu";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 
-// scanner
-import { Scanner } from "@yudiel/react-qr-scanner";
-
 // ----- Tipos -----
 type ActiveView = "home" | "identifyPackage";
 
@@ -72,13 +69,198 @@ type IdentifyPackageScreenProps = Readonly<{
   historyToDate: string; // YYYY-MM-DD
   onHistoryFromDateChange: (value: string) => void;
   onHistoryToDateChange: (value: string) => void;
+
+  onPrintHistoryRow: (row: LabelHistoryRow) => void;
 }>;
+
+function escapeHtml(str: string): string {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function printSingleLabel(packageCode: string, apartment: string) {
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>PackID</title>
+  <style>
+    body {
+      margin: 0;
+      background: #fff;
+    }
+
+    #print-area {
+      width: 100%;
+      margin: 1mm;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      font-size: 20pt;
+      text-align: center;
+      line-height: 1.0;
+    }
+
+    #print-package-code {
+      font-weight: normal;
+      margin-bottom: 1mm;
+    }
+
+    #print-apartment {
+      font-weight: bold;
+      font-size: 30pt;
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="print-area">
+    <div id="print-package-code">${escapeHtml(packageCode)}</div>
+    <div id="print-apartment">${escapeHtml(apartment)}</div>
+  </div>
+</body>
+</html>`;
+
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  const win = iframe.contentWindow;
+
+  if (!doc || !win) {
+    document.body.removeChild(iframe);
+    return;
+  }
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  setTimeout(() => {
+    win.focus();
+    win.print();
+
+    setTimeout(() => {
+      try {
+        document.body.removeChild(iframe);
+      } catch {
+        // ignore
+      }
+    }, 800);
+  }, 200);
+}
 
 // ============================
 // Dialog do leitor (QR + barras)
 // ============================
 function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
   const { t } = useTranslation();
+  const scannerRegionId = "packid-scanner-region";
+  const scannerRef = useRef<{
+    stop: () => Promise<void>;
+    clear: () => void;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      if (scannerRef.current) {
+        scannerRef.current
+          .stop()
+          .catch(() => {})
+          .finally(() => {
+            try {
+              scannerRef.current?.clear();
+            } catch {
+              // ignore
+            }
+            scannerRef.current = null;
+          });
+      }
+      return;
+    }
+
+    let cancelled = false;
+    let localScanner: { stop: () => Promise<void>; clear: () => void } | null =
+      null;
+
+    const startScanner = async () => {
+      try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+
+        if (cancelled) return;
+
+        const scanner = new Html5Qrcode(scannerRegionId);
+        localScanner = scanner;
+        scannerRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 120 },
+            aspectRatio: 1.7778,
+          },
+          (decodedText: string) => {
+            if (cancelled) return;
+
+            onScan(decodedText);
+            onClose();
+
+            scanner
+              .stop()
+              .catch(() => {})
+              .finally(() => {
+                try {
+                  scanner.clear();
+                } catch {
+                  // ignore
+                }
+                if (scannerRef.current === scanner) {
+                  scannerRef.current = null;
+                }
+              });
+          },
+          () => {},
+        );
+      } catch (error) {
+        console.error("Erro ao iniciar scanner:", error);
+      }
+    };
+
+    const timer = window.setTimeout(() => {
+      startScanner();
+    }, 150);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+
+      if (localScanner) {
+        localScanner
+          .stop()
+          .catch(() => {})
+          .finally(() => {
+            try {
+              localScanner?.clear();
+            } catch {
+              // ignore
+            }
+            if (scannerRef.current === localScanner) {
+              scannerRef.current = null;
+            }
+          });
+      }
+    };
+  }, [open, onClose, onScan]);
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
@@ -89,29 +271,16 @@ function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
             {t("identify.scanHelp")}
           </Typography>
 
-          <Box sx={{ mt: 2, width: "100%", maxWidth: 480, mx: "auto" }}>
-            <Scanner
-              formats={[
-                "qr_code",
-                "code_128",
-                "code_39",
-                "ean_13",
-                "ean_8",
-                "upc_a",
-                "upc_e",
-              ]}
-              components={{ finder: true, torch: true, zoom: true }}
-              onScan={(detectedCodes) => {
-                if (!detectedCodes || detectedCodes.length === 0) return;
-                const value = detectedCodes[0].rawValue;
-                onScan(value);
-                onClose();
-              }}
-              onError={(error) => {
-                if (import.meta.env.DEV) console.error("Scanner error:", error);
-              }}
-            />
-          </Box>
+          <Box
+            id={scannerRegionId}
+            sx={{
+              mt: 2,
+              width: "100%",
+              maxWidth: 480,
+              mx: "auto",
+              minHeight: 260,
+            }}
+          />
         </Box>
       </DialogContent>
       <DialogActions>
@@ -159,6 +328,7 @@ function IdentifyPackageScreen({
   historyToDate,
   onHistoryFromDateChange,
   onHistoryToDateChange,
+  onPrintHistoryRow,
 }: IdentifyPackageScreenProps) {
   const { t } = useTranslation();
   const packageCodeRef = useRef<HTMLInputElement | null>(null);
@@ -185,90 +355,82 @@ function IdentifyPackageScreen({
   };
 
   return (
-    <>
-      <Container maxWidth="lg" sx={{ mt: 3, mb: 3 }}>
-        <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 } }}>
-          <Typography variant="h5" gutterBottom>
-            {t("identify.title")}
-          </Typography>
-          <Typography variant="body2" gutterBottom>
-            {t("identify.description")}
-          </Typography>
+    <Container maxWidth="lg" sx={{ mt: 3, mb: 3 }}>
+      <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 } }}>
+        <Typography variant="h5" gutterBottom>
+          {t("identify.title")}
+        </Typography>
+        <Typography variant="body2" gutterBottom>
+          {t("identify.description")}
+        </Typography>
 
-          <Stack spacing={2} sx={{ mt: 2 }}>
-            <TextField
-              label={t("identify.packageCode")}
-              variant="outlined"
-              value={packageCode}
-              onChange={(e) => onPackageCodeChange(e.target.value)}
-              inputRef={packageCodeRef}
-              onKeyDown={handlePackageCodeKeyDown}
-              fullWidth
-              autoComplete="off"
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      aria-label={t("identify.scanButton")}
-                      onClick={onOpenScanner}
-                      edge="end"
-                    >
-                      <QrCodeScannerIcon />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-
-            <TextField
-              label={t("identify.apartment")}
-              variant="outlined"
-              value={apartment}
-              onChange={(e) => onApartmentChange(e.target.value)}
-              inputRef={apartmentRef}
-              onKeyDown={handleApartmentKeyDown}
-              fullWidth
-              autoComplete="off"
-            />
-
-            {saveError && (
-              <Typography variant="body2" color="error">
-                {saveError}
-              </Typography>
-            )}
-
-            <Box display="flex" justifyContent="flex-end" mt={1}>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={onRequestPrint}
-                disabled={!canPrint || saving}
-              >
-                {t("identify.printLabel")}
-              </Button>
-            </Box>
-          </Stack>
-        </Paper>
-
-        {/* GRID LOGO ABAIXO DO BOX */}
-        <Box sx={{ mt: 2 }}>
-          <LabelHistoryGrid
-            rows={historyRows}
-            maxRows={10}
-            fromDate={historyFromDate}
-            toDate={historyToDate}
-            onFromDateChange={onHistoryFromDateChange}
-            onToDateChange={onHistoryToDateChange}
+        <Stack spacing={2} sx={{ mt: 2 }}>
+          <TextField
+            label={t("identify.packageCode")}
+            variant="outlined"
+            value={packageCode}
+            onChange={(e) => onPackageCodeChange(e.target.value)}
+            inputRef={packageCodeRef}
+            onKeyDown={handlePackageCodeKeyDown}
+            fullWidth
+            autoComplete="off"
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={t("identify.scanButton")}
+                    onClick={onOpenScanner}
+                    edge="end"
+                  >
+                    <QrCodeScannerIcon />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
           />
-        </Box>
-      </Container>
 
-      {/* Área de impressão – só aparece no @media print (index.css) */}
-      <div id="print-area">
-        <div id="print-package-code">{packageCode}</div>
-        <div id="print-apartment">{apartment}</div>
-      </div>
-    </>
+          <TextField
+            label={t("identify.apartment")}
+            variant="outlined"
+            value={apartment}
+            onChange={(e) => onApartmentChange(e.target.value)}
+            inputRef={apartmentRef}
+            onKeyDown={handleApartmentKeyDown}
+            fullWidth
+            autoComplete="off"
+          />
+
+          {saveError && (
+            <Typography variant="body2" color="error">
+              {saveError}
+            </Typography>
+          )}
+
+          <Box display="flex" justifyContent="flex-end" mt={1}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={onRequestPrint}
+              disabled={!canPrint || saving}
+            >
+              {t("identify.printLabel")}
+            </Button>
+          </Box>
+        </Stack>
+      </Paper>
+
+      <Box sx={{ mt: 2 }}>
+        <LabelHistoryGrid
+          rows={historyRows}
+          maxRows={10}
+          fromDate={historyFromDate}
+          toDate={historyToDate}
+          onFromDateChange={onHistoryFromDateChange}
+          onToDateChange={onHistoryToDateChange}
+          onPrintRow={onPrintHistoryRow}
+        />
+      </Box>
+    </Container>
   );
 }
 
@@ -284,7 +446,6 @@ function IdentifyPackageContainer() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [historyRows, setHistoryRows] = useState<LabelHistoryRow[]>([]);
 
-  // filtros do grid (YYYY-MM-DD)
   const [historyFromDate, setHistoryFromDate] = useState<string>("");
   const [historyToDate, setHistoryToDate] = useState<string>("");
 
@@ -297,7 +458,6 @@ function IdentifyPackageContainer() {
     return d.toISOString();
   };
 
-  // "to" exclusivo: soma 1 dia e usa 00:00
   const toInstantEndExclusive = (dateStr: string): string | undefined => {
     if (!dateStr) return undefined;
     const d = new Date(`${dateStr}T00:00:00`);
@@ -313,15 +473,14 @@ function IdentifyPackageContainer() {
       const items = await fetchRecentPackIds(
         200,
         toInstantStart(fromDate),
-        toInstantEndExclusive(toDate)
+        toInstantEndExclusive(toDate),
       );
 
-      // se veio uma resposta antiga (mudou filtro rápido), ignora
       if (mySeq !== seqRef.current) return;
 
       const sorted = [...items].sort(
         (a, b) =>
-          new Date(b.arrivedAt).getTime() - new Date(a.arrivedAt).getTime()
+          new Date(b.arrivedAt).getTime() - new Date(a.arrivedAt).getTime(),
       );
 
       setHistoryRows(
@@ -336,15 +495,14 @@ function IdentifyPackageContainer() {
         })),
       );
     },
-    []
+    [],
   );
 
-  // primeiro carregamento do grid (do banco)
   useEffect(() => {
     refreshHistory(historyFromDate, historyToDate).catch((e) => {
       console.error(e);
       setSaveError(
-        e instanceof Error ? e.message : "Erro ao carregar histórico."
+        e instanceof Error ? e.message : "Erro ao carregar histórico.",
       );
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -355,7 +513,7 @@ function IdentifyPackageContainer() {
     refreshHistory(value, historyToDate).catch((e) => {
       console.error(e);
       setSaveError(
-        e instanceof Error ? e.message : "Erro ao carregar histórico."
+        e instanceof Error ? e.message : "Erro ao carregar histórico.",
       );
     });
   };
@@ -365,12 +523,11 @@ function IdentifyPackageContainer() {
     refreshHistory(historyFromDate, value).catch((e) => {
       console.error(e);
       setSaveError(
-        e instanceof Error ? e.message : "Erro ao carregar histórico."
+        e instanceof Error ? e.message : "Erro ao carregar histórico.",
       );
     });
   };
 
-  // imprimir + salvar + recarregar do banco (respeitando filtro atual)
   const handlePrint = () => {
     const pc = packageCode.trim();
     const ap = apartment.trim();
@@ -384,14 +541,14 @@ function IdentifyPackageContainer() {
       apartment: ap,
     });
 
-    globalThis.print();
+    printSingleLabel(pc, ap);
 
     savePromise
       .then(() => {
         setPackageCode("");
         setApartment("");
       })
-      .catch((e: { message: unknown; }) => {
+      .catch((e: unknown) => {
         const msg =
           e instanceof Error ? e.message : "Falha ao registrar o pacote.";
         setSaveError(msg);
@@ -400,6 +557,14 @@ function IdentifyPackageContainer() {
         refreshHistory(historyFromDate, historyToDate).catch(() => {});
         setSaving(false);
       });
+  };
+
+  const handlePrintHistoryRow = (row: LabelHistoryRow) => {
+    const pc = row.packageCode.trim();
+    const ap = row.apartment.trim();
+    if (!pc || !ap) return;
+
+    printSingleLabel(pc, ap);
   };
 
   const handleScan = (text: string) => {
@@ -423,6 +588,7 @@ function IdentifyPackageContainer() {
         historyToDate={historyToDate}
         onHistoryFromDateChange={handleHistoryFromDateChange}
         onHistoryToDateChange={handleHistoryToDateChange}
+        onPrintHistoryRow={handlePrintHistoryRow}
       />
 
       <CodeScannerDialog

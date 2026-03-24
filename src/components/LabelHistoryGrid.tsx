@@ -13,9 +13,12 @@ import {
   Stack,
   Button,
   TextField,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 
 import PrintIcon from "@mui/icons-material/Print";
+import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
 
 export type LabelHistoryRow = {
   id: string;
@@ -32,11 +35,12 @@ type Props = Readonly<{
   rows: LabelHistoryRow[];
   maxRows?: number;
 
-  // filtro (YYYY-MM-DD)
   fromDate: string;
   toDate: string;
   onFromDateChange: (value: string) => void;
   onToDateChange: (value: string) => void;
+
+  onPrintRow: (row: LabelHistoryRow) => void;
 }>;
 
 function getLocale(language: string): string {
@@ -88,6 +92,7 @@ export default function LabelHistoryGrid({
   toDate,
   onFromDateChange,
   onToDateChange,
+  onPrintRow,
 }: Props) {
   const { t, i18n } = useTranslation();
 
@@ -106,7 +111,7 @@ export default function LabelHistoryGrid({
     body { font-family: Arial, sans-serif; padding: 16px; }
     h1 { margin: 0 0 16px 0; font-size: 20px; }
     table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
     th { font-weight: 700; }
     .center { text-align: center; }
     .small { font-size: 11px; opacity: 0.85; }
@@ -182,7 +187,7 @@ export default function LabelHistoryGrid({
   };
 
   return (
-    <Paper elevation={1} sx={{ p: { xs: 1.5, sm: 2 } }}>
+    <Paper elevation={1} sx={{ p: { xs: 1.5, sm: 2 }, width: "100%" }}>
       <Box
         sx={{
           display: "flex",
@@ -217,7 +222,7 @@ export default function LabelHistoryGrid({
           onClick={handlePrintTable}
           disabled={!visibleRows.length}
         >
-          {t("history.print")}
+          {t("history.printTable")}
         </Button>
       </Box>
 
@@ -226,19 +231,26 @@ export default function LabelHistoryGrid({
           {t("history.noRecords")}
         </Typography>
       ) : (
-        <TableContainer>
-          <Table size="small" aria-label={t("history.title")}>
+        <TableContainer sx={{ width: "100%", overflowX: "auto" }}>
+          <Table
+            size="small"
+            aria-label={t("history.title")}
+            sx={{ minWidth: 1100 }}
+          >
             <TableHead>
               <TableRow>
-                <TableCell align="center">
+                <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
                   {t("history.columns.time")}
                 </TableCell>
-                <TableCell align="center">
+                <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
                   {t("history.columns.apartment")}
                 </TableCell>
                 <TableCell>{t("history.columns.residentFullName")}</TableCell>
                 <TableCell>{t("history.columns.packageCode")}</TableCell>
                 <TableCell>{t("history.columns.observations")}</TableCell>
+                <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
+                  {t("history.columns.actions")}
+                </TableCell>
               </TableRow>
             </TableHead>
 
@@ -265,20 +277,34 @@ export default function LabelHistoryGrid({
                       <Typography variant="body2">{r.apartment}</Typography>
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell sx={{ minWidth: 180 }}>
                       <Typography variant="body2">
                         {r.residentFullName || "-"}
                       </Typography>
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell sx={{ minWidth: 180, wordBreak: "break-word" }}>
                       <Typography variant="body2">{r.packageCode}</Typography>
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell sx={{ minWidth: 220, wordBreak: "break-word" }}>
                       <Typography variant="body2">
                         {r.observations || "-"}
                       </Typography>
+                    </TableCell>
+
+                    <TableCell align="center">
+                      <Tooltip title={t("history.printSingleLabel")}>
+                        <span>
+                          <IconButton
+                            aria-label={t("history.printSingleLabel")}
+                            onClick={() => onPrintRow(r)}
+                            size="small"
+                          >
+                            <LocalOfferOutlinedIcon />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 );
