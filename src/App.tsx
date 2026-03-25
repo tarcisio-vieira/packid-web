@@ -42,6 +42,7 @@ import type { SelectChangeEvent } from "@mui/material/Select";
 
 import MenuIcon from "@mui/icons-material/Menu";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import { Scanner } from "@yudiel/react-qr-scanner";
 
 // ----- Tipos -----
 type ActiveView = "home" | "identifyPackage";
@@ -164,127 +165,101 @@ function printSingleLabel(packageCode: string, apartment: string) {
 // ============================
 function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
   const { t } = useTranslation();
-  const scannerRegionId = "packid-scanner-region";
-  const scannerRef = useRef<{
-    stop: () => Promise<void>;
-    clear: () => void;
-  } | null>(null);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     if (!open) {
-      if (scannerRef.current) {
-        scannerRef.current
-          .stop()
-          .catch(() => {})
-          .finally(() => {
-            try {
-              scannerRef.current?.clear();
-            } catch {
-              // ignore
-            }
-            scannerRef.current = null;
-          });
-      }
-      return;
+      setPaused(false);
     }
+  }, [open]);
 
-    let cancelled = false;
-    let localScanner: { stop: () => Promise<void>; clear: () => void } | null =
-      null;
+  const handleDetected = (
+    detectedCodes: Array<{ rawValue?: string | null }>,
+  ) => {
+    const value = detectedCodes?.[0]?.rawValue?.trim();
 
-    const startScanner = async () => {
-      try {
-        const { Html5Qrcode } = await import("html5-qrcode");
+    if (!value || paused) return;
 
-        if (cancelled) return;
-
-        const scanner = new Html5Qrcode(scannerRegionId);
-        localScanner = scanner;
-        scannerRef.current = scanner;
-
-        await scanner.start(
-          { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 120 },
-            aspectRatio: 1.7778,
-          },
-          (decodedText: string) => {
-            if (cancelled) return;
-
-            onScan(decodedText);
-            onClose();
-
-            scanner
-              .stop()
-              .catch(() => {})
-              .finally(() => {
-                try {
-                  scanner.clear();
-                } catch {
-                  // ignore
-                }
-                if (scannerRef.current === scanner) {
-                  scannerRef.current = null;
-                }
-              });
-          },
-          () => {},
-        );
-      } catch (error) {
-        console.error("Erro ao iniciar scanner:", error);
-      }
-    };
-
-    const timer = window.setTimeout(() => {
-      startScanner();
-    }, 150);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-
-      if (localScanner) {
-        localScanner
-          .stop()
-          .catch(() => {})
-          .finally(() => {
-            try {
-              localScanner?.clear();
-            } catch {
-              // ignore
-            }
-            if (scannerRef.current === localScanner) {
-              scannerRef.current = null;
-            }
-          });
-      }
-    };
-  }, [open, onClose, onScan]);
+    setPaused(true);
+    onScan(value);
+    onClose();
+  };
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>{t("identify.scanTitle")}</DialogTitle>
+
       <DialogContent>
         <Box mt={1}>
           <Typography variant="body2" gutterBottom>
             {t("identify.scanHelp")}
           </Typography>
 
-          <Box
-            id={scannerRegionId}
-            sx={{
-              mt: 2,
-              width: "100%",
-              maxWidth: 480,
-              mx: "auto",
-              minHeight: 260,
-            }}
-          />
+          {open && (
+            <Box
+              sx={{
+                mt: 2,
+                width: "100%",
+                maxWidth: 480,
+                mx: "auto",
+                overflow: "hidden",
+                borderRadius: 2,
+              }}
+            >
+              <Scanner
+                onScan={handleDetected}
+                onError={(error) => {
+                  console.error("Erro ao iniciar scanner:", error);
+                }}
+                paused={paused}
+                scanDelay={800}
+                allowMultiple={false}
+                constraints={{
+                  facingMode: "environment",
+                }}
+                formats={[
+                  "qr_code",
+                  "code_128",
+                  "code_39",
+                  "code_93",
+                  "codabar",
+                  "ean_13",
+                  "ean_8",
+                  "upc_a",
+                  "upc_e",
+                  "itf",
+                ]}
+                components={{
+                  finder: true,
+                  torch: true,
+                  zoom: true,
+                  onOff: true,
+                }}
+                styles={{
+                  container: {
+                    width: "100%",
+                  },
+                  video: {
+                    width: "100%",
+                    height: "auto",
+                    objectFit: "cover",
+                  },
+                }}
+              />
+            </Box>
+          )}
         </Box>
       </DialogContent>
+
       <DialogActions>
-        <Button onClick={onClose}>{t("common.close")}</Button>
+        <Button
+          onClick={() => {
+            setPaused(false);
+            onClose();
+          }}
+        >
+          {t("common.close")}
+        </Button>
       </DialogActions>
     </Dialog>
   );

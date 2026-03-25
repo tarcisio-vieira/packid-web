@@ -1,8 +1,9 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import App from "./App";
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.tsx";
 import "./index.css";
-import "./i18n";
+
+import "./i18n"; // initialize i18n
 
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
@@ -10,22 +11,17 @@ import CssBaseline from "@mui/material/CssBaseline";
 const theme = createTheme({
   palette: {
     background: {
+      // corporate cream-like background
       default: "#f5efe3",
     },
   },
 });
 
-const rootElement = document.getElementById("root");
-
-if (!rootElement) {
-  throw new Error("Elemento #root não encontrado.");
-}
-
-createRoot(rootElement).render(
-  <StrictMode>
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  <React.StrictMode>
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <App />
     </ThemeProvider>
-  </StrictMode>
+  </React.StrictMode>
 );
