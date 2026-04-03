@@ -66,8 +66,8 @@ type IdentifyPackageScreenProps = Readonly<{
 
   historyRows: LabelHistoryRow[];
 
-  historyFromDate: string; // YYYY-MM-DD
-  historyToDate: string; // YYYY-MM-DD
+  historyFromDate: string;
+  historyToDate: string;
   onHistoryFromDateChange: (value: string) => void;
   onHistoryToDateChange: (value: string) => void;
 
@@ -83,44 +83,426 @@ function escapeHtml(str: string): string {
     .replaceAll("'", "&#039;");
 }
 
-function printSingleLabel(packageCode: string, apartment: string) {
+function splitUnit(raw: string): {
+  block: string;
+  apartment: string;
+  unitLine: string;
+} {
+  const cleaned = raw.trim().replace(/\s+/g, " ");
+  const parts = cleaned.split(/[\s/\-]+/).filter(Boolean);
+
+  if (parts.length >= 2) {
+    return {
+      block: parts[0],
+      apartment: parts.slice(1).join(" "),
+      unitLine: `Bloco ${parts[0]} / Apto ${parts.slice(1).join(" ")}`,
+    };
+  }
+
+  return {
+    block: "",
+    apartment: cleaned,
+    unitLine: cleaned,
+  };
+}
+
+function fitTextFontSize(
+  text: string,
+  options: {
+    maxWidthPx: number;
+    maxFontPx: number;
+    minFontPx: number;
+    fontWeight?: string;
+    fontFamily?: string;
+  },
+): number {
+  const value = (text || "").trim();
+
+  if (!value) {
+    return options.maxFontPx;
+  }
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) {
+    return options.minFontPx;
+  }
+
+  const fontWeight = options.fontWeight ?? "700";
+  const fontFamily = options.fontFamily ?? "Arial, Helvetica, sans-serif";
+
+  for (let size = options.maxFontPx; size >= options.minFontPx; size -= 1) {
+    ctx.font = `${fontWeight} ${size}px ${fontFamily}`;
+    const width = ctx.measureText(value).width;
+
+    if (width <= options.maxWidthPx) {
+      return size;
+    }
+  }
+
+  return options.minFontPx;
+}
+
+function fitWrappedTextFontSize(
+  text: string,
+  options: {
+    maxWidthPx: number;
+    maxHeightPx: number;
+    maxFontPx: number;
+    minFontPx: number;
+    fontWeight?: string;
+    fontFamily?: string;
+    lineHeight?: number;
+  },
+): number {
+  const value = (text || "").trim();
+
+  if (!value) {
+    return options.maxFontPx;
+  }
+
+  const probe = document.createElement("div");
+  probe.style.position = "fixed";
+  probe.style.left = "-10000px";
+  probe.style.top = "-10000px";
+  probe.style.visibility = "hidden";
+  probe.style.pointerEvents = "none";
+  probe.style.boxSizing = "border-box";
+  probe.style.padding = "0";
+  probe.style.margin = "0";
+  probe.style.border = "0";
+  probe.style.whiteSpace = "normal";
+  probe.style.overflowWrap = "anywhere";
+  probe.style.wordBreak = "break-word";
+  probe.style.width = `${options.maxWidthPx}px`;
+
+  document.body.appendChild(probe);
+
+  try {
+    const fontWeight = options.fontWeight ?? "700";
+    const fontFamily = options.fontFamily ?? "Arial, Helvetica, sans-serif";
+    const lineHeight = options.lineHeight ?? 1.02;
+
+    for (let size = options.maxFontPx; size >= options.minFontPx; size -= 1) {
+      probe.style.font = `${fontWeight} ${size}px ${fontFamily}`;
+      probe.style.lineHeight = String(lineHeight);
+      probe.textContent = value;
+
+      if (
+        probe.scrollWidth <= options.maxWidthPx + 2 &&
+        probe.scrollHeight <= options.maxHeightPx
+      ) {
+        return size;
+      }
+    }
+
+    return options.minFontPx;
+  } finally {
+    document.body.removeChild(probe);
+  }
+}
+
+function printSingleLabel(
+  packageCode: string,
+  apartment: string,
+  residentName?: string,
+) {
+  const now = new Date();
+
+  const printedAt = new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(now);
+
+  const unit = splitUnit(apartment);
+
+  const unitHighlight = (() => {
+    if (unit.block && unit.apartment) {
+      return `${unit.block}${unit.apartment}`.replace(/[^0-9A-Za-z]/g, "");
+    }
+
+    return apartment.replace(/[\s/\-]+/g, "").trim();
+  })();
+
+  const printedName = (residentName || "").trim();
+
+  const unitFontSize = fitTextFontSize(unitHighlight, {
+    maxWidthPx: 220,
+    maxFontPx: 42,
+    minFontPx: 20,
+    fontWeight: "800",
+  });
+
+  const packageFontSize = fitWrappedTextFontSize(packageCode, {
+    maxWidthPx: 230,
+    maxHeightPx: 18,
+    maxFontPx: 12,
+    minFontPx: 7,
+    fontWeight: "700",
+    lineHeight: 1.0,
+  });
+
+  const recipientFontSize = fitWrappedTextFontSize(printedName, {
+    maxWidthPx: 340,
+    maxHeightPx: 16,
+    maxFontPx: 10,
+    minFontPx: 6,
+    fontWeight: "700",
+    lineHeight: 1.0,
+  });
+
   const html = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>PackID</title>
-  <style>
-    body {
-      margin: 0;
-      background: #fff;
-    }
+  <title>Etiqueta</title>
+<style>
+  @page {
+    size: 100mm 50mm;
+    margin: 0;
+  }
 
-    #print-area {
-      width: 100%;
-      margin: 1mm;
-      padding: 0;
-      font-family: Arial, sans-serif;
-      font-size: 20pt;
-      text-align: center;
-      line-height: 1.0;
-    }
+  * {
+    box-sizing: border-box;
+  }
 
-    #print-package-code {
-      font-weight: normal;
-      margin-bottom: 1mm;
-    }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    width: 100mm;
+    height: 50mm;
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #000;
+    overflow: hidden;
+  }
 
-    #print-apartment {
-      font-weight: bold;
-      font-size: 30pt;
-      margin-top: 0;
-    }
-  </style>
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    padding: 5mm 2mm;
+  }
+
+  .sheet {
+    width: 96mm;
+    height: 40mm;
+    display: grid;
+    grid-template-rows: 14mm 26mm;
+  }
+
+  .top {
+    display: grid;
+    grid-template-columns: 43% 57%;
+    height: 14mm;
+  }
+
+  .unit-box {
+    border: 0.22mm solid #000;
+    border-right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.8mm 1mm;
+    overflow: hidden;
+  }
+
+  .unit-label {
+    font-size: 6.2pt;
+    font-weight: 700;
+    letter-spacing: 0.45mm;
+    line-height: 1;
+    margin-bottom: 0.5mm;
+    white-space: nowrap;
+  }
+
+  .unit-value {
+    width: 100%;
+    text-align: center;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .right-top {
+    border: 0.22mm solid #000;
+    display: grid;
+    grid-template-rows: 5.5mm 8.5mm;
+    overflow: hidden;
+  }
+
+  .protocol-row {
+    border-bottom: 0.22mm solid #000;
+    display: flex;
+    align-items: center;
+    padding: 0 1.1mm;
+    font-size: 6.8pt;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .protocol-row strong {
+    margin-right: 0.8mm;
+  }
+
+  .package-row {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    padding: 0.45mm 1.1mm 0.35mm;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .package-label {
+    font-size: 5.4pt;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.35mm;
+    white-space: nowrap;
+  }
+
+  .package-value {
+    font-weight: 700;
+    line-height: 1;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    display: block;
+    height: 4.8mm;
+    max-height: 4.8mm;
+    overflow: hidden;
+  }
+
+  .bottom {
+    border-left: 0.22mm solid #000;
+    border-right: 0.22mm solid #000;
+    border-bottom: 0.22mm solid #000;
+    display: grid;
+    grid-template-rows: 10mm 16mm;
+    overflow: hidden;
+  }
+
+  .recipient-row {
+    border-bottom: 0.22mm solid #000;
+    padding: 2mm 1.1mm 0.25mm;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .recipient-label {
+    font-size: 5pt;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.45mm;
+    white-space: nowrap;
+  }
+
+  .recipient-value {
+    font-weight: 700;
+    line-height: 1;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    display: block;
+    height: 3.9mm;
+    max-height: 3.9mm;
+    overflow: hidden;
+  }
+
+  .bottom-last-row {
+    display: grid;
+    grid-template-columns: 42% 58%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .received-box {
+    border-right: 0.22mm solid #000;
+    padding: 0.65mm 1mm;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .received-box span {
+    font-size: 6.4pt;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .signature-box {
+    padding: 0.65mm 1mm;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .signature-box span {
+    font-size: 6.4pt;
+    font-weight: 700;
+    line-height: 1;
+  }
+</style>
 </head>
 <body>
-  <div id="print-area">
-    <div id="print-package-code">${escapeHtml(packageCode)}</div>
-    <div id="print-apartment">${escapeHtml(apartment)}</div>
+  <div class="sheet">
+    <div class="top">
+      <div class="unit-box">
+        <div class="unit-label">UNIDADE</div>
+        <div class="unit-value" style="font-size:${unitFontSize}px;">
+          ${escapeHtml(unitHighlight)}
+        </div>
+      </div>
+
+      <div class="right-top">
+        <div class="protocol-row">
+          <strong>Protocolado em:&nbsp;&nbsp;&nbsp;</strong> ${escapeHtml(printedAt)}
+        </div>
+
+        <div class="package-row">
+          <div class="package-label">Código do pacote:</div>
+          <div class="package-value" style="font-size:${packageFontSize}px;">
+            ${escapeHtml(packageCode)}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom">
+      <div class="recipient-row">
+        <div class="recipient-label">Destinatário:</div>
+        <div class="recipient-value" style="${
+          printedName ? `font-size:${recipientFontSize}px;` : ""
+        }">
+          ${printedName ? escapeHtml(printedName) : "&nbsp;"}
+        </div>
+      </div>
+
+      <div class="bottom-last-row">
+        <div class="received-box">
+          <span>Recebido em: ____/____/______</span>
+        </div>
+
+        <div class="signature-box">
+          <span>Assinatura:</span>
+        </div>
+      </div>
+    </div>
   </div>
 </body>
 </html>`;
@@ -129,9 +511,11 @@ function printSingleLabel(packageCode: string, apartment: string) {
   iframe.style.position = "fixed";
   iframe.style.right = "0";
   iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
+  iframe.style.width = "1px";
+  iframe.style.height = "1px";
+  iframe.style.opacity = "0";
   iframe.style.border = "0";
+
   document.body.appendChild(iframe);
 
   const doc = iframe.contentDocument || iframe.contentWindow?.document;
@@ -142,22 +526,39 @@ function printSingleLabel(packageCode: string, apartment: string) {
     return;
   }
 
-  doc.open();
-  doc.write(html);
-  doc.close();
+  let printed = false;
 
-  setTimeout(() => {
-    win.focus();
-    win.print();
-
+  const cleanup = () => {
     setTimeout(() => {
       try {
         document.body.removeChild(iframe);
       } catch {
         // ignore
       }
-    }, 800);
-  }, 200);
+    }, 1200);
+  };
+
+  const runPrint = () => {
+    if (printed) return;
+    printed = true;
+
+    setTimeout(() => {
+      try {
+        win.focus();
+        win.print();
+      } finally {
+        cleanup();
+      }
+    }, 350);
+  };
+
+  iframe.onload = runPrint;
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  setTimeout(runPrint, 700);
 }
 
 // ============================
@@ -325,7 +726,9 @@ function IdentifyPackageScreen({
   const handleApartmentKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      if (canPrint && !saving) onRequestPrint();
+      if (canPrint && !saving) {
+        onRequestPrint();
+      }
     }
   };
 
@@ -506,19 +909,27 @@ function IdentifyPackageContainer() {
   const handlePrint = () => {
     const pc = packageCode.trim();
     const ap = apartment.trim();
+
     if (!pc || !ap || saving) return;
 
     setSaving(true);
     setSaveError(null);
 
-    const savePromise = registerPackIdFromLabel({
+    try {
+      printSingleLabel(pc, ap);
+    } catch (e: unknown) {
+      console.error(e);
+      setSaveError(
+        e instanceof Error ? e.message : "Falha ao gerar a impressão.",
+      );
+      setSaving(false);
+      return;
+    }
+
+    registerPackIdFromLabel({
       packageCode: pc,
       apartment: ap,
-    });
-
-    printSingleLabel(pc, ap);
-
-    savePromise
+    })
       .then(() => {
         setPackageCode("");
         setApartment("");
@@ -537,9 +948,17 @@ function IdentifyPackageContainer() {
   const handlePrintHistoryRow = (row: LabelHistoryRow) => {
     const pc = row.packageCode.trim();
     const ap = row.apartment.trim();
+
     if (!pc || !ap) return;
 
-    printSingleLabel(pc, ap);
+    try {
+      printSingleLabel(pc, ap, row.residentFullName);
+    } catch (e) {
+      console.error(e);
+      setSaveError(
+        e instanceof Error ? e.message : "Falha ao reimprimir a etiqueta.",
+      );
+    }
   };
 
   const handleScan = (text: string) => {
@@ -653,7 +1072,9 @@ function App() {
       );
     }
 
-    if (activeView === "identifyPackage") return <IdentifyPackageContainer />;
+    if (activeView === "identifyPackage") {
+      return <IdentifyPackageContainer />;
+    }
 
     return <HomeScreen />;
   };
@@ -718,6 +1139,7 @@ function App() {
           <Box sx={{ p: 2 }}>
             <Typography variant="h6">{t("menu.main")}</Typography>
           </Box>
+
           <List component="nav" aria-label="Main menu options">
             <ListItemButton onClick={() => setActiveView("home")}>
               <ListItemText primary={t("menu.home")} />
