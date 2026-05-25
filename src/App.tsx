@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import {
   fetchCurrentUser,
@@ -72,6 +72,8 @@ type IdentifyPackageScreenProps = Readonly<{
   onHistoryToDateChange: (value: string) => void;
 
   onPrintHistoryRow: (row: LabelHistoryRow) => void;
+
+  packageCodeInputRef: RefObject<HTMLInputElement | null>;
 }>;
 
 function escapeHtml(str: string): string {
@@ -144,6 +146,32 @@ function fitTextFontSize(
   return options.minFontPx;
 }
 
+function extractPageAndApartment(raw: string): {
+  page: string;
+  apartment: string;
+} {
+  const compact = raw.trim().replace(/\s+/g, "");
+
+  if (!compact) {
+    return {
+      page: "",
+      apartment: "",
+    };
+  }
+
+  if (compact.length <= 3) {
+    return {
+      page: compact,
+      apartment: "",
+    };
+  }
+
+  return {
+    page: compact.slice(0, 3),
+    apartment: compact.slice(3),
+  };
+}
+
 function fitWrappedTextFontSize(
   text: string,
   options: {
@@ -207,6 +235,9 @@ function printSingleLabel(
   packageCode: string,
   apartment: string,
   residentName?: string,
+  onAfterPrint?: () => void,
+  pageNumber?: string,
+  copies = 2,
 ) {
   const now = new Date();
 
@@ -226,6 +257,8 @@ function printSingleLabel(
   })();
 
   const printedName = (residentName || "").trim();
+  const printedPage = (pageNumber || "").trim();
+  const printCopies = Math.max(1, Math.floor(copies));
 
   const unitFontSize = fitTextFontSize(unitHighlight, {
     maxWidthPx: 220,
@@ -252,214 +285,9 @@ function printSingleLabel(
     lineHeight: 1.0,
   });
 
-  const html = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Etiqueta</title>
-<style>
-  @page {
-    size: 100mm 50mm;
-    margin: 0;
-  }
-
-  * {
-    box-sizing: border-box;
-  }
-
-  html,
-  body {
-    margin: 0;
-    padding: 0;
-    width: 100mm;
-    height: 50mm;
-    background: #fff;
-    font-family: Arial, Helvetica, sans-serif;
-    color: #000;
-    overflow: hidden;
-  }
-
-  body {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    padding: 5mm 2mm;
-  }
-
-  .sheet {
-    width: 96mm;
-    height: 40mm;
-    display: grid;
-    grid-template-rows: 14mm 26mm;
-  }
-
-  .top {
-    display: grid;
-    grid-template-columns: 43% 57%;
-    height: 14mm;
-  }
-
-  .unit-box {
-    border: 0.22mm solid #000;
-    border-right: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 0.8mm 1mm;
-    overflow: hidden;
-  }
-
-  .unit-label {
-    font-size: 6.2pt;
-    font-weight: 700;
-    letter-spacing: 0.45mm;
-    line-height: 1;
-    margin-bottom: 0.5mm;
-    white-space: nowrap;
-  }
-
-  .unit-value {
-    width: 100%;
-    text-align: center;
-    font-weight: 800;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  .right-top {
-    border: 0.22mm solid #000;
-    display: grid;
-    grid-template-rows: 5.5mm 8.5mm;
-    overflow: hidden;
-  }
-
-  .protocol-row {
-    border-bottom: 0.22mm solid #000;
-    display: flex;
-    align-items: center;
-    padding: 0 1.1mm;
-    font-size: 6.8pt;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  .protocol-row strong {
-    margin-right: 0.8mm;
-  }
-
-  .package-row {
-    display: grid;
-    grid-template-rows: auto 1fr;
-    padding: 0.45mm 1.1mm 0.35mm;
-    overflow: hidden;
-    min-height: 0;
-  }
-
-  .package-label {
-    font-size: 5.4pt;
-    font-weight: 700;
-    line-height: 1;
-    margin-bottom: 0.35mm;
-    white-space: nowrap;
-  }
-
-  .package-value {
-    font-weight: 700;
-    line-height: 1;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    display: block;
-    height: 4.8mm;
-    max-height: 4.8mm;
-    overflow: hidden;
-  }
-
-  .bottom {
-    border-left: 0.22mm solid #000;
-    border-right: 0.22mm solid #000;
-    border-bottom: 0.22mm solid #000;
-    display: grid;
-    grid-template-rows: 10mm 16mm;
-    overflow: hidden;
-  }
-
-  .recipient-row {
-    border-bottom: 0.22mm solid #000;
-    padding: 2mm 1.1mm 0.25mm;
-    display: grid;
-    grid-template-rows: auto 1fr;
-    overflow: hidden;
-    min-height: 0;
-  }
-
-  .recipient-label {
-    font-size: 5pt;
-    font-weight: 700;
-    line-height: 1;
-    margin-bottom: 0.45mm;
-    white-space: nowrap;
-  }
-
-  .recipient-value {
-    font-weight: 700;
-    line-height: 1;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    display: block;
-    height: 3.9mm;
-    max-height: 3.9mm;
-    overflow: hidden;
-  }
-
-  .bottom-last-row {
-    display: grid;
-    grid-template-columns: 42% 58%;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .received-box {
-    border-right: 0.22mm solid #000;
-    padding: 0.65mm 1mm;
-    display: flex;
-    align-items: flex-end;
-    justify-content: flex-start;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
-    white-space: nowrap;
-  }
-
-  .received-box span {
-    font-size: 6.4pt;
-    font-weight: 700;
-    line-height: 1;
-  }
-
-  .signature-box {
-    padding: 0.65mm 1mm;
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-start;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
-    white-space: nowrap;
-  }
-
-  .signature-box span {
-    font-size: 6.4pt;
-    font-weight: 700;
-    line-height: 1;
-  }
-</style>
-</head>
-<body>
+  const labelHtml = Array.from({ length: printCopies })
+    .map(
+      () => `
   <div class="sheet">
     <div class="top">
       <div class="unit-box">
@@ -484,13 +312,26 @@ function printSingleLabel(
     </div>
 
     <div class="bottom">
-      <div class="recipient-row">
-        <div class="recipient-label">Destinatário:</div>
-        <div class="recipient-value" style="${
-          printedName ? `font-size:${recipientFontSize}px;` : ""
-        }">
-          ${printedName ? escapeHtml(printedName) : "&nbsp;"}
+    <div class="recipient-row">
+        <div class="recipient-main">
+          <div class="recipient-label">Destinatário:</div>
+          <div class="recipient-value" style="${
+            printedName ? `font-size:${recipientFontSize}px;` : ""
+          }">
+            ${printedName ? escapeHtml(printedName) : "&nbsp;"}
+          </div>
         </div>
+
+      <div class="recipient-page">
+        ${
+          printedPage
+            ? `
+              <span class="recipient-page-label">Página:</span>
+              <span class="recipient-page-value">${escapeHtml(printedPage)}</span>
+            `
+            : "&nbsp;"
+        }
+      </div>
       </div>
 
       <div class="bottom-last-row">
@@ -503,6 +344,292 @@ function printSingleLabel(
         </div>
       </div>
     </div>
+  </div>
+`,
+    )
+    .join("");
+
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Etiqueta</title>
+<style>
+  @page {
+    /* Duas etiquetas 10x5 cm empilhadas no mesmo layout de impressão. */
+    size: 100mm 100mm;
+    margin: 0;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    width: 100mm;
+    min-height: 100mm;
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #000;
+    overflow: visible;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .label-strip {
+    width: 100mm;
+    height: 100mm;
+    padding: 4mm 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12mm;
+    overflow: hidden;
+  }
+
+  .sheet {
+    width: 94mm;
+    height: 40mm;
+    display: grid;
+    grid-template-rows: 13mm 27mm;
+    margin: 0 auto;
+    overflow: hidden;
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .top {
+    display: grid;
+    grid-template-columns: 43% 57%;
+    height: 13mm;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .unit-box {
+    border: 0.22mm solid #000;
+    border-right: 0;
+    border-bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.8mm 1mm;
+    overflow: hidden;
+  }
+
+  .unit-label {
+    font-size: 6.2pt;
+    font-weight: 700;
+    letter-spacing: 0.45mm;
+    line-height: 1;
+    margin: 0 0 0.5mm 0;
+    white-space: nowrap;
+  }
+
+  .unit-value {
+    width: 100%;
+    text-align: center;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .right-top {
+    border: 0.22mm solid #000;
+    border-bottom: 0;
+    display: grid;
+    grid-template-rows: 5mm 8mm;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .protocol-row {
+    border-bottom: 0.22mm solid #000;
+    display: flex;
+    align-items: center;
+    padding: 0 1.1mm;
+    font-size: 6.8pt;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-align: left;
+  }
+
+  .protocol-row strong {
+    margin-right: 0.8mm;
+  }
+
+  .package-row {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 0.55mm 1.1mm 0.35mm;
+    overflow: hidden;
+    min-height: 0;
+    text-align: left;
+  }
+
+  .package-label {
+    font-size: 5.4pt;
+    font-weight: 700;
+    line-height: 1;
+    margin: 0 0 0.35mm 0;
+    white-space: nowrap;
+  }
+
+  .package-value {
+    font-weight: 300;
+    line-height: 1;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    display: block;
+    height: 4.8mm;
+    max-height: 4.8mm;
+    overflow: hidden;
+    text-align: left;
+  }
+
+  .bottom {
+    border-left: 0.22mm solid #000;
+    border-right: 0.22mm solid #000;
+    border-top: 0.22mm solid #000;
+    border-bottom: 0.22mm solid #000;
+    display: grid;
+    grid-template-rows: 10mm 17mm;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+    .recipient-row {
+    border-bottom: 0.22mm solid #000;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: flex-start;
+    padding: 1.2mm 1.2mm 0.6mm;
+    column-gap: 2mm;
+    overflow: hidden;
+    min-height: 0;
+    text-align: left;
+  }
+
+  .recipient-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0.45mm;
+    overflow: hidden;
+  }
+
+  .recipient-label {
+    font-size: 5.2pt;
+    font-weight: 700;
+    line-height: 1;
+    margin: 0;
+    white-space: nowrap;
+    display: block;
+  }
+
+  .recipient-value {
+    width: 100%;
+    font-weight: 700;
+    line-height: 1;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    display: block;
+    min-height: 0;
+    overflow: hidden;
+    text-align: left;
+  }
+
+    .recipient-page {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0.8mm;
+    white-space: nowrap;
+    text-align: right;
+    align-self: flex-start;
+    padding-top: 0.2mm;
+    max-width: 28mm;
+    overflow: hidden;
+  }
+
+  .recipient-page-label {
+    font-size: 5pt;
+    font-weight: 400;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .recipient-page-value {
+    font-size: 16pt;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+  }
+    
+  .bottom-last-row {
+    display: grid;
+    grid-template-columns: 42% 58%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .received-box {
+    border-right: 0.22mm solid #000;
+    padding: 0.8mm 1mm;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .received-box span {
+    font-size: 6.4pt;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .signature-box {
+    padding: 0.8mm 1mm;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .signature-box span {
+    font-size: 6.4pt;
+    font-weight: 700;
+    line-height: 1;
+  }
+</style>
+</head>
+<body>
+  <div class="label-strip">
+    ${labelHtml}
   </div>
 </body>
 </html>`;
@@ -527,15 +654,88 @@ function printSingleLabel(
   }
 
   let printed = false;
+  let finished = false;
+  let canFinish = false;
+  let focusPollInterval: number | null = null;
+  let safetyTimeout: number | null = null;
+  let minWaitTimeout: number | null = null;
+
+  const finishAfterPrint = () => {
+    if (finished || !canFinish) return;
+    finished = true;
+
+    removeListeners();
+
+    setTimeout(() => {
+      onAfterPrint?.();
+      cleanup();
+    }, 120);
+  };
+
+  const handleWindowFocus = () => {
+    finishAfterPrint();
+  };
+
+  const handleVisibilityChange = () => {
+    if (!document.hidden) {
+      finishAfterPrint();
+    }
+  };
+
+  const removeListeners = () => {
+    window.removeEventListener("focus", handleWindowFocus);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+  };
 
   const cleanup = () => {
+    if (focusPollInterval !== null) {
+      window.clearInterval(focusPollInterval);
+      focusPollInterval = null;
+    }
+
+    if (safetyTimeout !== null) {
+      window.clearTimeout(safetyTimeout);
+      safetyTimeout = null;
+    }
+
+    if (minWaitTimeout !== null) {
+      window.clearTimeout(minWaitTimeout);
+      minWaitTimeout = null;
+    }
+
+    removeListeners();
+
     setTimeout(() => {
       try {
         document.body.removeChild(iframe);
       } catch {
         // ignore
       }
-    }, 1200);
+    }, 300);
+  };
+
+  const startWatchingFocusReturn = () => {
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    minWaitTimeout = window.setTimeout(() => {
+      canFinish = true;
+
+      if (document.hasFocus() && !document.hidden) {
+        finishAfterPrint();
+      }
+    }, 800);
+
+    focusPollInterval = window.setInterval(() => {
+      if (canFinish && document.hasFocus() && !document.hidden) {
+        finishAfterPrint();
+      }
+    }, 150);
+
+    safetyTimeout = window.setTimeout(() => {
+      canFinish = true;
+      finishAfterPrint();
+    }, 12000);
   };
 
   const runPrint = () => {
@@ -544,10 +744,12 @@ function printSingleLabel(
 
     setTimeout(() => {
       try {
+        startWatchingFocusReturn();
         win.focus();
         win.print();
-      } finally {
-        cleanup();
+      } catch {
+        canFinish = true;
+        finishAfterPrint();
       }
     }, 350);
   };
@@ -567,12 +769,6 @@ function printSingleLabel(
 function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
   const { t } = useTranslation();
   const [paused, setPaused] = useState(false);
-
-  useEffect(() => {
-    if (!open) {
-      setPaused(false);
-    }
-  }, [open]);
 
   const handleDetected = (
     detectedCodes: Array<{ rawValue?: string | null }>,
@@ -653,14 +849,7 @@ function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
       </DialogContent>
 
       <DialogActions>
-        <Button
-          onClick={() => {
-            setPaused(false);
-            onClose();
-          }}
-        >
-          {t("common.close")}
-        </Button>
+        <Button onClick={onClose}>{t("common.close")}</Button>
       </DialogActions>
     </Dialog>
   );
@@ -705,14 +894,15 @@ function IdentifyPackageScreen({
   onHistoryFromDateChange,
   onHistoryToDateChange,
   onPrintHistoryRow,
+  packageCodeInputRef,
 }: IdentifyPackageScreenProps) {
   const { t } = useTranslation();
-  const packageCodeRef = useRef<HTMLInputElement | null>(null);
   const apartmentRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    packageCodeRef.current?.focus();
-  }, []);
+    packageCodeInputRef.current?.focus();
+    packageCodeInputRef.current?.select();
+  }, [packageCodeInputRef]);
 
   const canPrint = packageCode.trim().length > 0 && apartment.trim().length > 0;
 
@@ -726,6 +916,7 @@ function IdentifyPackageScreen({
   const handleApartmentKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
+
       if (canPrint && !saving) {
         onRequestPrint();
       }
@@ -738,6 +929,7 @@ function IdentifyPackageScreen({
         <Typography variant="h5" gutterBottom>
           {t("identify.title")}
         </Typography>
+
         <Typography variant="body2" gutterBottom>
           {t("identify.description")}
         </Typography>
@@ -748,7 +940,7 @@ function IdentifyPackageScreen({
             variant="outlined"
             value={packageCode}
             onChange={(e) => onPackageCodeChange(e.target.value)}
-            inputRef={packageCodeRef}
+            inputRef={packageCodeInputRef}
             onKeyDown={handlePackageCodeKeyDown}
             fullWidth
             autoComplete="off"
@@ -827,19 +1019,46 @@ function IdentifyPackageContainer() {
   const [historyFromDate, setHistoryFromDate] = useState<string>("");
   const [historyToDate, setHistoryToDate] = useState<string>("");
 
+  const packageCodeInputRef = useRef<HTMLInputElement | null>(null);
   const seqRef = useRef(0);
+
+  const focusPackageCodeInput = useCallback(() => {
+    const tryFocus = () => {
+      const input = packageCodeInputRef.current;
+
+      if (!input) return false;
+
+      input.focus();
+      input.select();
+
+      return document.activeElement === input;
+    };
+
+    if (tryFocus()) return;
+
+    setTimeout(tryFocus, 50);
+    setTimeout(tryFocus, 150);
+    setTimeout(tryFocus, 300);
+    setTimeout(tryFocus, 500);
+  }, []);
 
   const toInstantStart = (dateStr: string): string | undefined => {
     if (!dateStr) return undefined;
+
     const d = new Date(`${dateStr}T00:00:00`);
+
     if (Number.isNaN(d.getTime())) return undefined;
+
     return d.toISOString();
   };
 
   const toInstantEndExclusive = (dateStr: string): string | undefined => {
     if (!dateStr) return undefined;
+
     const d = new Date(`${dateStr}T00:00:00`);
+
     if (Number.isNaN(d.getTime())) return undefined;
+
     d.setDate(d.getDate() + 1);
     return d.toISOString();
   };
@@ -888,6 +1107,7 @@ function IdentifyPackageContainer() {
 
   const handleHistoryFromDateChange = (value: string) => {
     setHistoryFromDate(value);
+
     refreshHistory(value, historyToDate).catch((e) => {
       console.error(e);
       setSaveError(
@@ -898,6 +1118,7 @@ function IdentifyPackageContainer() {
 
   const handleHistoryToDateChange = (value: string) => {
     setHistoryToDate(value);
+
     refreshHistory(historyFromDate, value).catch((e) => {
       console.error(e);
       setSaveError(
@@ -908,15 +1129,31 @@ function IdentifyPackageContainer() {
 
   const handlePrint = () => {
     const pc = packageCode.trim();
-    const ap = apartment.trim();
+    const rawApartment = apartment.trim();
 
-    if (!pc || !ap || saving) return;
+    if (!pc || !rawApartment || saving) return;
+
+    const { page, apartment: apartmentToSave } =
+      extractPageAndApartment(rawApartment);
+
+    if (!page || !apartmentToSave) {
+      setSaveError(
+        "Informe a unidade no formato: página (3 dígitos) + unidade. Ex.: 0012608.",
+      );
+      return;
+    }
 
     setSaving(true);
     setSaveError(null);
 
     try {
-      printSingleLabel(pc, ap);
+      printSingleLabel(
+        pc,
+        apartmentToSave,
+        undefined,
+        focusPackageCodeInput,
+        page,
+      );
     } catch (e: unknown) {
       console.error(e);
       setSaveError(
@@ -928,7 +1165,7 @@ function IdentifyPackageContainer() {
 
     registerPackIdFromLabel({
       packageCode: pc,
-      apartment: ap,
+      apartment: apartmentToSave,
     })
       .then(() => {
         setPackageCode("");
@@ -952,7 +1189,7 @@ function IdentifyPackageContainer() {
     if (!pc || !ap) return;
 
     try {
-      printSingleLabel(pc, ap, row.residentFullName);
+      printSingleLabel(pc, ap, row.residentFullName, focusPackageCodeInput);
     } catch (e) {
       console.error(e);
       setSaveError(
@@ -983,9 +1220,11 @@ function IdentifyPackageContainer() {
         onHistoryFromDateChange={handleHistoryFromDateChange}
         onHistoryToDateChange={handleHistoryToDateChange}
         onPrintHistoryRow={handlePrintHistoryRow}
+        packageCodeInputRef={packageCodeInputRef}
       />
 
       <CodeScannerDialog
+        key={scannerOpen ? "scanner-open" : "scanner-closed"}
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
         onScan={handleScan}
@@ -1055,14 +1294,17 @@ function App() {
               <Typography variant="h3" component="h1" gutterBottom>
                 PackID
               </Typography>
+
               <Typography variant="body1" align="center">
                 {t("auth.description")}
               </Typography>
+
               {error && (
                 <Typography variant="body2" color="error">
                   {error}
                 </Typography>
               )}
+
               <Button variant="contained" color="primary" onClick={handleLogin}>
                 {t("auth.signInButton")}
               </Button>
