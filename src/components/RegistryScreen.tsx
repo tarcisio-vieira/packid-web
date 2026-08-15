@@ -47,11 +47,14 @@ import {
   fetchRegistryEntries,
   fetchUnitRegistrySummary,
   fetchVisitorVisits,
+  startApartmentOccupancy,
+  endApartmentOccupancy,
   registryEntryPhotoUrl,
   updateRegistryEntry,
   uploadRegistryEntryPhoto,
 } from "../api";
 import type {
+  ApartmentOccupancy,
   DeliveryRecord,
   PackIdRecentItem,
   RegistryEntry,
@@ -103,6 +106,12 @@ function localDateTimeNow(): string {
   const now = new Date();
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
   return local.toISOString().slice(0, 16);
+}
+
+function localDateToday(): string {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
 }
 
 function emptyAccessForm(): AccessForm {
@@ -162,6 +171,13 @@ function formatDateTime(value?: string | null): string {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
+}
+
+function formatDateOnly(value?: string | null): string {
+  if (!value) return "-";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("pt-BR").format(date);
 }
 
 function FieldCard({ label, value }: Readonly<{ label: string; value?: string | null }>) {
@@ -369,6 +385,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
   const [unitLoading, setUnitLoading] = useState(false);
   const [unitSummary, setUnitSummary] = useState<UnitRegistrySummary | null>(null);
+  const [occupancyDialogOpen, setOccupancyDialogOpen] = useState(false);
+  const [occupancyAction, setOccupancyAction] = useState<"start" | "end">("start");
+  const [occupancyDate, setOccupancyDate] = useState(localDateToday());
+  const [occupancyNotes, setOccupancyNotes] = useState("");
 
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -381,6 +401,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     setError(null);
     try {
       const data = await fetchRegistryEntries(selectedType);
+      data.sort((a, b) => {
+        if (a.active !== b.active) return a.active ? -1 : 1;
+        return a.name.localeCompare(b.name, "pt-BR");
+      });
       setRows(data);
       setSelectedRow((current) =>
         current ? data.find((item) => item.id === current.id) ?? null : null,
@@ -435,6 +459,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
 
   const selectedLabel = TYPES.find((item) => item.type === type)?.label ?? "Gestão";
   const isAccessPerson = type === "VISITOR" || type === "DELIVERY_PERSON";
+  const showDetailsColumn = type !== "RESIDENT";
 
   const resetPhotoSelection = () => {
     setPhotoFile(null);
@@ -550,8 +575,12 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       setError("Informe o nome ou a identificação principal do cadastro.");
       return;
     }
-    if (type === "RESIDENT" && (!form.block?.trim() || !form.apartment?.trim())) {
-      setError("Para condômino, informe bloco/página e apartamento.");
+    if (
+      (type === "RESIDENT" || type === "BICYCLE" || type === "PET" || type === "VEHICLE")
+      && form.active
+      && (!form.block?.trim() || !form.apartment?.trim())
+    ) {
+      setError("Informe bloco e apartamento para vincular este cadastro à ocupação.");
       return;
     }
     if (registerNow && (!quickAccess.block.trim() || !quickAccess.apartment.trim())) {
@@ -627,6 +656,23 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     }
   };
 
+  const loadUnitSummary = async (
+    block: string,
+    apartment: string,
+    occupancyId?: string | null,
+  ) => {
+    setUnitLoading(true);
+    setError(null);
+    try {
+      setUnitSummary(await fetchUnitRegistrySummary(block, apartment, occupancyId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falha ao carregar dados do apartamento.");
+      throw e;
+    } finally {
+      setUnitLoading(false);
+    }
+  };
+
   const openUnitSummary = async (row: RegistryEntry) => {
     if (!row.block || !row.apartment) {
       setError("O condômino precisa ter bloco e apartamento para abrir a visão da unidade.");
@@ -634,16 +680,58 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     }
     setSelectedRow(row);
     setUnitDialogOpen(true);
-    setUnitLoading(true);
     setUnitSummary(null);
+    try {
+      await loadUnitSummary(row.block, row.apartment, row.occupancyId);
+    } catch {
+      setUnitDialogOpen(false);
+    }
+  };
+
+  const selectOccupancy = async (occupancy: ApartmentOccupancy) => {
+    if (!unitSummary) return;
+    try {
+      await loadUnitSummary(unitSummary.block, unitSummary.apartment, occupancy.id);
+    } catch {
+      // erro já exibido pelo loader
+    }
+  };
+
+  const openOccupancyAction = (action: "start" | "end") => {
+    setOccupancyAction(action);
+    setOccupancyDate(localDateToday());
+    setOccupancyNotes("");
+    setOccupancyDialogOpen(true);
+  };
+
+  const saveOccupancyAction = async () => {
+    if (!unitSummary) return;
+    setLoading(true);
     setError(null);
     try {
-      setUnitSummary(await fetchUnitRegistrySummary(row.block, row.apartment));
+      if (occupancyAction === "start") {
+        const created = await startApartmentOccupancy({
+          block: unitSummary.block,
+          apartment: unitSummary.apartment,
+          startDate: occupancyDate || null,
+          notes: occupancyNotes.trim() || null,
+        });
+        setOccupancyDialogOpen(false);
+        await loadUnitSummary(unitSummary.block, unitSummary.apartment, created.id);
+      } else {
+        const ended = await endApartmentOccupancy({
+          block: unitSummary.block,
+          apartment: unitSummary.apartment,
+          endDate: occupancyDate || null,
+        });
+        setOccupancyDialogOpen(false);
+        await loadRows(type);
+        await loadUnitSummary(unitSummary.block, unitSummary.apartment, ended.id);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha ao carregar dados do apartamento.");
-      setUnitDialogOpen(false);
+      setError(e instanceof Error ? e.message : "Falha ao atualizar ocupação do apartamento.");
     } finally {
-      setUnitLoading(false);
+      setLoading(false);
     }
   };
 
@@ -799,7 +887,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                 <TableCell>Nome / descrição</TableCell>
                 <TableCell>Unidade</TableCell>
                 <TableCell>Documento / identificação</TableCell>
-                <TableCell>Detalhes</TableCell>
+                {showDetailsColumn && <TableCell>Detalhes</TableCell>}
                 <TableCell>Telefone</TableCell>
                 <TableCell align="center">Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
@@ -808,7 +896,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             <TableBody>
               {!loading && visibleRows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={isAccessPerson ? 9 : 8} align="center" sx={{ py: 4, opacity: 0.7 }}>
+                  <TableCell colSpan={type === "RESIDENT" ? 7 : isAccessPerson ? 9 : 8} align="center" sx={{ py: 4, opacity: 0.7 }}>
                     Nenhum cadastro encontrado.
                   </TableCell>
                 </TableRow>
@@ -868,7 +956,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                   </TableCell>
                   <TableCell>{unitLabel(row)}</TableCell>
                   <TableCell>{identifierLabel(row)}</TableCell>
-                  <TableCell>{detailsLabel(row)}</TableCell>
+                  {showDetailsColumn && <TableCell>{detailsLabel(row)}</TableCell>}
                   <TableCell>{row.phone || "-"}</TableCell>
                   <TableCell align="center">
                     <Chip size="small" label={row.active ? "Ativo" : "Inativo"} variant={row.active ? "filled" : "outlined"} />
@@ -1004,8 +1092,8 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             )}
             {(type === "RESIDENT" || type === "BICYCLE" || type === "PET" || type === "VEHICLE") && (
               <>
-                <TextField label="Bloco" value={form.block ?? ""} onChange={(e) => setField("block", e.target.value)} required={type === "RESIDENT"} fullWidth />
-                <TextField label="Apartamento" value={form.apartment ?? ""} onChange={(e) => setField("apartment", e.target.value)} required={type === "RESIDENT"} fullWidth />
+                <TextField label="Bloco" value={form.block ?? ""} onChange={(e) => setField("block", e.target.value)} required={form.active} fullWidth />
+                <TextField label="Apartamento" value={form.apartment ?? ""} onChange={(e) => setField("apartment", e.target.value)} required={form.active} fullWidth />
               </>
             )}
             {type === "VEHICLE" && (
@@ -1086,6 +1174,106 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
           {unitLoading && <Typography sx={{ py: 3 }}>Carregando dados da unidade...</Typography>}
           {unitSummary && (
             <Stack spacing={2} sx={{ mt: 1 }}>
+              <Card variant="outlined" sx={{ bgcolor: "action.hover" }}>
+                <CardContent>
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    justifyContent="space-between"
+                    alignItems={{ xs: "stretch", md: "center" }}
+                    spacing={2}
+                  >
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight={700}>
+                        {unitSummary.selectedOccupancy ? "Ocupação selecionada" : "Sem ocupação cadastrada"}
+                      </Typography>
+                      {unitSummary.selectedOccupancy ? (
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                          <Chip
+                            size="small"
+                            color={unitSummary.selectedOccupancy.status === "ACTIVE" ? "success" : "default"}
+                            label={unitSummary.selectedOccupancy.status === "ACTIVE" ? "Ocupação atual" : "Ocupação encerrada"}
+                          />
+                          <Typography variant="body2">
+                            Entrada: <strong>{formatDateOnly(unitSummary.selectedOccupancy.startDate)}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Saída: <strong>{unitSummary.selectedOccupancy.endDate ? formatDateOnly(unitSummary.selectedOccupancy.endDate) : "Atual"}</strong>
+                          </Typography>
+                        </Stack>
+                      ) : (
+                        <Typography variant="body2" sx={{ opacity: 0.7, mt: 0.5 }}>
+                          Crie uma nova ocupação para vincular os próximos condôminos, veículos, pets e bicicletas.
+                        </Typography>
+                      )}
+                    </Box>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                      {unitSummary.selectedOccupancy?.status === "ACTIVE" && (
+                        <Button color="warning" variant="outlined" onClick={() => openOccupancyAction("end")}>
+                          Encerrar ocupação
+                        </Button>
+                      )}
+                      {!unitSummary.occupancies.some((item) => item.status === "ACTIVE") && (
+                        <Button color="success" variant="contained" startIcon={<AddIcon />} onClick={() => openOccupancyAction("start")}>
+                          Nova ocupação
+                        </Button>
+                      )}
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+
+              {unitSummary.occupancies.length > 0 && (
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                      Histórico de ocupações ({unitSummary.occupancies.length})
+                    </Typography>
+                    <Stack spacing={1} divider={<Divider flexItem />}>
+                      {unitSummary.occupancies.map((occupancy) => (
+                        <Stack
+                          key={occupancy.id}
+                          direction={{ xs: "column", sm: "row" }}
+                          alignItems={{ xs: "stretch", sm: "center" }}
+                          justifyContent="space-between"
+                          spacing={1}
+                        >
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Chip
+                                size="small"
+                                color={occupancy.status === "ACTIVE" ? "success" : "default"}
+                                label={occupancy.status === "ACTIVE" ? "Atual" : "Encerrada"}
+                              />
+                              <Typography variant="body2" fontWeight={600}>
+                                {formatDateOnly(occupancy.startDate)} até {occupancy.endDate ? formatDateOnly(occupancy.endDate) : "hoje"}
+                              </Typography>
+                            </Stack>
+                            {occupancy.notes && (
+                              <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                                {occupancy.notes}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Button
+                            size="small"
+                            variant={unitSummary.selectedOccupancy?.id === occupancy.id ? "contained" : "text"}
+                            startIcon={<VisibilityOutlinedIcon />}
+                            onClick={() => void selectOccupancy(occupancy)}
+                            disabled={unitLoading}
+                          >
+                            {unitSummary.selectedOccupancy?.id === occupancy.id ? "Visualizando" : "Visualizar"}
+                          </Button>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Typography variant="body2" sx={{ opacity: 0.75 }}>
+                Os cadastros abaixo pertencem à ocupação selecionada. Encomendas, visitas e entregas são preservadas e exibidas pelo período dessa ocupação.
+              </Typography>
+
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
                 <RegistryGroup title="Condôminos" rows={unitSummary.residents} />
                 <RegistryGroup title="Pets" rows={unitSummary.pets} />
@@ -1102,6 +1290,63 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
           <Button onClick={() => setUnitDialogOpen(false)}>Fechar</Button>
         </DialogActions>
       </Dialog>
+
+      <Dialog open={occupancyDialogOpen} onClose={() => setOccupancyDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>
+          {occupancyAction === "start" ? "Nova ocupação" : "Encerrar ocupação"}
+          {unitSummary ? ` — Bloco ${unitSummary.block} / Apto ${unitSummary.apartment}` : ""}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {occupancyAction === "end" && unitSummary && (
+              <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
+                <Typography variant="body2" fontWeight={600}>
+                  Serão inativados os cadastros desta ocupação:
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  {unitSummary.residents.length} condômino(s), {unitSummary.vehicles.length} veículo(s), {unitSummary.pets.length} pet(s) e {unitSummary.bicycles.length} bicicleta(s).
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.75 }}>
+                  Encomendas, visitas e entregas não serão apagadas nem inativadas.
+                </Typography>
+              </Box>
+            )}
+            <TextField
+              label={occupancyAction === "start" ? "Data de entrada" : "Data de saída"}
+              type="date"
+              value={occupancyDate}
+              onChange={(e) => setOccupancyDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ max: localDateToday() }}
+              required
+              fullWidth
+            />
+            {occupancyAction === "start" && (
+              <TextField
+                label="Observação da ocupação"
+                value={occupancyNotes}
+                onChange={(e) => setOccupancyNotes(e.target.value)}
+                multiline
+                minRows={2}
+                fullWidth
+                placeholder="Ex.: novo inquilino, proprietário retornou ao imóvel..."
+              />
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOccupancyDialogOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            color={occupancyAction === "start" ? "success" : "warning"}
+            onClick={() => void saveOccupancyAction()}
+            disabled={loading || !occupancyDate}
+          >
+            {occupancyAction === "start" ? "Criar ocupação" : "Encerrar ocupação"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 }

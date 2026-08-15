@@ -140,6 +140,8 @@ export type RegistryEntryType =
 
 export type RegistryEntry = {
   id: string;
+  personId?: string | null;
+  occupancyId?: string | null;
   entryType: RegistryEntryType;
   name: string;
   document?: string | null;
@@ -168,6 +170,8 @@ export type RegistryEntry = {
 export type RegistryEntryPayload = Omit<
   RegistryEntry,
   | "id"
+  | "personId"
+  | "occupancyId"
   | "createdAt"
   | "updatedAt"
   | "photoAvailable"
@@ -308,9 +312,21 @@ export type DeliveryRecordPayload = {
   notes?: string | null;
 };
 
+export type ApartmentOccupancy = {
+  id: string;
+  block: string;
+  apartment: string;
+  startDate: string;
+  endDate?: string | null;
+  status: "ACTIVE" | "ENDED";
+  notes?: string | null;
+};
+
 export type UnitRegistrySummary = {
   block: string;
   apartment: string;
+  selectedOccupancy?: ApartmentOccupancy | null;
+  occupancies: ApartmentOccupancy[];
   residents: RegistryEntry[];
   bicycles: RegistryEntry[];
   vehicles: RegistryEntry[];
@@ -369,10 +385,43 @@ export async function fetchDeliveryRecords(
 export async function fetchUnitRegistrySummary(
   block: string,
   apartment: string,
+  occupancyId?: string | null,
 ): Promise<UnitRegistrySummary> {
   const params = new URLSearchParams({ block, apartment });
+  if (occupancyId) params.set("occupancyId", occupancyId);
   const resp = await fetch(`${API_URL}/api/registry/unit-summary?${params.toString()}`, {
     credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function startApartmentOccupancy(payload: {
+  block: string;
+  apartment: string;
+  startDate?: string | null;
+  notes?: string | null;
+}): Promise<ApartmentOccupancy> {
+  const resp = await fetch(`${API_URL}/api/occupancies/start`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function endApartmentOccupancy(payload: {
+  block: string;
+  apartment: string;
+  endDate?: string | null;
+}): Promise<ApartmentOccupancy> {
+  const resp = await fetch(`${API_URL}/api/occupancies/end`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
