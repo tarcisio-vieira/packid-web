@@ -30,17 +30,12 @@ import {
   Paper,
   Stack,
   TextField,
-  FormControl,
-  Select,
-  MenuItem,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   InputAdornment,
 } from "@mui/material";
-import type { SelectChangeEvent } from "@mui/material/Select";
-
 import MenuIcon from "@mui/icons-material/Menu";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import { Scanner } from "@yudiel/react-qr-scanner";
@@ -147,30 +142,33 @@ function fitTextFontSize(
   return options.minFontPx;
 }
 
-function extractPageAndApartment(raw: string): {
+function extractPageBlockAndApartment(raw: string): {
   page: string;
+  block: string;
   apartment: string;
+  valid: boolean;
 } {
   const compact = raw.trim().replace(/\s+/g, "");
 
-  if (!compact) {
-    return {
-      page: "",
-      apartment: "",
-    };
+  if (!/^\d{7,8}$/.test(compact)) {
+    return { page: "", block: "", apartment: "", valid: false };
   }
 
-  if (compact.length <= 3) {
-    return {
-      page: compact,
-      apartment: "",
-    };
-  }
+  const page = compact.slice(0, 3);
+  const block = compact.slice(3, 4);
+  const apartment = compact.slice(4);
+  const pageNumber = Number(page);
+  const floor = Number(apartment.slice(0, -2));
 
-  return {
-    page: compact.slice(0, 3),
-    apartment: compact.slice(3),
-  };
+  const valid =
+    pageNumber >= 1 &&
+    pageNumber <= 999 &&
+    /^[1-4]$/.test(block) &&
+    /^\d{3,4}$/.test(apartment) &&
+    floor >= 1 &&
+    floor <= 12;
+
+  return { page, block, apartment, valid };
 }
 
 function fitWrappedTextFontSize(
@@ -964,11 +962,15 @@ function IdentifyPackageScreen({
             label={t("identify.apartment")}
             variant="outlined"
             value={apartment}
-            onChange={(e) => onApartmentChange(e.target.value)}
+            onChange={(e) =>
+              onApartmentChange(e.target.value.replace(/\D/g, "").slice(0, 8))
+            }
             inputRef={apartmentRef}
             onKeyDown={handleApartmentKeyDown}
             fullWidth
             autoComplete="off"
+            helperText={t("identify.unitCodeHelp")}
+            inputProps={{ inputMode: "numeric", maxLength: 8 }}
           />
 
           {saveError && (
@@ -1085,6 +1087,7 @@ function IdentifyPackageContainer() {
         sorted.map((it) => ({
           id: it.id,
           createdAt: it.arrivedAt,
+          bookPage: it.bookPage ?? "",
           block: it.block ?? "",
           apartment: it.apartment,
           residentFullName: it.residentFullName ?? "",
@@ -1135,12 +1138,12 @@ function IdentifyPackageContainer() {
 
     if (!pc || !rawApartment || saving) return;
 
-    const { page, apartment: apartmentToSave } =
-      extractPageAndApartment(rawApartment);
+    const { page, block, apartment: apartmentToSave, valid } =
+      extractPageBlockAndApartment(rawApartment);
 
-    if (!page || !apartmentToSave) {
+    if (!valid) {
       setSaveError(
-        "Informe a unidade no formato: página (3 dígitos) + unidade. Ex.: 0012608.",
+        "Informe: página (001-999) + bloco (1-4) + apartamento (1º ao 12º andar). Ex.: 0992608 ou 10141203.",
       );
       return;
     }
@@ -1151,7 +1154,7 @@ function IdentifyPackageContainer() {
     try {
       printSingleLabel(
         pc,
-        apartmentToSave,
+        `${block}${apartmentToSave}`,
         undefined,
         focusPackageCodeInput,
         page,
@@ -1168,7 +1171,8 @@ function IdentifyPackageContainer() {
     registerPackIdFromLabel({
       packageCode: pc,
       apartment: apartmentToSave,
-      block: page,
+      block,
+      bookPage: page,
     })
       .then(() => {
         setPackageCode("");
@@ -1188,16 +1192,17 @@ function IdentifyPackageContainer() {
   const handlePrintHistoryRow = (row: LabelHistoryRow) => {
     const pc = row.packageCode.trim();
     const ap = row.apartment.trim();
+    const block = (row.block || "").trim();
 
     if (!pc || !ap) return;
 
     try {
       printSingleLabel(
         pc,
-        ap,
+        `${block}${ap}`,
         row.residentFullName,
         focusPackageCodeInput,
-        row.block,
+        row.bookPage,
       );
     } catch (e) {
       console.error(e);
@@ -1246,20 +1251,19 @@ function IdentifyPackageContainer() {
 // App principal
 // ===============
 function App() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeView, setActiveView] = useState<ActiveView>("home");
-  const [language, setLanguage] = useState<string>(i18n.language || "en");
 
   useEffect(() => {
     fetchCurrentUser()
       .then(setUser)
       .catch((err: unknown) => {
         console.error(err);
-        setError("Authentication check failed.");
+        setError("Falha ao verificar a autenticação.");
         setUser(null);
       });
   }, []);
@@ -1274,13 +1278,6 @@ function App() {
 
   const toggleDrawer = (open: boolean) => () => {
     setDrawerOpen(open);
-  };
-
-  const handleChangeLanguage = (event: SelectChangeEvent<string>) => {
-    const lang = event.target.value;
-    setLanguage(lang);
-    i18n.changeLanguage(lang);
-    localStorage.setItem("lang", lang);
   };
 
   const renderContent = () => {
@@ -1301,7 +1298,7 @@ function App() {
           >
             <Stack spacing={2} alignItems="center">
               <Typography variant="h3" component="h1" gutterBottom>
-                PackID
+                VSGI
               </Typography>
 
               <Typography variant="body1" align="center">
@@ -1348,7 +1345,7 @@ function App() {
           <IconButton
             edge="start"
             color="inherit"
-            aria-label="open drawer"
+            aria-label="Abrir menu"
             onClick={toggleDrawer(true)}
             sx={{ mr: 1 }}
           >
@@ -1363,18 +1360,6 @@ function App() {
             {t("app.title")}
           </Typography>
 
-          <FormControl size="small" sx={{ mr: 2, minWidth: 110 }}>
-            <Select
-              value={language}
-              onChange={handleChangeLanguage}
-              displayEmpty
-            >
-              <MenuItem value="en">English</MenuItem>
-              <MenuItem value="pt">Português</MenuItem>
-              <MenuItem value="es">Español</MenuItem>
-            </Select>
-          </FormControl>
-
           {user && (
             <Button color="inherit" onClick={handleLogout} sx={{ ml: 1 }}>
               {t("header.signOut")}
@@ -1387,7 +1372,7 @@ function App() {
         <Box
           sx={{ width: 260 }}
           component="nav"
-          aria-label="Main navigation"
+          aria-label="Navegação principal"
           onClick={toggleDrawer(false)}
           onKeyDown={toggleDrawer(false)}
         >
@@ -1395,7 +1380,7 @@ function App() {
             <Typography variant="h6">{t("menu.main")}</Typography>
           </Box>
 
-          <List component="nav" aria-label="Main menu options">
+          <List component="nav" aria-label="Opções do menu principal">
             <ListItemButton onClick={() => setActiveView("home")}>
               <ListItemText primary={t("menu.home")} />
             </ListItemButton>

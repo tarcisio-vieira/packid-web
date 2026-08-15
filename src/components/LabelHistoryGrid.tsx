@@ -24,6 +24,7 @@ import SearchIcon from "@mui/icons-material/Search";
 export type LabelHistoryRow = {
   id: string;
   createdAt: string;
+  bookPage?: string;
   block?: string;
   apartment: string;
   residentFullName?: string;
@@ -44,18 +45,6 @@ type Props = Readonly<{
 
   onPrintRow: (row: LabelHistoryRow) => void;
 }>;
-
-function getLocale(language: string): string {
-  switch (language) {
-    case "pt":
-      return "pt-BR";
-    case "es":
-      return "es-ES";
-    case "en":
-    default:
-      return "en-US";
-  }
-}
 
 function formatDateTimeParts(
   iso: string,
@@ -96,19 +85,45 @@ export default function LabelHistoryGrid({
   onToDateChange,
   onPrintRow,
 }: Props) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
-  const locale = getLocale(i18n.resolvedLanguage || i18n.language || "en");
+  const locale = "pt-BR";
   const [search, setSearch] = useState("");
 
   const visibleRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase(locale);
+    const compactQuery = query.replace(/[^0-9a-z]/gi, "");
+
     const filtered = query
-      ? rows.filter((row) =>
-          [row.packageCode, row.block, row.apartment, row.residentFullName]
+      ? rows.filter((row) => {
+          const page = String(row.bookPage ?? "").trim();
+          const block = String(row.block ?? "").trim();
+          const apartment = String(row.apartment ?? "").trim();
+
+          // Permite pesquisar a unidade tanto no formato completo
+          // página + bloco + apartamento (ex.: 09911203) quanto
+          // somente bloco + apartamento (ex.: 11203).
+          const pageBlockApartment = `${page}${block}${apartment}`;
+          const blockApartment = `${block}${apartment}`;
+
+          const candidates = [
+            row.packageCode,
+            row.bookPage,
+            row.block,
+            row.apartment,
+            row.residentFullName,
+            pageBlockApartment,
+            blockApartment,
+          ]
             .filter(Boolean)
-            .some((value) => String(value).toLocaleLowerCase(locale).includes(query)),
-        )
+            .map((value) => String(value).toLocaleLowerCase(locale));
+
+          return candidates.some((value) => {
+            if (value.includes(query)) return true;
+            if (!compactQuery) return false;
+            return value.replace(/[^0-9a-z]/gi, "").includes(compactQuery);
+          });
+        })
       : rows;
 
     return filtered.slice(0, maxRows);
@@ -139,11 +154,10 @@ export default function LabelHistoryGrid({
     <thead>
       <tr>
         <th class="center">${escapeHtml(t("history.columns.time"))}</th>
+        <th class="center">${escapeHtml(t("history.columns.page"))}</th>
         <th class="center">${escapeHtml(t("history.columns.block"))}</th>
         <th class="center">${escapeHtml(t("history.columns.apartment"))}</th>
-        <th>${escapeHtml(t("history.columns.residentFullName"))}</th>
         <th>${escapeHtml(t("history.columns.packageCode"))}</th>
-        <th>${escapeHtml(t("history.columns.observations"))}</th>
       </tr>
     </thead>
     <tbody>
@@ -155,11 +169,10 @@ export default function LabelHistoryGrid({
               ${escapeHtml(date)}<br/>
               <span class="small">${escapeHtml(time)}</span>
             </td>
+            <td class="center">${escapeHtml(r.bookPage || "-")}</td>
             <td class="center">${escapeHtml(r.block || "-")}</td>
             <td class="center">${escapeHtml(r.apartment)}</td>
-            <td>${escapeHtml(r.residentFullName || "-")}</td>
             <td>${escapeHtml(r.packageCode)}</td>
-            <td>${escapeHtml(r.observations || "-")}</td>
           </tr>`;
         })
         .join("")}
@@ -264,7 +277,7 @@ export default function LabelHistoryGrid({
           <Table
             size="small"
             aria-label={t("history.title")}
-            sx={{ minWidth: 1100 }}
+            sx={{ minWidth: 820 }}
           >
             <TableHead>
               <TableRow>
@@ -272,14 +285,15 @@ export default function LabelHistoryGrid({
                   {t("history.columns.time")}
                 </TableCell>
                 <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
+                  {t("history.columns.page")}
+                </TableCell>
+                <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
                   {t("history.columns.block")}
                 </TableCell>
                 <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
                   {t("history.columns.apartment")}
                 </TableCell>
-                <TableCell>{t("history.columns.residentFullName")}</TableCell>
                 <TableCell>{t("history.columns.packageCode")}</TableCell>
-                <TableCell>{t("history.columns.observations")}</TableCell>
                 <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
                   {t("history.columns.actions")}
                 </TableCell>
@@ -306,6 +320,10 @@ export default function LabelHistoryGrid({
                     </TableCell>
 
                     <TableCell align="center">
+                      <Typography variant="body2">{r.bookPage || "-"}</Typography>
+                    </TableCell>
+
+                    <TableCell align="center">
                       <Typography variant="body2">{r.block || "-"}</Typography>
                     </TableCell>
 
@@ -313,20 +331,8 @@ export default function LabelHistoryGrid({
                       <Typography variant="body2">{r.apartment}</Typography>
                     </TableCell>
 
-                    <TableCell sx={{ minWidth: 180 }}>
-                      <Typography variant="body2">
-                        {r.residentFullName || "-"}
-                      </Typography>
-                    </TableCell>
-
-                    <TableCell sx={{ minWidth: 180, wordBreak: "break-word" }}>
-                      <Typography variant="body2">{r.packageCode}</Typography>
-                    </TableCell>
-
                     <TableCell sx={{ minWidth: 220, wordBreak: "break-word" }}>
-                      <Typography variant="body2">
-                        {r.observations || "-"}
-                      </Typography>
+                      <Typography variant="body2">{r.packageCode}</Typography>
                     </TableCell>
 
                     <TableCell align="center">

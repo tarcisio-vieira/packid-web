@@ -32,7 +32,8 @@ export function getLogoutUrl(): string {
 export type PackIdFromLabelRequest = {
   packageCode: string;
   apartment: string;
-  block?: string;
+  block: string;
+  bookPage: string;
 };
 
 export async function registerPackIdFromLabel(
@@ -58,7 +59,8 @@ export async function registerPackIdFromLabel(
 export type PackIdLabelCreateRequest = {
   packageCode: string;
   apartment: string;
-  block?: string;
+  block: string;
+  bookPage: string;
 };
 
 async function readErrorMessage(resp: Response): Promise<string> {
@@ -95,6 +97,7 @@ export async function createPackIdFromLabel(
 
 export type PackIdRecentItem = {
   id: string;
+  bookPage?: string;
   block?: string;
   apartment: string;
   residentFullName?: string;
@@ -122,7 +125,7 @@ export async function fetchRecentPackIds(
   );
 
   if (resp.status === 401) return [];
-  if (!resp.ok) throw new Error("Falha ao buscar histórico do PackID.");
+  if (!resp.ok) throw new Error("Falha ao buscar histórico de encomendas.");
   return resp.json();
 }
 

@@ -266,31 +266,29 @@ function PackIdHistory({ rows }: Readonly<{ rows: PackIdRecentItem[] }>) {
     <Card variant="outlined">
       <CardContent>
         <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-          Encomendas / PackID ({rows.length})
+          Encomendas ({rows.length})
         </Typography>
         <TableContainer sx={{ maxHeight: 300 }}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
                 <TableCell>Data / hora</TableCell>
+                <TableCell>Página</TableCell>
                 <TableCell>Código da encomenda</TableCell>
-                <TableCell>Condômino</TableCell>
-                <TableCell>Observação</TableCell>
                 <TableCell>Registrado por</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">Nenhuma encomenda registrada para esta unidade.</TableCell>
+                  <TableCell colSpan={4} align="center">Nenhuma encomenda registrada para esta unidade.</TableCell>
                 </TableRow>
               )}
               {rows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>{formatDateTime(row.arrivedAt)}</TableCell>
+                  <TableCell>{row.bookPage || "-"}</TableCell>
                   <TableCell>{row.labelPackageCode || row.packageCode || "-"}</TableCell>
-                  <TableCell>{row.residentFullName || "-"}</TableCell>
-                  <TableCell>{row.observations || "-"}</TableCell>
                   <TableCell>{row.createdBy || "-"}</TableCell>
                 </TableRow>
               ))}
@@ -434,7 +432,7 @@ export default function RegistryScreen() {
       ? registryEntryPhotoUrl(editingRow.id, editingRow.updatedAt ?? editingRow.createdAt)
       : null;
 
-  const selectedLabel = TYPES.find((item) => item.type === type)?.label ?? "Cadastros";
+  const selectedLabel = TYPES.find((item) => item.type === type)?.label ?? "Gestão";
   const isAccessPerson = type === "VISITOR" || type === "DELIVERY_PERSON";
 
   const resetPhotoSelection = () => {
@@ -680,7 +678,7 @@ export default function RegistryScreen() {
           gap={2}
         >
           <Box>
-            <Typography variant="h5">Cadastros do condomínio</Typography>
+            <Typography variant="h5">Gestão do condomínio</Typography>
             <Typography variant="body2" sx={{ opacity: 0.75 }}>
               Condôminos, entregadores, visitantes, bicicletas, pets e veículos vinculados ao condomínio.
             </Typography>
@@ -793,6 +791,9 @@ export default function RegistryScreen() {
           <Table size="small" sx={{ minWidth: 980 }}>
             <TableHead>
               <TableRow>
+                {isAccessPerson && (
+                  <TableCell width={92} align="center">Registrar</TableCell>
+                )}
                 <TableCell width={72}>Foto</TableCell>
                 <TableCell>Nome / descrição</TableCell>
                 <TableCell>Unidade</TableCell>
@@ -806,7 +807,7 @@ export default function RegistryScreen() {
             <TableBody>
               {!loading && visibleRows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 4, opacity: 0.7 }}>
+                  <TableCell colSpan={isAccessPerson ? 9 : 8} align="center" sx={{ py: 4, opacity: 0.7 }}>
                     Nenhum cadastro encontrado.
                   </TableCell>
                 </TableRow>
@@ -819,6 +820,30 @@ export default function RegistryScreen() {
                   onClick={() => setSelectedRow(row)}
                   sx={{ cursor: "pointer" }}
                 >
+                  {isAccessPerson && (
+                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
+                      <Tooltip title={row.entryType === "VISITOR" ? "Registrar nova visita" : "Registrar nova entrega"}>
+                        <IconButton
+                          size="small"
+                          aria-label={row.entryType === "VISITOR" ? "Registrar nova visita" : "Registrar nova entrega"}
+                          onClick={() => openEvent(row)}
+                          sx={{
+                            bgcolor: "success.main",
+                            color: "success.contrastText",
+                            width: 38,
+                            height: 38,
+                            "&:hover": { bgcolor: "success.dark" },
+                          }}
+                        >
+                          {row.entryType === "VISITOR" ? (
+                            <MeetingRoomOutlinedIcon fontSize="small" />
+                          ) : (
+                            <LocalShippingOutlinedIcon fontSize="small" />
+                          )}
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Avatar
                       src={
@@ -857,20 +882,6 @@ export default function RegistryScreen() {
                       <Tooltip title="Visualizar apartamento e histórico">
                         <IconButton size="small" onClick={() => void openUnitSummary(row)}>
                           <VisibilityOutlinedIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                    {row.entryType === "VISITOR" && (
-                      <Tooltip title="Registrar visita">
-                        <IconButton size="small" onClick={() => openEvent(row)}>
-                          <MeetingRoomOutlinedIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                    {row.entryType === "DELIVERY_PERSON" && (
-                      <Tooltip title="Registrar entrega">
-                        <IconButton size="small" onClick={() => openEvent(row)}>
-                          <LocalShippingOutlinedIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}

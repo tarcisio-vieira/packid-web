@@ -1,82 +1,11 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
-const savedLang = localStorage.getItem("lang") ?? "en";
-
 const resources = {
-  en: {
-    translation: {
-      app: {
-        title: "PackID",
-      },
-      header: {
-        signOut: "Sign out",
-      },
-      auth: {
-        loading: "Loading...",
-        description:
-          "To access the system, please sign in with your Google account.",
-        signInButton: "Sign in with Google",
-      },
-      menu: {
-        main: "Main menu",
-        home: "Home",
-        identifyPackage: "Labels",
-        registry: "Registrations",
-      },
-      home: {
-        title: "Home",
-        welcome: "Welcome to PackID",
-        useMenu:
-          'Use the menu to access the features. For now, you can choose "Identify Package".',
-      },
-      identify: {
-        title: "Identify Package",
-        description:
-          "Scan the package code (QR or barcode) or type it manually, then enter the apartment/room number and print the label.",
-        packageCode: "Package code",
-        apartment: "Apartment / Room",
-        printLabel: "Print label",
-        scanButton: "Scan",
-        scanTitle: "Scan code",
-        scanHelp:
-          "Point the camera at the QR code or barcode. When the code is read, the field will be filled automatically.",
-      },
-      history: {
-        title: "Recent labels",
-        empty: "No labels yet.",
-        clear: "Clear",
-        print: "Print",
-        printTable: "Print table",
-        printSingleLabel: "Print label",
-        noRecords: "No records.",
-        filters: {
-          search: "Search",
-          searchPlaceholder: "Package code, block or apartment",
-          from: "From",
-          to: "To",
-        },
-        columns: {
-          time: "Time",
-          block: "Block",
-          apartment: "Apartment",
-          residentFullName: "Resident",
-          packageCode: "Package code",
-          observations: "Observations",
-          status: "Status",
-          actions: "Actions",
-        },
-        status: { saving: "Saving...", saved: "Saved", error: "Error" },
-      },
-      common: {
-        close: "Close",
-      },
-    },
-  },
   pt: {
     translation: {
       app: {
-        title: "PackID",
+        title: "VSGI",
       },
       header: {
         signOut: "Sair",
@@ -90,21 +19,22 @@ const resources = {
       menu: {
         main: "Menu principal",
         home: "Início",
-        identifyPackage: "Etiquetas",
-        registry: "Cadastros",
+        identifyPackage: "PackID - Encomendas",
+        registry: "Gestão do condomínio",
       },
       home: {
         title: "Início",
-        welcome: "Bem-vindo ao PackID",
+        welcome: "Bem-vindo ao VSGI",
         useMenu:
-          'Use o menu para acessar as funcionalidades. Por enquanto, você pode escolher "Etiquetas" no menu lateral.',
+          'Use o menu para acessar o recebimento de encomendas ou a Gestão do condomínio.',
       },
       identify: {
-        title: "Identificar pacote",
+        title: "PackID - Recebimento de encomendas",
         description:
-          "Leia o código do pacote (QR ou código de barras) ou digite manualmente. Depois informe o número do apartamento/sala e imprima a etiqueta.",
+          "Leia o código do pacote ou digite manualmente. Depois informe página + bloco + apartamento e imprima a etiqueta.",
         packageCode: "pacote",
-        apartment: "Apartamento / Sala",
+        apartment: "Página + Bloco + Apartamento",
+        unitCodeHelp: "Ex.: 0992608 = página 099, bloco 2, apartamento 608",
         printLabel: "Imprimir etiqueta",
         scanButton: "Ler código",
         scanTitle: "Ler código",
@@ -121,13 +51,14 @@ const resources = {
         noRecords: "Nenhum registro.",
         filters: {
           search: "Pesquisar",
-          searchPlaceholder: "Código da encomenda, bloco ou apartamento",
+          searchPlaceholder: "Código, página+bloco+apto ou bloco+apto",
           from: "De",
           to: "Até",
         },
         columns: {
           time: "Data / Hora",
-          block: "Bloco/Página",
+          page: "Página",
+          block: "Bloco",
           apartment: "Apartamento",
           residentFullName: "Condômino",
           packageCode: "pacote",
@@ -142,81 +73,12 @@ const resources = {
       },
     },
   },
-  es: {
-    translation: {
-      app: {
-        title: "PackID",
-      },
-      header: {
-        signOut: "Cerrar sesión",
-      },
-      auth: {
-        loading: "Cargando...",
-        description:
-          "Para acceder al sistema, inicie sesión con su cuenta de Google.",
-        signInButton: "Iniciar sesión con Google",
-      },
-      menu: {
-        main: "Menú principal",
-        home: "Inicio",
-        identifyPackage: "Etiquetas",
-        registry: "Registros",
-      },
-      home: {
-        title: "Inicio",
-        welcome: "Bienvenido a PackID",
-        useMenu:
-          'Use el menú para acceder a las funciones disponibles. Por ahora, puede elegir "Etiquetas" en el menú lateral.',
-      },
-      identify: {
-        title: "Identificar paquete",
-        description:
-          "Escanee el código del paquete (QR o código de barras) o escríbalo manualmente. Luego introduzca el número del apartamento/habitación e imprima la etiqueta.",
-        packageCode: "Código del paquete",
-        apartment: "Apartamento / Habitación",
-        printLabel: "Imprimir etiqueta",
-        scanButton: "Escanear",
-        scanTitle: "Escanear código",
-        scanHelp:
-          "Apunte la cámara al código QR o código de barras. Cuando se lea el código, el campo se rellenará automáticamente.",
-      },
-      history: {
-        title: "Etiquetas recientes",
-        empty: "Aún no hay etiquetas.",
-        clear: "Limpiar",
-        print: "Imprimir",
-        printTable: "Imprimir tabla",
-        printSingleLabel: "Imprimir etiqueta",
-        noRecords: "No hay registros.",
-        filters: {
-          search: "Buscar",
-          searchPlaceholder: "Código del paquete, bloque o apartamento",
-          from: "Desde",
-          to: "Hasta",
-        },
-        columns: {
-          time: "Fecha / Hora",
-          block: "Bloque",
-          apartment: "Apartamento",
-          residentFullName: "Residente",
-          packageCode: "Código del paquete",
-          observations: "Observaciones",
-          status: "Estado",
-          actions: "Acciones",
-        },
-        status: { saving: "Guardando...", saved: "Guardado", error: "Error" },
-      },
-      common: {
-        close: "Cerrar",
-      },
-    },
-  },
 };
 
 i18n.use(initReactI18next).init({
   resources,
-  lng: savedLang,
-  fallbackLng: "en",
+  lng: "pt",
+  fallbackLng: "pt",
   interpolation: {
     escapeValue: false,
   },
