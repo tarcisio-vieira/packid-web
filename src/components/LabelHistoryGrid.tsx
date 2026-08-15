@@ -44,6 +44,7 @@ type Props = Readonly<{
   onToDateChange: (value: string) => void;
 
   onPrintRow: (row: LabelHistoryRow) => void;
+  compact?: boolean;
 }>;
 
 function formatDateTimeParts(
@@ -84,6 +85,7 @@ export default function LabelHistoryGrid({
   onFromDateChange,
   onToDateChange,
   onPrintRow,
+  compact = false,
 }: Props) {
   const { t } = useTranslation();
 
@@ -128,6 +130,66 @@ export default function LabelHistoryGrid({
 
     return filtered.slice(0, maxRows);
   }, [rows, maxRows, search, locale]);
+
+  if (compact) {
+    return (
+      <Paper elevation={1} sx={{ p: 1.25, width: "100%" }}>
+        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
+          Últimas encomendas
+        </Typography>
+
+        <TextField
+          size="small"
+          label={t("history.filters.search")}
+          placeholder="Código, página+bloco+apto ou bloco+apto"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          fullWidth
+          InputProps={{
+            startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.55 }} />,
+          }}
+        />
+
+        {!visibleRows.length ? (
+          <Typography variant="body2" sx={{ opacity: 0.75, py: 1.5 }}>
+            {t("history.noRecords")}
+          </Typography>
+        ) : (
+          <Stack spacing={0} divider={<Box sx={{ borderTop: 1, borderColor: "divider" }} />} sx={{ mt: 1 }}>
+            {visibleRows.map((r) => {
+              const { date, time } = formatDateTimeParts(r.createdAt, locale);
+              return (
+                <Box key={r.id} sx={{ py: 1 }}>
+                  <Stack direction="row" spacing={1} alignItems="flex-start">
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body2" fontWeight={700} sx={{ overflowWrap: "anywhere" }}>
+                        {r.packageCode}
+                      </Typography>
+                      <Typography variant="caption" display="block" sx={{ opacity: 0.75 }}>
+                        {date} {time} · Pág. {r.bookPage || "-"}
+                      </Typography>
+                      <Typography variant="caption" display="block" sx={{ opacity: 0.75 }}>
+                        Bloco {r.block || "-"} · Apto {r.apartment || "-"}
+                      </Typography>
+                    </Box>
+                    <Tooltip title={t("history.printSingleLabel")}>
+                      <IconButton
+                        aria-label={t("history.printSingleLabel")}
+                        onClick={() => onPrintRow(r)}
+                        size="small"
+                      >
+                        <LocalOfferOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
+        )}
+      </Paper>
+    );
+  }
 
   const handlePrintTable = () => {
     if (!visibleRows.length) return;

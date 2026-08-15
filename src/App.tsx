@@ -70,6 +70,7 @@ type IdentifyPackageScreenProps = Readonly<{
   onPrintHistoryRow: (row: LabelHistoryRow) => void;
 
   packageCodeInputRef: RefObject<HTMLInputElement | null>;
+  embedded?: boolean;
 }>;
 
 function escapeHtml(str: string): string {
@@ -858,20 +859,33 @@ function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
 // Tela inicial
 // ============
 function HomeScreen() {
-  const { t } = useTranslation();
-
   return (
-    <Container maxWidth="md" sx={{ mt: 3, mb: 3 }}>
-      <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 } }}>
-        <Typography variant="h5" gutterBottom>
-          {t("home.title")}
-        </Typography>
-        <Typography variant="body1" gutterBottom>
-          {t("home.welcome")}
-        </Typography>
-        <Typography variant="body2">{t("home.useMenu")}</Typography>
-      </Paper>
-    </Container>
+    <Box
+      sx={{
+        width: "100%",
+        maxWidth: 1900,
+        mx: "auto",
+        display: "grid",
+        gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 7fr) minmax(340px, 3fr)" },
+        gap: 2,
+        alignItems: "start",
+      }}
+    >
+      <Box sx={{ minWidth: 0 }}>
+        <RegistryScreen embedded />
+      </Box>
+
+      <Box
+        sx={{
+          minWidth: 0,
+          position: { lg: "sticky" },
+          top: { lg: 16 },
+          alignSelf: "start",
+        }}
+      >
+        <IdentifyPackageContainer embedded />
+      </Box>
+    </Box>
   );
 }
 
@@ -894,6 +908,7 @@ function IdentifyPackageScreen({
   onHistoryToDateChange,
   onPrintHistoryRow,
   packageCodeInputRef,
+  embedded = false,
 }: IdentifyPackageScreenProps) {
   const { t } = useTranslation();
   const apartmentRef = useRef<HTMLInputElement | null>(null);
@@ -923,9 +938,13 @@ function IdentifyPackageScreen({
   };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 3, mb: 3 }}>
-      <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 } }}>
-        <Typography variant="h5" gutterBottom>
+    <Container
+      maxWidth={embedded ? false : "lg"}
+      disableGutters={embedded}
+      sx={{ mt: embedded ? 0 : 3, mb: embedded ? 0 : 3, minWidth: 0 }}
+    >
+      <Paper elevation={2} sx={{ p: embedded ? 1.5 : { xs: 2, sm: 3 } }}>
+        <Typography variant={embedded ? "h6" : "h5"} gutterBottom>
           {t("identify.title")}
         </Typography>
 
@@ -995,12 +1014,13 @@ function IdentifyPackageScreen({
       <Box sx={{ mt: 2 }}>
         <LabelHistoryGrid
           rows={historyRows}
-          maxRows={10}
+          maxRows={embedded ? 5 : 10}
           fromDate={historyFromDate}
           toDate={historyToDate}
           onFromDateChange={onHistoryFromDateChange}
           onToDateChange={onHistoryToDateChange}
           onPrintRow={onPrintHistoryRow}
+          compact={embedded}
         />
       </Box>
     </Container>
@@ -1010,7 +1030,7 @@ function IdentifyPackageScreen({
 // =========================================
 // Container da tela de etiquetas + scanner
 // =========================================
-function IdentifyPackageContainer() {
+function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: boolean }> = {}) {
   const [packageCode, setPackageCode] = useState<string>("");
   const [apartment, setApartment] = useState<string>("");
   const [scannerOpen, setScannerOpen] = useState<boolean>(false);
@@ -1235,6 +1255,7 @@ function IdentifyPackageContainer() {
         onHistoryToDateChange={handleHistoryToDateChange}
         onPrintHistoryRow={handlePrintHistoryRow}
         packageCodeInputRef={packageCodeInputRef}
+        embedded={embedded}
       />
 
       <CodeScannerDialog

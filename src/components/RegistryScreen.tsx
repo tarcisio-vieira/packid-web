@@ -347,7 +347,7 @@ function DeliveryHistory({ rows }: Readonly<{ rows: DeliveryRecord[] }>) {
   );
 }
 
-export default function RegistryScreen() {
+export default function RegistryScreen({ embedded = false }: Readonly<{ embedded?: boolean }>) {
   const [type, setType] = useState<RegistryEntryType>("RESIDENT");
   const [rows, setRows] = useState<RegistryEntry[]>([]);
   const [search, setSearch] = useState("");
@@ -409,6 +409,7 @@ export default function RegistryScreen() {
         row.email,
         row.block,
         row.apartment,
+        `${row.block ?? ""}${row.apartment ?? ""}`,
         row.company,
         row.ownerName,
         row.brand,
@@ -669,8 +670,8 @@ export default function RegistryScreen() {
   };
 
   return (
-    <Box sx={{ maxWidth: 1500, mx: "auto", mt: 2, mb: 3 }}>
-      <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2.5 } }}>
+    <Box sx={{ maxWidth: embedded ? "none" : 1500, mx: embedded ? 0 : "auto", mt: embedded ? 0 : 2, mb: embedded ? 0 : 3, minWidth: 0 }}>
+      <Paper elevation={2} sx={{ p: embedded ? { xs: 1.25, sm: 1.75 } : { xs: 1.5, sm: 2.5 } }}>
         <Stack
           direction={{ xs: "column", md: "row" }}
           justifyContent="space-between"
