@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Paper,
@@ -19,10 +19,12 @@ import {
 
 import PrintIcon from "@mui/icons-material/Print";
 import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
+import SearchIcon from "@mui/icons-material/Search";
 
 export type LabelHistoryRow = {
   id: string;
   createdAt: string;
+  block?: string;
   apartment: string;
   residentFullName?: string;
   packageCode: string;
@@ -97,7 +99,20 @@ export default function LabelHistoryGrid({
   const { t, i18n } = useTranslation();
 
   const locale = getLocale(i18n.resolvedLanguage || i18n.language || "en");
-  const visibleRows = useMemo(() => rows.slice(0, maxRows), [rows, maxRows]);
+  const [search, setSearch] = useState("");
+
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase(locale);
+    const filtered = query
+      ? rows.filter((row) =>
+          [row.packageCode, row.block, row.apartment, row.residentFullName]
+            .filter(Boolean)
+            .some((value) => String(value).toLocaleLowerCase(locale).includes(query)),
+        )
+      : rows;
+
+    return filtered.slice(0, maxRows);
+  }, [rows, maxRows, search, locale]);
 
   const handlePrintTable = () => {
     if (!visibleRows.length) return;
@@ -124,6 +139,7 @@ export default function LabelHistoryGrid({
     <thead>
       <tr>
         <th class="center">${escapeHtml(t("history.columns.time"))}</th>
+        <th class="center">${escapeHtml(t("history.columns.block"))}</th>
         <th class="center">${escapeHtml(t("history.columns.apartment"))}</th>
         <th>${escapeHtml(t("history.columns.residentFullName"))}</th>
         <th>${escapeHtml(t("history.columns.packageCode"))}</th>
@@ -139,6 +155,7 @@ export default function LabelHistoryGrid({
               ${escapeHtml(date)}<br/>
               <span class="small">${escapeHtml(time)}</span>
             </td>
+            <td class="center">${escapeHtml(r.block || "-")}</td>
             <td class="center">${escapeHtml(r.apartment)}</td>
             <td>${escapeHtml(r.residentFullName || "-")}</td>
             <td>${escapeHtml(r.packageCode)}</td>
@@ -200,6 +217,18 @@ export default function LabelHistoryGrid({
       >
         <TextField
           size="small"
+          label={t("history.filters.search")}
+          placeholder={t("history.filters.searchPlaceholder")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ minWidth: { xs: "100%", sm: 330 } }}
+          InputProps={{
+            startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.55 }} />,
+          }}
+        />
+
+        <TextField
+          size="small"
           type="date"
           label={t("history.filters.from")}
           value={fromDate}
@@ -243,6 +272,9 @@ export default function LabelHistoryGrid({
                   {t("history.columns.time")}
                 </TableCell>
                 <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
+                  {t("history.columns.block")}
+                </TableCell>
+                <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
                   {t("history.columns.apartment")}
                 </TableCell>
                 <TableCell>{t("history.columns.residentFullName")}</TableCell>
@@ -271,6 +303,10 @@ export default function LabelHistoryGrid({
                           {time}
                         </Typography>
                       </Stack>
+                    </TableCell>
+
+                    <TableCell align="center">
+                      <Typography variant="body2">{r.block || "-"}</Typography>
                     </TableCell>
 
                     <TableCell align="center">

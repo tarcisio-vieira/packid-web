@@ -22,6 +22,7 @@ const resources = {
         main: "Main menu",
         home: "Home",
         identifyPackage: "Labels",
+        registry: "Registrations",
       },
       home: {
         title: "Home",
@@ -50,11 +51,14 @@ const resources = {
         printSingleLabel: "Print label",
         noRecords: "No records.",
         filters: {
+          search: "Search",
+          searchPlaceholder: "Package code, block or apartment",
           from: "From",
           to: "To",
         },
         columns: {
           time: "Time",
+          block: "Block",
           apartment: "Apartment",
           residentFullName: "Resident",
           packageCode: "Package code",
@@ -87,6 +91,7 @@ const resources = {
         main: "Menu principal",
         home: "Início",
         identifyPackage: "Etiquetas",
+        registry: "Cadastros",
       },
       home: {
         title: "Início",
@@ -115,11 +120,14 @@ const resources = {
         printSingleLabel: "Imprimir etiqueta",
         noRecords: "Nenhum registro.",
         filters: {
+          search: "Pesquisar",
+          searchPlaceholder: "Código da encomenda, bloco ou apartamento",
           from: "De",
           to: "Até",
         },
         columns: {
           time: "Data / Hora",
+          block: "Bloco/Página",
           apartment: "Apartamento",
           residentFullName: "Condômino",
           packageCode: "pacote",
@@ -152,6 +160,7 @@ const resources = {
         main: "Menú principal",
         home: "Inicio",
         identifyPackage: "Etiquetas",
+        registry: "Registros",
       },
       home: {
         title: "Inicio",
@@ -180,11 +189,14 @@ const resources = {
         printSingleLabel: "Imprimir etiqueta",
         noRecords: "No hay registros.",
         filters: {
+          search: "Buscar",
+          searchPlaceholder: "Código del paquete, bloque o apartamento",
           from: "Desde",
           to: "Hasta",
         },
         columns: {
           time: "Fecha / Hora",
+          block: "Bloque",
           apartment: "Apartamento",
           residentFullName: "Residente",
           packageCode: "Código del paquete",

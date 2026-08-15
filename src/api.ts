@@ -32,6 +32,7 @@ export function getLogoutUrl(): string {
 export type PackIdFromLabelRequest = {
   packageCode: string;
   apartment: string;
+  block?: string;
 };
 
 export async function registerPackIdFromLabel(
@@ -57,6 +58,7 @@ export async function registerPackIdFromLabel(
 export type PackIdLabelCreateRequest = {
   packageCode: string;
   apartment: string;
+  block?: string;
 };
 
 async function readErrorMessage(resp: Response): Promise<string> {
@@ -93,6 +95,7 @@ export async function createPackIdFromLabel(
 
 export type PackIdRecentItem = {
   id: string;
+  block?: string;
   apartment: string;
   residentFullName?: string;
   packageCode: string; // pode continuar vindo (interno)
@@ -123,3 +126,137 @@ export async function fetchRecentPackIds(
   return resp.json();
 }
 
+
+export type RegistryEntryType =
+  | "RESIDENT"
+  | "DELIVERY_PERSON"
+  | "BICYCLE"
+  | "PET"
+  | "VEHICLE";
+
+export type RegistryEntry = {
+  id: string;
+  entryType: RegistryEntryType;
+  name: string;
+  document?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  block?: string | null;
+  apartment?: string | null;
+  company?: string | null;
+  ownerName?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  color?: string | null;
+  identifier?: string | null;
+  species?: string | null;
+  breed?: string | null;
+  parkingSpace?: string | null;
+  notes?: string | null;
+  photoAvailable: boolean;
+  photoOwnedByCurrentUser: boolean;
+  photoFileName?: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt?: string | null;
+};
+
+export type RegistryEntryPayload = Omit<
+  RegistryEntry,
+  | "id"
+  | "createdAt"
+  | "updatedAt"
+  | "photoAvailable"
+  | "photoOwnedByCurrentUser"
+  | "photoFileName"
+>;
+
+export async function fetchRegistryEntries(
+  type?: RegistryEntryType,
+): Promise<RegistryEntry[]> {
+  const params = new URLSearchParams();
+  if (type) params.set("type", type);
+
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const resp = await fetch(`${API_URL}/api/registry${suffix}`, {
+    credentials: "include",
+  });
+
+  if (resp.status === 401) {
+    throw new Error("Sessão expirada. Faça login novamente.");
+  }
+  if (!resp.ok) {
+    throw new Error(await readErrorMessage(resp));
+  }
+  return resp.json();
+}
+
+export async function createRegistryEntry(
+  payload: RegistryEntryPayload,
+): Promise<RegistryEntry> {
+  const resp = await fetch(`${API_URL}/api/registry`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function updateRegistryEntry(
+  id: string,
+  payload: RegistryEntryPayload,
+): Promise<RegistryEntry> {
+  const resp = await fetch(`${API_URL}/api/registry/${id}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function deleteRegistryEntry(id: string): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/registry/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+}
+
+export async function uploadRegistryEntryPhoto(
+  id: string,
+  file: File,
+): Promise<RegistryEntry> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const resp = await fetch(`${API_URL}/api/registry/${id}/photo`, {
+    method: "PUT",
+    credentials: "include",
+    body: form,
+  });
+
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function deleteRegistryEntryPhoto(id: string): Promise<RegistryEntry> {
+  const resp = await fetch(`${API_URL}/api/registry/${id}/photo`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export function registryEntryPhotoUrl(id: string, version?: string | null): string {
+  const suffix = version ? `?v=${encodeURIComponent(version)}` : "";
+  return `${API_URL}/api/registry/${id}/photo${suffix}`;
+}

@@ -13,6 +13,7 @@ import type { User } from "./api";
 import LabelHistoryGrid, {
   type LabelHistoryRow,
 } from "./components/LabelHistoryGrid";
+import RegistryScreen from "./components/RegistryScreen";
 
 import {
   AppBar,
@@ -45,7 +46,7 @@ import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import { Scanner } from "@yudiel/react-qr-scanner";
 
 // ----- Tipos -----
-type ActiveView = "home" | "identifyPackage";
+type ActiveView = "home" | "identifyPackage" | "registry";
 
 type CodeScannerDialogProps = Readonly<{
   open: boolean;
@@ -1084,6 +1085,7 @@ function IdentifyPackageContainer() {
         sorted.map((it) => ({
           id: it.id,
           createdAt: it.arrivedAt,
+          block: it.block ?? "",
           apartment: it.apartment,
           residentFullName: it.residentFullName ?? "",
           packageCode: it.labelPackageCode ?? it.packageCode,
@@ -1166,6 +1168,7 @@ function IdentifyPackageContainer() {
     registerPackIdFromLabel({
       packageCode: pc,
       apartment: apartmentToSave,
+      block: page,
     })
       .then(() => {
         setPackageCode("");
@@ -1189,7 +1192,13 @@ function IdentifyPackageContainer() {
     if (!pc || !ap) return;
 
     try {
-      printSingleLabel(pc, ap, row.residentFullName, focusPackageCodeInput);
+      printSingleLabel(
+        pc,
+        ap,
+        row.residentFullName,
+        focusPackageCodeInput,
+        row.block,
+      );
     } catch (e) {
       console.error(e);
       setSaveError(
@@ -1318,6 +1327,10 @@ function App() {
       return <IdentifyPackageContainer />;
     }
 
+    if (activeView === "registry") {
+      return <RegistryScreen />;
+    }
+
     return <HomeScreen />;
   };
 
@@ -1389,6 +1402,10 @@ function App() {
 
             <ListItemButton onClick={() => setActiveView("identifyPackage")}>
               <ListItemText primary={t("menu.identifyPackage")} />
+            </ListItemButton>
+
+            <ListItemButton onClick={() => setActiveView("registry")}>
+              <ListItemText primary={t("menu.registry")} />
             </ListItemButton>
           </List>
         </Box>
