@@ -130,6 +130,7 @@ export async function fetchRecentPackIds(
 export type RegistryEntryType =
   | "RESIDENT"
   | "DELIVERY_PERSON"
+  | "VISITOR"
   | "BICYCLE"
   | "PET"
   | "VEHICLE";
@@ -260,3 +261,117 @@ export function registryEntryPhotoUrl(id: string, version?: string | null): stri
   const suffix = version ? `?v=${encodeURIComponent(version)}` : "";
   return `${API_URL}/api/registry/${id}/photo${suffix}`;
 }
+
+export type VisitorVisit = {
+  id: string;
+  visitorRegistryEntryId: string;
+  visitorName?: string | null;
+  visitorDocument?: string | null;
+  visitorPhone?: string | null;
+  block: string;
+  apartment: string;
+  visitedAt: string;
+  notes?: string | null;
+};
+
+export type VisitorVisitPayload = {
+  visitorRegistryEntryId: string;
+  block: string;
+  apartment: string;
+  visitedAt?: string | null;
+  notes?: string | null;
+};
+
+export type DeliveryRecord = {
+  id: string;
+  deliveryPersonRegistryEntryId: string;
+  deliveryPersonName?: string | null;
+  company?: string | null;
+  document?: string | null;
+  phone?: string | null;
+  block: string;
+  apartment: string;
+  deliveredAt: string;
+  authorizedToEnter: boolean;
+  notes?: string | null;
+};
+
+export type DeliveryRecordPayload = {
+  deliveryPersonRegistryEntryId: string;
+  block: string;
+  apartment: string;
+  deliveredAt?: string | null;
+  authorizedToEnter?: boolean;
+  notes?: string | null;
+};
+
+export type UnitRegistrySummary = {
+  block: string;
+  apartment: string;
+  residents: RegistryEntry[];
+  bicycles: RegistryEntry[];
+  vehicles: RegistryEntry[];
+  pets: RegistryEntry[];
+  visits: VisitorVisit[];
+  deliveries: DeliveryRecord[];
+  packIds: PackIdRecentItem[];
+};
+
+export async function createVisitorVisit(
+  payload: VisitorVisitPayload,
+): Promise<VisitorVisit> {
+  const resp = await fetch(`${API_URL}/api/visits`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchVisitorVisits(visitorId: string): Promise<VisitorVisit[]> {
+  const params = new URLSearchParams({ visitorId });
+  const resp = await fetch(`${API_URL}/api/visits?${params.toString()}`, {
+    credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function createDeliveryRecord(
+  payload: DeliveryRecordPayload,
+): Promise<DeliveryRecord> {
+  const resp = await fetch(`${API_URL}/api/deliveries`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchDeliveryRecords(
+  deliveryPersonId: string,
+): Promise<DeliveryRecord[]> {
+  const params = new URLSearchParams({ deliveryPersonId });
+  const resp = await fetch(`${API_URL}/api/deliveries?${params.toString()}`, {
+    credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchUnitRegistrySummary(
+  block: string,
+  apartment: string,
+): Promise<UnitRegistrySummary> {
+  const params = new URLSearchParams({ block, apartment });
+  const resp = await fetch(`${API_URL}/api/registry/unit-summary?${params.toString()}`, {
+    credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
