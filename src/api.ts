@@ -628,6 +628,7 @@ export type CondominiumSettings = {
   whatsapp?: string | null;
   notes?: string | null;
   emailNotificationsEnabled: boolean;
+  packIdPrintTwoLabels: boolean;
   googleAccount: GoogleAccountSettings;
 };
 
@@ -638,6 +639,18 @@ export type CondominiumSettingsPayload = Omit<
 
 export async function fetchCondominiumSettings(): Promise<CondominiumSettings> {
   const resp = await fetch(`${API_URL}/api/settings/condominium`, {
+    credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export type PackIdLabelPrintSettings = {
+  copies: 1 | 2;
+};
+
+export async function fetchPackIdLabelPrintSettings(): Promise<PackIdLabelPrintSettings> {
+  const resp = await fetch(`${API_URL}/api/settings/label-print`, {
     credentials: "include",
   });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));

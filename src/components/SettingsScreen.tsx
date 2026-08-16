@@ -45,6 +45,7 @@ function emptyPayload(): CondominiumSettingsPayload {
     whatsapp: "",
     notes: "",
     emailNotificationsEnabled: true,
+    packIdPrintTwoLabels: true,
   };
 }
 
@@ -63,6 +64,7 @@ function toPayload(data: CondominiumSettings): CondominiumSettingsPayload {
     whatsapp: data.whatsapp ?? "",
     notes: data.notes ?? "",
     emailNotificationsEnabled: data.emailNotificationsEnabled !== false,
+    packIdPrintTwoLabels: data.packIdPrintTwoLabels !== false,
   };
 }
 
@@ -276,6 +278,21 @@ export default function SettingsScreen({
           />
           <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 6 } }}>
             Quando ativo, os condôminos com e-mail cadastrado recebem notificações de alterações na unidade e de novas encomendas registradas no PackID. Desative para suspender todos os disparos automáticos; o botão “Testar Gmail” continua disponível para validar a integração.
+          </Typography>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={form.packIdPrintTwoLabels !== false}
+                onChange={(e) => setField("packIdPrintTwoLabels", e.target.checked)}
+              />
+            }
+            label="Imprimir duas etiquetas por encomenda no PackID"
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 6 } }}>
+            Ativado: imprime duas etiquetas idênticas na mesma página, como hoje. Desativado: imprime somente uma etiqueta, mantendo exatamente o mesmo desenho e as mesmas dimensões da etiqueta.
           </Typography>
         </Paper>
 

@@ -29,6 +29,7 @@ import {
   TableHead,
   TablePagination,
   TableRow,
+  TableSortLabel,
   Tabs,
   TextField,
   Tooltip,
@@ -85,12 +86,12 @@ import type {
 
 const TYPES: Array<{ type: RegistryEntryType; label: string }> = [
   { type: "RESIDENT", label: "Condôminos" },
+  { type: "SERVICE_PROVIDER", label: "Prestadores de serviço" },
   { type: "DELIVERY_PERSON", label: "Entregadores" },
   { type: "VISITOR", label: "Visitantes" },
   { type: "BICYCLE", label: "Bicicletas" },
   { type: "PET", label: "Pets" },
   { type: "VEHICLE", label: "Veículos" },
-  { type: "SERVICE_PROVIDER", label: "Prestadores de serviço" },
 ];
 
 const emptyPayload = (entryType: RegistryEntryType): RegistryEntryPayload => ({
@@ -184,11 +185,33 @@ function normalize(value: unknown): string {
     .toLowerCase();
 }
 
-function unitLabel(entry: RegistryEntry): string {
+function formatUnit(block?: string | null, apartment?: string | null): string {
   const parts = [];
-  if (entry.block) parts.push(`Bloco ${entry.block}`);
-  if (entry.apartment) parts.push(`Apto ${entry.apartment}`);
+  if (block) parts.push(`Bloco ${block}`);
+  if (apartment) parts.push(`Apto ${apartment}`);
   return parts.join(" / ") || "-";
+}
+
+function unitLabel(entry: RegistryEntry): string {
+  return formatUnit(entry.block, entry.apartment);
+}
+
+type RegistrySortField = "unit" | "name";
+type RegistrySortDirection = "asc" | "desc";
+
+const naturalCollator = new Intl.Collator("pt-BR", {
+  numeric: true,
+  sensitivity: "base",
+});
+
+function compareRegistryUnit(a: RegistryEntry, b: RegistryEntry): number {
+  const blockCompare = naturalCollator.compare(a.block ?? "", b.block ?? "");
+  if (blockCompare !== 0) return blockCompare;
+  return naturalCollator.compare(a.apartment ?? "", b.apartment ?? "");
+}
+
+function defaultRegistrySortField(entryType: RegistryEntryType): RegistrySortField {
+  return entryType === "DELIVERY_PERSON" || entryType === "SERVICE_PROVIDER" ? "name" : "unit";
 }
 
 function identifierLabel(entry: RegistryEntry): string {
@@ -355,13 +378,14 @@ function VisitHistory({ rows }: Readonly<{ rows: VisitorVisit[] }>) {
                 <TableCell>Data / hora</TableCell>
                 <TableCell>Visitante</TableCell>
                 <TableCell>Documento</TableCell>
+                <TableCell>Unidade</TableCell>
                 <TableCell>Observação</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} align="center">Nenhuma visita registrada.</TableCell>
+                  <TableCell colSpan={5} align="center">Nenhuma visita registrada.</TableCell>
                 </TableRow>
               )}
               {pagedRows.map((row) => (
@@ -369,6 +393,7 @@ function VisitHistory({ rows }: Readonly<{ rows: VisitorVisit[] }>) {
                   <TableCell>{formatDateTime(row.visitedAt)}</TableCell>
                   <TableCell>{row.visitorName || "-"}</TableCell>
                   <TableCell>{row.visitorDocument || "-"}</TableCell>
+                  <TableCell>{formatUnit(row.block, row.apartment)}</TableCell>
                   <TableCell>{row.notes || "-"}</TableCell>
                 </TableRow>
               ))}
@@ -463,6 +488,7 @@ function DeliveryHistory({ rows }: Readonly<{ rows: DeliveryRecord[] }>) {
                 <TableCell>Data / hora</TableCell>
                 <TableCell>Entregador</TableCell>
                 <TableCell>Empresa</TableCell>
+                <TableCell>Unidade</TableCell>
                 <TableCell>Entrada</TableCell>
                 <TableCell>Observação</TableCell>
               </TableRow>
@@ -470,7 +496,7 @@ function DeliveryHistory({ rows }: Readonly<{ rows: DeliveryRecord[] }>) {
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">Nenhuma entrega registrada.</TableCell>
+                  <TableCell colSpan={6} align="center">Nenhuma entrega registrada.</TableCell>
                 </TableRow>
               )}
               {pagedRows.map((row) => (
@@ -478,6 +504,7 @@ function DeliveryHistory({ rows }: Readonly<{ rows: DeliveryRecord[] }>) {
                   <TableCell>{formatDateTime(row.deliveredAt)}</TableCell>
                   <TableCell>{row.deliveryPersonName || "-"}</TableCell>
                   <TableCell>{row.company || "-"}</TableCell>
+                  <TableCell>{formatUnit(row.block, row.apartment)}</TableCell>
                   <TableCell>
                     <Chip
                       size="small"
@@ -519,7 +546,7 @@ function ServiceHistory({ rows, title = "Serviços realizados" }: Readonly<{ row
           <Table size="small" stickyHeader>
             <TableHead><TableRow>
               <TableCell>Data / hora</TableCell><TableCell>Prestador</TableCell><TableCell>Empresa</TableCell>
-              <TableCell>Destino</TableCell><TableCell>Serviço</TableCell><TableCell>Observação</TableCell>
+              <TableCell>Unidade</TableCell><TableCell>Serviço</TableCell><TableCell>Observação</TableCell>
             </TableRow></TableHead>
             <TableBody>
               {rows.length === 0 && <TableRow><TableCell colSpan={6} align="center">Nenhum serviço registrado.</TableCell></TableRow>}
@@ -527,7 +554,7 @@ function ServiceHistory({ rows, title = "Serviços realizados" }: Readonly<{ row
                 <TableCell>{formatDateTime(row.performedAt)}</TableCell>
                 <TableCell>{row.serviceProviderName || "-"}</TableCell>
                 <TableCell>{row.serviceCompanyName || "-"}</TableCell>
-                <TableCell>{row.serviceScope === "CONDOMINIUM" ? "Condomínio" : `Bloco ${row.block} / Apto ${row.apartment}`}</TableCell>
+                <TableCell>{row.serviceScope === "CONDOMINIUM" ? "Condomínio" : formatUnit(row.block, row.apartment)}</TableCell>
                 <TableCell>{row.serviceDescription || "-"}</TableCell>
                 <TableCell>{row.notes || "-"}</TableCell>
               </TableRow>)}
@@ -552,6 +579,8 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortField, setSortField] = useState<RegistrySortField>("unit");
+  const [sortDirection, setSortDirection] = useState<RegistrySortDirection>("asc");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<RegistryEntryPayload>(emptyPayload(type));
@@ -612,10 +641,6 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     setError(null);
     try {
       const data = await fetchRegistryEntries(selectedType);
-      data.sort((a, b) => {
-        if (a.active !== b.active) return a.active ? -1 : 1;
-        return a.name.localeCompare(b.name, "pt-BR");
-      });
       setRows(data);
       setSelectedRow((current) =>
         current ? data.find((item) => item.id === current.id) ?? null : null,
@@ -636,7 +661,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const visibleRows = useMemo(() => {
     const q = normalize(search.trim());
 
-    return rows.filter((row) => {
+    const filtered = rows.filter((row) => {
       // Por padrão, todos os grids de cadastro exibem somente registros ativos.
       // O usuário pode marcar "Mostrar inativos" para consultar também o histórico.
       if (!showInactive && !row.active) return false;
@@ -662,7 +687,20 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         row.notes,
       ].some((value) => normalize(value).includes(q));
     });
-  }, [rows, search, showInactive]);
+
+    const direction = sortDirection === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const primary = sortField === "name"
+        ? naturalCollator.compare(a.name ?? "", b.name ?? "")
+        : compareRegistryUnit(a, b);
+      if (primary !== 0) return primary * direction;
+
+      const secondary = sortField === "name"
+        ? compareRegistryUnit(a, b)
+        : naturalCollator.compare(a.name ?? "", b.name ?? "");
+      return secondary * direction;
+    });
+  }, [rows, search, showInactive, sortField, sortDirection]);
 
   useEffect(() => {
     setPage(0);
@@ -704,6 +742,16 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const isCompanyLinkedPerson = isServiceProvider || isDeliveryPerson;
   const canRegisterEvent = isAccessPerson || isServiceProvider;
   const showDetailsColumn = type !== "RESIDENT";
+
+  const toggleSort = (field: RegistrySortField) => {
+    if (sortField === field) {
+      setSortDirection((current) => current === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+    setPage(0);
+  };
 
   const resetPhotoSelection = () => {
     setPhotoFile(null);
@@ -1233,9 +1281,6 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         >
           <Box>
             <Typography variant="h5">Gestão do condomínio</Typography>
-            <Typography variant="body2" sx={{ opacity: 0.75 }}>
-              Condôminos, entregadores, visitantes, bicicletas, pets, veículos e prestadores de serviço vinculados ao condomínio.
-            </Typography>
           </Box>
           {!companyMode && (
             <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
@@ -1254,6 +1299,8 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
               setCompanyMode(false);
               setType(value);
               setSearch("");
+              setSortField(defaultRegistrySortField(value));
+              setSortDirection("asc");
             }
           }}
           variant="scrollable"
@@ -1406,8 +1453,26 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                   <TableCell width={92} align="center">Registrar</TableCell>
                 )}
                 <TableCell width={72}>Foto</TableCell>
-                <TableCell>Nome / descrição</TableCell>
-                <TableCell>{isCompanyLinkedPerson ? "Empresa" : "Unidade"}</TableCell>
+                <TableCell sortDirection={sortField === "name" ? sortDirection : false}>
+                  <TableSortLabel
+                    active={sortField === "name"}
+                    direction={sortField === "name" ? sortDirection : "asc"}
+                    onClick={() => toggleSort("name")}
+                  >
+                    Nome / descrição
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={!isCompanyLinkedPerson && sortField === "unit" ? sortDirection : false}>
+                  {isCompanyLinkedPerson ? "Empresa" : (
+                    <TableSortLabel
+                      active={sortField === "unit"}
+                      direction={sortField === "unit" ? sortDirection : "asc"}
+                      onClick={() => toggleSort("unit")}
+                    >
+                      Unidade
+                    </TableSortLabel>
+                  )}
+                </TableCell>
                 {type === "RESIDENT" && <TableCell align="center">Proprietário</TableCell>}
                 {type === "VEHICLE" && <TableCell align="center">Vaga alugada</TableCell>}
                 <TableCell>Documento / identificação</TableCell>
@@ -2032,8 +2097,8 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
 
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
                 <RegistryGroup title="Condôminos" rows={unitSummary.residents} />
-                <RegistryGroup title="Pets" rows={unitSummary.pets} />
                 <RegistryGroup title="Veículos" rows={unitSummary.vehicles} />
+                <RegistryGroup title="Pets" rows={unitSummary.pets} />
                 <RegistryGroup title="Bicicletas" rows={unitSummary.bicycles} />
               </Box>
               <PackIdHistory rows={unitSummary.packIds ?? []} />

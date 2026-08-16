@@ -7,6 +7,7 @@ import {
   getLogoutUrl,
   registerPackIdFromLabel,
   fetchRecentPackIds,
+  fetchPackIdLabelPrintSettings,
   userFriendlyError,
 } from "./api";
 import type { User } from "./api";
@@ -262,7 +263,9 @@ function printSingleLabel(
 
   const printedName = (residentName || "").trim();
   const printedPage = (pageNumber || "").trim();
-  const printCopies = Math.max(1, Math.floor(copies));
+  const printCopies = Math.min(2, Math.max(1, Math.floor(copies)));
+  const pageHeightMm = printCopies === 1 ? 50 : 100;
+  const stripGapMm = printCopies === 1 ? 0 : 12;
 
   const unitFontSize = fitTextFontSize(unitHighlight, {
     maxWidthPx: 220,
@@ -360,8 +363,7 @@ function printSingleLabel(
   <title>Etiqueta</title>
 <style>
   @page {
-    /* Duas etiquetas 10x5 cm empilhadas no mesmo layout de impressão. */
-    size: 100mm 100mm;
+    size: 100mm ${pageHeightMm}mm;
     margin: 0;
   }
 
@@ -374,7 +376,7 @@ function printSingleLabel(
     margin: 0;
     padding: 0;
     width: 100mm;
-    min-height: 100mm;
+    min-height: ${pageHeightMm}mm;
     background: #fff;
     font-family: Arial, Helvetica, sans-serif;
     color: #000;
@@ -388,13 +390,13 @@ function printSingleLabel(
 
   .label-strip {
     width: 100mm;
-    height: 100mm;
+    height: ${pageHeightMm}mm;
     padding: 4mm 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 12mm;
+    gap: ${stripGapMm}mm;
     overflow: hidden;
   }
 
@@ -1108,6 +1110,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
   const [packageCode, setPackageCode] = useState<string>("");
   const [apartment, setApartment] = useState<string>("");
   const [scannerOpen, setScannerOpen] = useState<boolean>(false);
+  const [labelCopies, setLabelCopies] = useState<1 | 2>(2);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -1119,6 +1122,23 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
 
   const packageCodeInputRef = useRef<HTMLInputElement | null>(null);
   const seqRef = useRef(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchPackIdLabelPrintSettings()
+      .then((settings) => {
+        if (!cancelled) setLabelCopies(settings.copies === 1 ? 1 : 2);
+      })
+      .catch((error) => {
+        console.error("Não foi possível carregar a configuração de impressão do PackID:", error);
+        if (!cancelled) setLabelCopies(2);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const focusPackageCodeInput = useCallback(() => {
     const tryFocus = () => {
@@ -1254,6 +1274,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
         undefined,
         focusPackageCodeInput,
         page,
+        labelCopies,
       );
     } catch (e: unknown) {
       console.error(e);
@@ -1300,6 +1321,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
         row.residentFullName,
         focusPackageCodeInput,
         row.bookPage,
+        labelCopies,
       );
     } catch (e) {
       console.error(e);
