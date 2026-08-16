@@ -1,0 +1,19 @@
+name: vsgi
+
+services:
+  vsgi-postgres:
+    image: postgres:15
+    container_name: vsgi-postgres
+    environment:
+      POSTGRES_USER: packid_dev
+      POSTGRES_PASSWORD: packid_dev
+      POSTGRES_DB: packid_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - vsgi_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  vsgi_postgres_data:
+    external: true
+    name: packid-api_packid_postgres_data

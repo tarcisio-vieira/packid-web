@@ -1,0 +1,129 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0005-create-residential-unit
+      author: packid
+      changes:
+        - createTable:
+            tableName: residential_unit
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: tenant_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: condominium_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: code
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: name
+                  type: varchar(150)
+                  constraints:
+                    nullable: true
+
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+
+              # auditoria / soft delete
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  constraints:
+                    nullable: true
+              - column:
+                  name: deleted_at
+                  type: timestamp
+                  constraints:
+                    nullable: true
+              - column:
+                  name: created_by
+                  type: varchar(150)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_by
+                  type: varchar(150)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: deleted_by
+                  type: varchar(150)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: deleted
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+
+        - addForeignKeyConstraint:
+            baseTableName: residential_unit
+            baseColumnNames: tenant_id
+            referencedTableName: tenant
+            referencedColumnNames: id
+            constraintName: fk_residential_unit_tenant
+            onDelete: RESTRICT
+
+        # FK composta garante mesmo tenant do condomínio
+        - addForeignKeyConstraint:
+            baseTableName: residential_unit
+            baseColumnNames: tenant_id,condominium_id
+            referencedTableName: condominium
+            referencedColumnNames: tenant_id,id
+            constraintName: fk_residential_unit_condominium_same_tenant
+            onDelete: RESTRICT
+
+        # unidade única dentro do condomínio (por tenant)
+        - addUniqueConstraint:
+            tableName: residential_unit
+            columnNames: tenant_id,condominium_id,code
+            constraintName: uq_residential_unit_tenant_condominium_code
+
+        # necessário para FKs compostas (tenant_id, id)
+        - addUniqueConstraint:
+            tableName: residential_unit
+            columnNames: tenant_id,id
+            constraintName: uq_residential_unit_tenant_id
+
+        - createIndex:
+            tableName: residential_unit
+            indexName: idx_residential_unit_tenant_id
+            columns:
+              - column:
+                  name: tenant_id
+
+        - createIndex:
+            tableName: residential_unit
+            indexName: idx_residential_unit_tenant_condominium_id
+            columns:
+              - column:
+                  name: tenant_id
+              - column:
+                  name: condominium_id

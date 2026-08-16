@@ -204,12 +204,9 @@ export type RegistryEntry = {
   photoAvailable: boolean;
   photoOwnedByCurrentUser: boolean;
   photoFileName?: string | null;
-  cpfPhotoAvailable?: boolean;
-  cpfPhotoOwnedByCurrentUser?: boolean;
-  cpfPhotoFileName?: string | null;
-  rgPhotoAvailable?: boolean;
-  rgPhotoOwnedByCurrentUser?: boolean;
-  rgPhotoFileName?: string | null;
+  documentPhotoAvailable?: boolean;
+  documentPhotoOwnedByCurrentUser?: boolean;
+  documentPhotoFileName?: string | null;
   active: boolean;
   createdAt: string;
   updatedAt?: string | null;
@@ -226,12 +223,9 @@ export type RegistryEntryPayload = Omit<
   | "photoOwnedByCurrentUser"
   | "photoFileName"
   | "serviceCompanyName"
-  | "cpfPhotoAvailable"
-  | "cpfPhotoOwnedByCurrentUser"
-  | "cpfPhotoFileName"
-  | "rgPhotoAvailable"
-  | "rgPhotoOwnedByCurrentUser"
-  | "rgPhotoFileName"
+  | "documentPhotoAvailable"
+  | "documentPhotoOwnedByCurrentUser"
+  | "documentPhotoFileName"
 >;
 
 export async function fetchRegistryEntries(
@@ -486,7 +480,7 @@ export async function endApartmentOccupancy(payload: {
 
 
 
-export type RegistryDocumentKind = "cpf" | "rg";
+export type RegistryDocumentKind = "document";
 
 export async function uploadRegistryDocumentPhoto(id: string, kind: RegistryDocumentKind, file: File): Promise<RegistryEntry> {
   const form = new FormData();

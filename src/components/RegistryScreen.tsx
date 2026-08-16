@@ -264,9 +264,8 @@ function identifierLabel(entry: RegistryEntry): string {
 function detailsLabel(entry: RegistryEntry): string {
   switch (entry.entryType) {
     case "DELIVERY_PERSON":
-      return [entry.identifier ? `RG ${entry.identifier}` : null, entry.email].filter(Boolean).join(" • ") || "-";
     case "SERVICE_PROVIDER":
-      return [entry.identifier ? `RG ${entry.identifier}` : null, entry.email].filter(Boolean).join(" • ") || "-";
+      return entry.email || "-";
     case "VISITOR":
       return entry.phone || entry.document || "-";
     case "BICYCLE":
@@ -668,11 +667,9 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const [deliveryHistory, setDeliveryHistory] = useState<DeliveryRecord[]>([]);
   const [serviceHistory, setServiceHistory] = useState<ServiceRecord[]>([]);
   const [serviceCompanies, setServiceCompanies] = useState<ServiceCompany[]>([]);
-  const [cpfPhotoFile, setCpfPhotoFile] = useState<File | null>(null);
-  const [cpfPhotoPreview, setCpfPhotoPreview] = useState<string | null>(null);
-  const [rgPhotoFile, setRgPhotoFile] = useState<File | null>(null);
-  const [rgPhotoPreview, setRgPhotoPreview] = useState<string | null>(null);
-  const [cameraTarget, setCameraTarget] = useState<"profile" | "cpf" | "rg">("profile");
+  const [documentPhotoFile, setDocumentPhotoFile] = useState<File | null>(null);
+  const [documentPhotoPreview, setDocumentPhotoPreview] = useState<string | null>(null);
+  const [cameraTarget, setCameraTarget] = useState<"profile" | "document">("profile");
   const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
   const [serviceRow, setServiceRow] = useState<RegistryEntry | null>(null);
   const [serviceForm, setServiceForm] = useState<ServiceForm>(emptyServiceForm());
@@ -866,10 +863,8 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     editingRow?.photoAvailable && editingRow.photoOwnedByCurrentUser
       ? registryEntryPhotoUrl(editingRow.id, editingRow.updatedAt ?? editingRow.createdAt)
       : null;
-  const cpfStoredUrl = editingRow?.cpfPhotoAvailable && editingRow.cpfPhotoOwnedByCurrentUser
-    ? registryDocumentPhotoUrl(editingRow.id, "cpf", editingRow.updatedAt ?? editingRow.createdAt) : null;
-  const rgStoredUrl = editingRow?.rgPhotoAvailable && editingRow.rgPhotoOwnedByCurrentUser
-    ? registryDocumentPhotoUrl(editingRow.id, "rg", editingRow.updatedAt ?? editingRow.createdAt) : null;
+  const documentStoredUrl = editingRow?.documentPhotoAvailable && editingRow.documentPhotoOwnedByCurrentUser
+    ? registryDocumentPhotoUrl(editingRow.id, "document", editingRow.updatedAt ?? editingRow.createdAt) : null;
 
   const selectedLabel = TYPES.find((item) => item.type === type)?.label ?? "Gestão";
   const isAccessPerson = type === "VISITOR" || type === "DELIVERY_PERSON";
@@ -899,10 +894,8 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const resetPhotoSelection = () => {
     setPhotoFile(null);
     setPhotoPreview(null);
-    setCpfPhotoFile(null);
-    setCpfPhotoPreview(null);
-    setRgPhotoFile(null);
-    setRgPhotoPreview(null);
+    setDocumentPhotoFile(null);
+    setDocumentPhotoPreview(null);
   };
 
   const stopCamera = () => {
@@ -918,7 +911,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     setCameraError(null);
   };
 
-  const openCamera = (target: "profile" | "cpf" | "rg" = "profile") => {
+  const openCamera = (target: "profile" | "document" = "profile") => {
     setCameraTarget(target);
     setCameraError(null);
     setCameraOpen(true);
@@ -1005,7 +998,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
 
       const file = new File([blob], `vsgi-${cameraTarget}-${Date.now()}.jpg`, { type: "image/jpeg" });
       if (cameraTarget === "profile") handlePhotoSelected(file);
-      else handleDocumentPhotoSelected(cameraTarget, file);
+      else handleDocumentPhotoSelected(file);
       closeCamera();
     }, "image/jpeg", 0.9);
   };
@@ -1082,7 +1075,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     reader.readAsDataURL(file);
   };
 
-  const handleDocumentPhotoSelected = (kind: "cpf" | "rg", file?: File) => {
+  const handleDocumentPhotoSelected = (file?: File) => {
     if (!file) return;
     if (!(file.type === "image/jpeg" || file.type === "image/png")) {
       setError("Use uma foto JPG ou PNG.");
@@ -1095,24 +1088,23 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     setError(null);
     const reader = new FileReader();
     reader.onload = () => {
-      const preview = String(reader.result ?? "");
-      if (kind === "cpf") { setCpfPhotoFile(file); setCpfPhotoPreview(preview); }
-      else { setRgPhotoFile(file); setRgPhotoPreview(preview); }
+      setDocumentPhotoFile(file);
+      setDocumentPhotoPreview(String(reader.result ?? ""));
     };
     reader.readAsDataURL(file);
   };
 
-  const removeDocumentPhoto = async (kind: "cpf" | "rg") => {
+  const removeDocumentPhoto = async () => {
     if (!editingId) return;
-    if (!globalThis.confirm(`Remover a foto do ${kind.toUpperCase()} do Google Drive?`)) return;
+    if (!globalThis.confirm("Remover a foto do documento do Google Drive?")) return;
     setLoading(true); setError(null);
     try {
-      await deleteRegistryDocumentPhoto(editingId, kind);
-      if (kind === "cpf") { setCpfPhotoFile(null); setCpfPhotoPreview(null); }
-      else { setRgPhotoFile(null); setRgPhotoPreview(null); }
+      await deleteRegistryDocumentPhoto(editingId, "document");
+      setDocumentPhotoFile(null);
+      setDocumentPhotoPreview(null);
       await loadRows(type);
-      setSuccessMessage(`Foto do ${kind.toUpperCase()} removida com sucesso.`);
-    } catch (e) { setError(userFriendlyError(e, `Falha ao remover foto do ${kind.toUpperCase()}.`)); }
+      setSuccessMessage("Foto do documento removida com sucesso.");
+    } catch (e) { setError(userFriendlyError(e, "Falha ao remover foto do documento.")); }
     finally { setLoading(false); }
   };
 
@@ -1225,9 +1217,8 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       }
 
       if (photoFile) saved = await uploadRegistryEntryPhoto(saved.id, photoFile);
-      if (saved.entryType === "SERVICE_PROVIDER" || saved.entryType === "DELIVERY_PERSON") {
-        if (cpfPhotoFile) saved = await uploadRegistryDocumentPhoto(saved.id, "cpf", cpfPhotoFile);
-        if (rgPhotoFile) saved = await uploadRegistryDocumentPhoto(saved.id, "rg", rgPhotoFile);
+      if ((saved.entryType === "SERVICE_PROVIDER" || saved.entryType === "DELIVERY_PERSON") && documentPhotoFile) {
+        saved = await uploadRegistryDocumentPhoto(saved.id, "document", documentPhotoFile);
       }
       if (!editingId && registerNow && isAccessPerson) await registerAccessEvent(saved, quickAccess);
       if (!editingId && registerNow && isServiceProvider) await registerServiceEvent(saved, quickService);
@@ -1891,37 +1882,33 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             </Box>
 
             {isCompanyLinkedPerson && (
-              <Box sx={{ gridColumn: { sm: "1 / -1" }, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
-                {(["cpf", "rg"] as const).map((kind) => {
-                  const isCpf = kind === "cpf";
-                  const preview = isCpf ? cpfPhotoPreview : rgPhotoPreview;
-                  const stored = isCpf ? cpfStoredUrl : rgStoredUrl;
-                  const available = isCpf ? editingRow?.cpfPhotoAvailable : editingRow?.rgPhotoAvailable;
-                  const owned = isCpf ? editingRow?.cpfPhotoOwnedByCurrentUser : editingRow?.rgPhotoOwnedByCurrentUser;
-                  return (
-                    <Card key={kind} variant="outlined"><CardContent>
-                      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
-                        <Avatar variant="rounded" src={preview ?? stored ?? undefined} sx={{ width: 120, height: 82 }}><BadgeOutlinedIcon /></Avatar>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography fontWeight={700}>
-                            {kind === "cpf" ? "Foto do CPF" : isDeliveryPerson ? "Foto da identidade / RG" : "Foto do RG"}
-                          </Typography>
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                            <Button component="label" size="small" variant="outlined">
-                              Escolher arquivo
-                              <input hidden type="file" accept="image/jpeg,image/png" onChange={(event) => handleDocumentPhotoSelected(kind, event.target.files?.[0])} />
-                            </Button>
-                            <Button size="small" variant="outlined" startIcon={<PhotoCameraIcon />} onClick={() => openCamera(kind)}>Tirar foto</Button>
-                            {editingId && available && owned && (
-                              <Button size="small" color="error" onClick={() => void removeDocumentPhoto(kind)}>Remover</Button>
-                            )}
-                          </Stack>
-                          <Typography variant="caption" sx={{ opacity: .7 }}>A imagem é compactada antes de ser enviada ao Google Drive.</Typography>
-                        </Box>
-                      </Stack>
-                    </CardContent></Card>
-                  );
-                })}
+              <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="flex-start">
+                      <Avatar variant="rounded" src={documentPhotoPreview ?? documentStoredUrl ?? undefined} sx={{ width: 120, height: 82, mt: { sm: 0.5 } }}><BadgeOutlinedIcon /></Avatar>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography fontWeight={700}>Foto do documento</Typography>
+                        <Typography variant="caption" sx={{ opacity: .75, display: "block" }}>
+                          Pode ser CPF, CNH, RG/Identidade ou outro documento com número de identificação.
+                        </Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                          <Button component="label" size="small" variant="outlined">
+                            Escolher arquivo
+                            <input hidden type="file" accept="image/jpeg,image/png" onChange={(event) => handleDocumentPhotoSelected(event.target.files?.[0])} />
+                          </Button>
+                          <Button size="small" variant="outlined" startIcon={<PhotoCameraIcon />} onClick={() => openCamera("document")}>Tirar foto</Button>
+                          {editingId && editingRow?.documentPhotoAvailable && editingRow.documentPhotoOwnedByCurrentUser && (
+                            <Button size="small" color="error" onClick={() => void removeDocumentPhoto()}>Remover</Button>
+                          )}
+                        </Stack>
+                        <Typography variant="caption" sx={{ opacity: .7, display: "block", mt: 0.5 }}>
+                          A foto será armazenada como comprovante. Digite o número manualmente no campo Documento abaixo.
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
               </Box>
             )}
 
@@ -1941,7 +1928,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             />
 
             {(type === "RESIDENT" || type === "DELIVERY_PERSON" || type === "VISITOR" || type === "SERVICE_PROVIDER") && (
-              <TextField label="CPF / Documento" value={form.document ?? ""} onChange={(e) => setField("document", e.target.value)} fullWidth />
+              <TextField label="Documento" value={form.document ?? ""} onChange={(e) => setField("document", e.target.value)} fullWidth />
             )}
             {(type === "RESIDENT" || type === "DELIVERY_PERSON" || type === "VISITOR" || type === "SERVICE_PROVIDER") && (
               <TextField label="Telefone" value={form.phone ?? ""} onChange={(e) => setField("phone", e.target.value)} fullWidth />
@@ -1972,7 +1959,6 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             )}
             {isCompanyLinkedPerson && (
               <>
-                <TextField label="RG / Identidade" value={form.identifier ?? ""} onChange={(e) => setField("identifier", e.target.value)} fullWidth />
                 <Autocomplete
                   options={serviceCompanies.filter((company) => company.active || company.id === form.serviceCompanyId)}
                   value={serviceCompanies.find((company) => company.id === form.serviceCompanyId) ?? null}
@@ -2087,9 +2073,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         <DialogTitle>
           {cameraTarget === "profile"
             ? `Capturar foto do ${isDeliveryPerson ? "entregador" : isServiceProvider ? "prestador" : "cadastro"}`
-            : cameraTarget === "cpf"
-              ? "Capturar foto do CPF"
-              : isDeliveryPerson ? "Capturar foto da identidade / RG" : "Capturar foto do RG"}
+            : "Capturar foto do documento"}
         </DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
@@ -2118,9 +2102,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             <Typography variant="caption" sx={{ opacity: 0.75 }}>
               {cameraTarget === "profile"
                 ? "Centralize o rosto e clique em Capturar foto. No primeiro uso, o navegador solicitará permissão para acessar a câmera."
-                : cameraTarget === "cpf"
-                  ? "Enquadre o CPF inteiro, com boa iluminação e texto legível, e clique em Capturar foto."
-                  : `Enquadre a ${isDeliveryPerson ? "identidade / RG" : "identidade"} inteira, com boa iluminação e texto legível, e clique em Capturar foto.`}
+                : "Enquadre o documento inteiro, com boa iluminação e texto legível, e clique em Capturar foto."}
             </Typography>
           </Stack>
         </DialogContent>

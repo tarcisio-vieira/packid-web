@@ -1,0 +1,110 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0002-create-person
+      author: packid
+      changes:
+        - createTable:
+            tableName: person
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: tenant_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: full_name
+                  type: varchar(200)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: document
+                  type: varchar(40)
+                  constraints:
+                    nullable: true
+
+              - column:
+                  name: email
+                  type: varchar(255)
+                  constraints:
+                    nullable: true
+
+              - column:
+                  name: phone
+                  type: varchar(40)
+                  constraints:
+                    nullable: true
+
+              - column:
+                  name: person_type
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+
+              # auditoria / soft delete
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  constraints:
+                    nullable: true
+              - column:
+                  name: deleted_at
+                  type: timestamp
+                  constraints:
+                    nullable: true
+              - column:
+                  name: created_by
+                  type: varchar(150)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_by
+                  type: varchar(150)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: deleted_by
+                  type: varchar(150)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: deleted
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+
+        - addForeignKeyConstraint:
+            baseTableName: person
+            baseColumnNames: tenant_id
+            referencedTableName: tenant
+            referencedColumnNames: id
+            constraintName: fk_person_tenant
+            onDelete: RESTRICT
+
+        # necessário para FKs compostas (tenant_id, id)
+        - addUniqueConstraint:
+            tableName: person
+            columnNames: tenant_id,id
+            constraintName: uq_person_tenant_id
+
+        - createIndex:
+            tableName: person
+            indexName: idx_person_tenant_id
+            columns:
+              - column:
+                  name: tenant_id
