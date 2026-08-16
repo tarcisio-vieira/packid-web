@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Avatar,
   Box,
   Button,
+  Checkbox,
   Card,
   CardContent,
   Chip,
@@ -13,7 +15,9 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
+  LinearProgress,
   Paper,
+  Snackbar,
   Stack,
   Switch,
   Tab,
@@ -22,6 +26,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   Tabs,
   TextField,
@@ -52,6 +57,7 @@ import {
   registryEntryPhotoUrl,
   updateRegistryEntry,
   uploadRegistryEntryPhoto,
+  userFriendlyError,
 } from "../api";
 import type {
   ApartmentOccupancy,
@@ -112,6 +118,18 @@ function localDateToday(): string {
   const now = new Date();
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
   return local.toISOString().slice(0, 10);
+}
+
+function occupancyStatusLabel(status: ApartmentOccupancy["status"], compact = false): string {
+  if (status === "ACTIVE") return compact ? "Atual" : "Ocupação atual";
+  if (status === "SCHEDULED") return compact ? "Agendada" : "Ocupação agendada";
+  return compact ? "Encerrada" : "Ocupação encerrada";
+}
+
+function occupancyStatusColor(status: ApartmentOccupancy["status"]): "success" | "info" | "default" {
+  if (status === "ACTIVE") return "success";
+  if (status === "SCHEDULED") return "info";
+  return "default";
 }
 
 function emptyAccessForm(): AccessForm {
@@ -238,14 +256,48 @@ function RegistryGroup({
   );
 }
 
+function PaginationFooter({
+  count,
+  page,
+  rowsPerPage,
+  onPageChange,
+  onRowsPerPageChange,
+}: Readonly<{
+  count: number;
+  page: number;
+  rowsPerPage: number;
+  onPageChange: (page: number) => void;
+  onRowsPerPageChange: (rowsPerPage: number) => void;
+}>) {
+  return (
+    <TablePagination
+      component="div"
+      count={count}
+      page={page}
+      onPageChange={(_, nextPage) => onPageChange(nextPage)}
+      rowsPerPage={rowsPerPage}
+      onRowsPerPageChange={(event) => onRowsPerPageChange(Number(event.target.value))}
+      rowsPerPageOptions={[5, 10, 50]}
+      labelRowsPerPage="Linhas por página:"
+      labelDisplayedRows={({ from, to, count: total }) => `${from}-${to} de ${total}`}
+    />
+  );
+}
+
 function VisitHistory({ rows }: Readonly<{ rows: VisitorVisit[] }>) {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  useEffect(() => setPage(0), [rows]);
+  const pagedRows = rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
   return (
     <Card variant="outlined">
       <CardContent>
         <Typography variant="subtitle1" fontWeight={700} gutterBottom>
           Visitas ({rows.length})
         </Typography>
-        <TableContainer sx={{ maxHeight: 260 }}>
+        <TableContainer sx={{ maxHeight: 360 }}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
@@ -261,7 +313,7 @@ function VisitHistory({ rows }: Readonly<{ rows: VisitorVisit[] }>) {
                   <TableCell colSpan={4} align="center">Nenhuma visita registrada.</TableCell>
                 </TableRow>
               )}
-              {rows.map((row) => (
+              {pagedRows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>{formatDateTime(row.visitedAt)}</TableCell>
                   <TableCell>{row.visitorName || "-"}</TableCell>
@@ -272,19 +324,34 @@ function VisitHistory({ rows }: Readonly<{ rows: VisitorVisit[] }>) {
             </TableBody>
           </Table>
         </TableContainer>
+        {rows.length > 0 && (
+          <PaginationFooter
+            count={rows.length}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            onPageChange={setPage}
+            onRowsPerPageChange={(value) => { setRowsPerPage(value); setPage(0); }}
+          />
+        )}
       </CardContent>
     </Card>
   );
 }
 
 function PackIdHistory({ rows }: Readonly<{ rows: PackIdRecentItem[] }>) {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  useEffect(() => setPage(0), [rows]);
+  const pagedRows = rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
   return (
     <Card variant="outlined">
       <CardContent>
         <Typography variant="subtitle1" fontWeight={700} gutterBottom>
           Encomendas ({rows.length})
         </Typography>
-        <TableContainer sx={{ maxHeight: 300 }}>
+        <TableContainer sx={{ maxHeight: 390 }}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
@@ -300,7 +367,7 @@ function PackIdHistory({ rows }: Readonly<{ rows: PackIdRecentItem[] }>) {
                   <TableCell colSpan={4} align="center">Nenhuma encomenda registrada para esta unidade.</TableCell>
                 </TableRow>
               )}
-              {rows.map((row) => (
+              {pagedRows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>{formatDateTime(row.arrivedAt)}</TableCell>
                   <TableCell>{row.bookPage || "-"}</TableCell>
@@ -311,19 +378,34 @@ function PackIdHistory({ rows }: Readonly<{ rows: PackIdRecentItem[] }>) {
             </TableBody>
           </Table>
         </TableContainer>
+        {rows.length > 0 && (
+          <PaginationFooter
+            count={rows.length}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            onPageChange={setPage}
+            onRowsPerPageChange={(value) => { setRowsPerPage(value); setPage(0); }}
+          />
+        )}
       </CardContent>
     </Card>
   );
 }
 
 function DeliveryHistory({ rows }: Readonly<{ rows: DeliveryRecord[] }>) {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  useEffect(() => setPage(0), [rows]);
+  const pagedRows = rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
   return (
     <Card variant="outlined">
       <CardContent>
         <Typography variant="subtitle1" fontWeight={700} gutterBottom>
           Entregas ({rows.length})
         </Typography>
-        <TableContainer sx={{ maxHeight: 260 }}>
+        <TableContainer sx={{ maxHeight: 360 }}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
@@ -340,7 +422,7 @@ function DeliveryHistory({ rows }: Readonly<{ rows: DeliveryRecord[] }>) {
                   <TableCell colSpan={5} align="center">Nenhuma entrega registrada.</TableCell>
                 </TableRow>
               )}
-              {rows.map((row) => (
+              {pagedRows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>{formatDateTime(row.deliveredAt)}</TableCell>
                   <TableCell>{row.deliveryPersonName || "-"}</TableCell>
@@ -358,6 +440,15 @@ function DeliveryHistory({ rows }: Readonly<{ rows: DeliveryRecord[] }>) {
             </TableBody>
           </Table>
         </TableContainer>
+        {rows.length > 0 && (
+          <PaginationFooter
+            count={rows.length}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            onPageChange={setPage}
+            onRowsPerPageChange={(value) => { setRowsPerPage(value); setPage(0); }}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -367,13 +458,22 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const [type, setType] = useState<RegistryEntryType>("RESIDENT");
   const [rows, setRows] = useState<RegistryEntry[]>([]);
   const [search, setSearch] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<RegistryEntryPayload>(emptyPayload(type));
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const [selectedRow, setSelectedRow] = useState<RegistryEntry | null>(null);
   const [registerNow, setRegisterNow] = useState(false);
   const [quickAccess, setQuickAccess] = useState<AccessForm>(emptyAccessForm());
@@ -410,7 +510,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         current ? data.find((item) => item.id === current.id) ?? null : null,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha ao carregar cadastros.");
+      setError(userFriendlyError(e, "Falha ao carregar cadastros."));
     } finally {
       setLoading(false);
     }
@@ -423,10 +523,14 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
 
   const visibleRows = useMemo(() => {
     const q = normalize(search.trim());
-    if (!q) return rows;
 
-    return rows.filter((row) =>
-      [
+    return rows.filter((row) => {
+      // Por padrão, todos os grids de cadastro exibem somente registros ativos.
+      // O usuário pode marcar "Mostrar inativos" para consultar também o histórico.
+      if (!showInactive && !row.active) return false;
+      if (!q) return true;
+
+      return [
         row.name,
         row.document,
         row.phone,
@@ -444,9 +548,29 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         row.breed,
         row.parkingSpace,
         row.notes,
-      ].some((value) => normalize(value).includes(q)),
-    );
-  }, [rows, search]);
+      ].some((value) => normalize(value).includes(q));
+    });
+  }, [rows, search, showInactive]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [type, search, showInactive, rowsPerPage]);
+
+  useEffect(() => {
+    if (!showInactive && selectedRow && !selectedRow.active) {
+      setSelectedRow(null);
+    }
+  }, [showInactive, selectedRow]);
+
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(visibleRows.length / rowsPerPage) - 1);
+    if (page > maxPage) setPage(maxPage);
+  }, [visibleRows.length, rowsPerPage, page]);
+
+  const paginatedRows = useMemo(
+    () => visibleRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [visibleRows, page, rowsPerPage],
+  );
 
   const editingRow = editingId ? rows.find((row) => row.id === editingId) ?? null : null;
   const photoLockedByAnotherAccount = Boolean(
@@ -466,7 +590,111 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     setPhotoPreview(null);
   };
 
+  const stopCamera = () => {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  };
+
+  const closeCamera = () => {
+    stopCamera();
+    setCameraOpen(false);
+    setCameraLoading(false);
+    setCameraError(null);
+  };
+
+  const openCamera = () => {
+    setCameraError(null);
+    setCameraOpen(true);
+  };
+
+  useEffect(() => {
+    if (!cameraOpen) return;
+
+    let cancelled = false;
+
+    const startCamera = async () => {
+      setCameraLoading(true);
+      setCameraError(null);
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraError("A câmera não está disponível neste navegador. Use a opção Escolher arquivo.");
+        setCameraLoading(false);
+        return;
+      }
+
+      try {
+        stopCamera();
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user" },
+          audio: false,
+        });
+
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        cameraStreamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+      } catch (e) {
+        const errorName = e instanceof DOMException ? e.name : "";
+        if (errorName === "NotAllowedError" || errorName === "SecurityError") {
+          setCameraError("Permissão da câmera negada. Autorize a câmera no navegador e tente novamente.");
+        } else if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+          setCameraError("Nenhuma câmera foi encontrada neste equipamento.");
+        } else if (errorName === "NotReadableError" || errorName === "TrackStartError") {
+          setCameraError("A câmera está sendo usada por outro aplicativo ou não pôde ser iniciada.");
+        } else {
+          setCameraError("Não foi possível abrir a câmera. Verifique a permissão do navegador e tente novamente.");
+        }
+      } finally {
+        if (!cancelled) setCameraLoading(false);
+      }
+    };
+
+    void startCamera();
+
+    return () => {
+      cancelled = true;
+      stopCamera();
+    };
+  }, [cameraOpen]);
+
+  const captureCameraPhoto = () => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) {
+      setCameraError("A imagem da câmera ainda não está pronta. Aguarde um instante e tente novamente.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setCameraError("Não foi possível processar a foto capturada.");
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setCameraError("Não foi possível gerar a foto capturada.");
+        return;
+      }
+
+      const file = new File([blob], `vsgi-foto-${Date.now()}.jpg`, { type: "image/jpeg" });
+      handlePhotoSelected(file);
+      closeCamera();
+    }, "image/jpeg", 0.9);
+  };
+
   const openNew = () => {
+    closeCamera();
     setEditingId(null);
     setForm(emptyPayload(type));
     setRegisterNow(false);
@@ -476,6 +704,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   };
 
   const openEdit = (row: RegistryEntry) => {
+    closeCamera();
     setEditingId(row.id);
     setSelectedRow(row);
     setRegisterNow(false);
@@ -535,8 +764,9 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       await deleteRegistryEntryPhoto(editingId);
       resetPhotoSelection();
       await loadRows(type);
+      setSuccessMessage("Foto removida com sucesso.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha ao remover a foto.");
+      setError(userFriendlyError(e, "Falha ao remover a foto."));
     } finally {
       setLoading(false);
     }
@@ -612,9 +842,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       setRegisterNow(false);
       await loadRows(type);
       setSelectedRow(saved);
+      setSuccessMessage(editingId ? "Cadastro atualizado com sucesso." : "Cadastro criado com sucesso.");
     } catch (e) {
       if (newlyCreatedId) await loadRows(type);
-      setError(e instanceof Error ? e.message : "Falha ao salvar cadastro.");
+      setError(userFriendlyError(e, "Falha ao salvar cadastro."));
     } finally {
       setLoading(false);
     }
@@ -628,8 +859,9 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       await deleteRegistryEntry(row.id);
       if (selectedRow?.id === row.id) setSelectedRow(null);
       await loadRows(type);
+      setSuccessMessage("Cadastro excluído com sucesso.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha ao excluir cadastro.");
+      setError(userFriendlyError(e, "Falha ao excluir cadastro."));
     } finally {
       setLoading(false);
     }
@@ -649,8 +881,9 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       await registerAccessEvent(eventRow, eventForm);
       setEventDialogOpen(false);
       setEventRow(null);
+      setSuccessMessage(eventRow.entryType === "VISITOR" ? "Visita registrada com sucesso." : "Entrega registrada com sucesso.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha ao registrar movimentação.");
+      setError(userFriendlyError(e, "Falha ao registrar movimentação."));
     } finally {
       setLoading(false);
     }
@@ -666,7 +899,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     try {
       setUnitSummary(await fetchUnitRegistrySummary(block, apartment, occupancyId));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha ao carregar dados do apartamento.");
+      setError(userFriendlyError(e, "Falha ao carregar dados do apartamento."));
       throw e;
     } finally {
       setUnitLoading(false);
@@ -718,6 +951,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         });
         setOccupancyDialogOpen(false);
         await loadUnitSummary(unitSummary.block, unitSummary.apartment, created.id);
+        setSuccessMessage(created.status === "SCHEDULED" ? "Ocupação agendada com sucesso." : "Nova ocupação iniciada com sucesso.");
       } else {
         const ended = await endApartmentOccupancy({
           block: unitSummary.block,
@@ -727,9 +961,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         setOccupancyDialogOpen(false);
         await loadRows(type);
         await loadUnitSummary(unitSummary.block, unitSummary.apartment, ended.id);
+        setSuccessMessage("Ocupação encerrada com sucesso. Os cadastros vinculados foram inativados.");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha ao atualizar ocupação do apartamento.");
+      setError(userFriendlyError(e, "Falha ao atualizar ocupação do apartamento."));
     } finally {
       setLoading(false);
     }
@@ -750,7 +985,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         setDeliveryHistory(await fetchDeliveryRecords(row.id));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha ao carregar histórico.");
+      setError(userFriendlyError(e, "Falha ao carregar histórico."));
       setHistoryDialogOpen(false);
     } finally {
       setHistoryLoading(false);
@@ -792,20 +1027,44 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
           ))}
         </Tabs>
 
-        <TextField
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={`Pesquisar em ${selectedLabel.toLowerCase()}...`}
-          size="small"
-          fullWidth
-          sx={{ mt: 2, maxWidth: 620 }}
-          InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.55 }} /> }}
-        />
+        <Box
+          sx={{
+            mt: 2,
+            display: "flex",
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "stretch", sm: "center" },
+            gap: { xs: 0.5, sm: 2 },
+          }}
+        >
+          <TextField
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={`Pesquisar em ${selectedLabel.toLowerCase()}...`}
+            size="small"
+            fullWidth
+            sx={{ maxWidth: 620 }}
+            inputProps={{ id: "registry-search-input", "aria-keyshortcuts": "ArrowLeft" }}
+            InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.55 }} /> }}
+          />
+          <FormControlLabel
+            sx={{ ml: { xs: 0, sm: 0 }, whiteSpace: "nowrap" }}
+            control={
+              <Checkbox
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+                size="small"
+              />
+            }
+            label="Mostrar inativos"
+          />
+        </Box>
+
+        {loading && <LinearProgress sx={{ mt: 1.5 }} />}
 
         {error && (
-          <Typography color="error" variant="body2" sx={{ mt: 1.5 }}>
+          <Alert severity="error" sx={{ mt: 1.5 }} onClose={() => setError(null)}>
             {error}
-          </Typography>
+          </Alert>
         )}
 
         {selectedRow && (
@@ -897,11 +1156,13 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
               {!loading && visibleRows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={type === "RESIDENT" ? 7 : isAccessPerson ? 9 : 8} align="center" sx={{ py: 4, opacity: 0.7 }}>
-                    Nenhum cadastro encontrado.
+                    {showInactive
+                      ? "Nenhum cadastro encontrado."
+                      : "Nenhum cadastro ativo encontrado. Marque “Mostrar inativos” para consultar registros inativos."}
                   </TableCell>
                 </TableRow>
               )}
-              {visibleRows.map((row) => (
+              {paginatedRows.map((row) => (
                 <TableRow
                   key={row.id}
                   hover
@@ -992,11 +1253,26 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             </TableBody>
           </Table>
         </TableContainer>
+        <TablePagination
+          component="div"
+          count={visibleRows.length}
+          page={page}
+          onPageChange={(_, nextPage) => setPage(nextPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(event) => {
+            setRowsPerPage(Number(event.target.value));
+            setPage(0);
+          }}
+          rowsPerPageOptions={[5, 10, 50]}
+          labelRowsPerPage="Linhas por página:"
+          labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+        />
       </Paper>
 
       <Dialog
         open={dialogOpen}
         onClose={() => {
+          closeCamera();
           setDialogOpen(false);
           setEditingId(null);
           setRegisterNow(false);
@@ -1026,9 +1302,17 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
               </Avatar>
               <Stack spacing={1} alignItems="flex-start">
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                  <Button component="label" variant="outlined" startIcon={<PhotoCameraIcon />} disabled={loading || photoLockedByAnotherAccount}>
-                    {photoFile ? "Trocar foto selecionada" : editingRow?.photoAvailable ? "Trocar foto" : "Selecionar foto"}
+                  <Button component="label" variant="outlined" disabled={loading || photoLockedByAnotherAccount}>
+                    {photoFile ? "Trocar arquivo" : "Escolher arquivo"}
                     <input hidden type="file" accept="image/jpeg,image/png" onChange={(event) => handlePhotoSelected(event.target.files?.[0])} />
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<PhotoCameraIcon />}
+                    onClick={openCamera}
+                    disabled={loading || photoLockedByAnotherAccount}
+                  >
+                    Tirar foto
                   </Button>
                   {editingRow?.photoAvailable && editingRow.photoOwnedByCurrentUser && (
                     <Button color="error" variant="text" startIcon={<DeleteForeverIcon />} onClick={() => void removePhoto()} disabled={loading}>
@@ -1037,7 +1321,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                   )}
                 </Stack>
                 <Typography variant="caption" sx={{ opacity: 0.75 }}>
-                  JPG ou PNG, até 5 MB. A imagem fica no Google Drive da conta autenticada.
+                  Escolha uma imagem do computador/celular ou capture pela câmera. JPG ou PNG, até 5 MB. A imagem fica no Google Drive da conta autenticada.
                 </Typography>
                 {photoLockedByAnotherAccount && (
                   <Typography variant="caption" color="warning.main">
@@ -1125,8 +1409,52 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setDialogOpen(false); setEditingId(null); setRegisterNow(false); resetPhotoSelection(); }}>Cancelar</Button>
-          <Button onClick={() => void save()} variant="contained" disabled={loading}>Salvar</Button>
+          <Button onClick={() => { closeCamera(); setDialogOpen(false); setEditingId(null); setRegisterNow(false); resetPhotoSelection(); }}>Cancelar</Button>
+          <Button onClick={() => void save()} variant="contained" disabled={loading}>{loading ? "Salvando..." : "Salvar"}</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={cameraOpen} onClose={closeCamera} fullWidth maxWidth="sm">
+        <DialogTitle>Capturar foto pela câmera</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            {cameraError && <Alert severity="warning">{cameraError}</Alert>}
+            {cameraLoading && <LinearProgress />}
+            <Box
+              sx={{
+                width: "100%",
+                minHeight: 260,
+                bgcolor: "black",
+                borderRadius: 1,
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{ width: "100%", maxHeight: 420, objectFit: "cover" }}
+              />
+            </Box>
+            <Typography variant="caption" sx={{ opacity: 0.75 }}>
+              Centralize o rosto e clique em Capturar foto. No primeiro uso, o navegador solicitará permissão para acessar a câmera.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeCamera}>Cancelar</Button>
+          <Button
+            variant="contained"
+            startIcon={<PhotoCameraIcon />}
+            onClick={captureCameraPhoto}
+            disabled={cameraLoading || Boolean(cameraError)}
+          >
+            Capturar foto
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -1148,7 +1476,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEventDialogOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={() => void saveEvent()} disabled={loading}>Registrar</Button>
+          <Button variant="contained" onClick={() => void saveEvent()} disabled={loading}>{loading ? "Registrando..." : "Registrar"}</Button>
         </DialogActions>
       </Dialog>
 
@@ -1190,14 +1518,18 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
                           <Chip
                             size="small"
-                            color={unitSummary.selectedOccupancy.status === "ACTIVE" ? "success" : "default"}
-                            label={unitSummary.selectedOccupancy.status === "ACTIVE" ? "Ocupação atual" : "Ocupação encerrada"}
+                            color={occupancyStatusColor(unitSummary.selectedOccupancy.status)}
+                            label={occupancyStatusLabel(unitSummary.selectedOccupancy.status)}
                           />
                           <Typography variant="body2">
                             Entrada: <strong>{formatDateOnly(unitSummary.selectedOccupancy.startDate)}</strong>
                           </Typography>
                           <Typography variant="body2">
-                            Saída: <strong>{unitSummary.selectedOccupancy.endDate ? formatDateOnly(unitSummary.selectedOccupancy.endDate) : "Atual"}</strong>
+                            Saída: <strong>{unitSummary.selectedOccupancy.endDate
+                              ? formatDateOnly(unitSummary.selectedOccupancy.endDate)
+                              : unitSummary.selectedOccupancy.status === "SCHEDULED"
+                                ? "Ainda não iniciada"
+                                : "Atual"}</strong>
                           </Typography>
                         </Stack>
                       ) : (
@@ -1212,7 +1544,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                           Encerrar ocupação
                         </Button>
                       )}
-                      {!unitSummary.occupancies.some((item) => item.status === "ACTIVE") && (
+                      {!unitSummary.occupancies.some((item) => item.status === "ACTIVE" || item.status === "SCHEDULED") && (
                         <Button color="success" variant="contained" startIcon={<AddIcon />} onClick={() => openOccupancyAction("start")}>
                           Nova ocupação
                         </Button>
@@ -1241,11 +1573,15 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                               <Chip
                                 size="small"
-                                color={occupancy.status === "ACTIVE" ? "success" : "default"}
-                                label={occupancy.status === "ACTIVE" ? "Atual" : "Encerrada"}
+                                color={occupancyStatusColor(occupancy.status)}
+                                label={occupancyStatusLabel(occupancy.status, true)}
                               />
                               <Typography variant="body2" fontWeight={600}>
-                                {formatDateOnly(occupancy.startDate)} até {occupancy.endDate ? formatDateOnly(occupancy.endDate) : "hoje"}
+                                {formatDateOnly(occupancy.startDate)} até {occupancy.endDate
+                                  ? formatDateOnly(occupancy.endDate)
+                                  : occupancy.status === "SCHEDULED"
+                                    ? "agendada"
+                                    : "hoje"}
                               </Typography>
                             </Stack>
                             {occupancy.notes && (
@@ -1317,7 +1653,8 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
               value={occupancyDate}
               onChange={(e) => setOccupancyDate(e.target.value)}
               InputLabelProps={{ shrink: true }}
-              inputProps={{ max: localDateToday() }}
+              inputProps={occupancyAction === "end" ? { max: localDateToday() } : undefined}
+              helperText={occupancyAction === "start" ? "Pode ser hoje ou uma data futura. Datas futuras ficam como ocupação agendada." : undefined}
               required
               fullWidth
             />
@@ -1342,10 +1679,32 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             onClick={() => void saveOccupancyAction()}
             disabled={loading || !occupancyDate}
           >
-            {occupancyAction === "start" ? "Criar ocupação" : "Encerrar ocupação"}
+            {loading ? "Processando..." : occupancyAction === "start" ? "Criar ocupação" : "Encerrar ocupação"}
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={Boolean(error)}
+        autoHideDuration={9000}
+        onClose={() => setError(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert severity="error" variant="filled" onClose={() => setError(null)} sx={{ width: "100%" }}>
+          {error}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={Boolean(successMessage)}
+        autoHideDuration={4500}
+        onClose={() => setSuccessMessage(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert severity="success" variant="filled" onClose={() => setSuccessMessage(null)} sx={{ width: "100%" }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
 
     </Box>
   );

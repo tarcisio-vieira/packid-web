@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Paper,
@@ -7,6 +7,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   Typography,
   Box,
@@ -91,8 +92,10 @@ export default function LabelHistoryGrid({
 
   const locale = "pt-BR";
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const visibleRows = useMemo(() => {
+  const filteredRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase(locale);
     const compactQuery = query.replace(/[^0-9a-z]/gi, "");
 
@@ -128,8 +131,22 @@ export default function LabelHistoryGrid({
         })
       : rows;
 
-    return filtered.slice(0, maxRows);
-  }, [rows, maxRows, search, locale]);
+    return filtered;
+  }, [rows, search, locale]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [rows]);
+
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(filteredRows.length / rowsPerPage) - 1);
+    if (page > maxPage) setPage(maxPage);
+  }, [filteredRows.length, rowsPerPage, page]);
+
+  const visibleRows = useMemo(() => {
+    if (compact) return filteredRows.slice(0, maxRows);
+    return filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [compact, filteredRows, maxRows, page, rowsPerPage]);
 
   if (compact) {
     return (
@@ -143,14 +160,14 @@ export default function LabelHistoryGrid({
           label={t("history.filters.search")}
           placeholder="Código, página+bloco+apto ou bloco+apto"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
           fullWidth
           InputProps={{
             startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.55 }} />,
           }}
         />
 
-        {!visibleRows.length ? (
+        {!filteredRows.length ? (
           <Typography variant="body2" sx={{ opacity: 0.75, py: 1.5 }}>
             {t("history.noRecords")}
           </Typography>
@@ -192,7 +209,7 @@ export default function LabelHistoryGrid({
   }
 
   const handlePrintTable = () => {
-    if (!visibleRows.length) return;
+    if (!filteredRows.length) return;
 
     const html = `<!doctype html>
 <html>
@@ -295,7 +312,7 @@ export default function LabelHistoryGrid({
           label={t("history.filters.search")}
           placeholder={t("history.filters.searchPlaceholder")}
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
           sx={{ minWidth: { xs: "100%", sm: 330 } }}
           InputProps={{
             startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.55 }} />,
@@ -324,13 +341,13 @@ export default function LabelHistoryGrid({
           variant="outlined"
           startIcon={<PrintIcon />}
           onClick={handlePrintTable}
-          disabled={!visibleRows.length}
+          disabled={!filteredRows.length}
         >
           {t("history.printTable")}
         </Button>
       </Box>
 
-      {!visibleRows.length ? (
+      {!filteredRows.length ? (
         <Typography variant="body2" sx={{ opacity: 0.8, p: 1 }}>
           {t("history.noRecords")}
         </Typography>
@@ -416,6 +433,23 @@ export default function LabelHistoryGrid({
             </TableBody>
           </Table>
         </TableContainer>
+      )}
+
+      {!compact && filteredRows.length > 0 && (
+        <TablePagination
+          component="div"
+          count={filteredRows.length}
+          page={page}
+          onPageChange={(_, nextPage) => setPage(nextPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(event) => {
+            setRowsPerPage(Number(event.target.value));
+            setPage(0);
+          }}
+          rowsPerPageOptions={[5, 10, 50]}
+          labelRowsPerPage="Linhas por página:"
+          labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+        />
       )}
     </Paper>
   );

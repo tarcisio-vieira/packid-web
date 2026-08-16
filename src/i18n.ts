@@ -21,6 +21,7 @@ const resources = {
         home: "Início",
         identifyPackage: "PackID - Encomendas",
         registry: "Gestão do condomínio",
+        settings: "Configurações",
       },
       home: {
         title: "Início",

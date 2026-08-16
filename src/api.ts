@@ -3,7 +3,16 @@ const API_URL = import.meta.env.VITE_API_URL ?? "";
 export type User = {
   name: string;
   email: string;
+  role?: string;
 };
+
+export function userFriendlyError(error: unknown, fallback: string): string {
+  if (error instanceof TypeError && /fetch|network|load failed/i.test(error.message)) {
+    return "Não foi possível conectar ao servidor. Verifique sua conexão e confirme se a API está em execução.";
+  }
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  return fallback;
+}
 
 export async function fetchCurrentUser(): Promise<User | null> {
   const resp = await fetch(`${API_URL}/api/app-users/me`, {
@@ -15,7 +24,7 @@ export async function fetchCurrentUser(): Promise<User | null> {
   }
 
   if (!resp.ok) {
-    throw new Error("Failed to fetch current user.");
+    throw new Error(await readErrorMessage(resp));
   }
 
   return resp.json();
@@ -46,13 +55,8 @@ export async function registerPackIdFromLabel(
     body: JSON.stringify(payload),
   });
 
-  if (resp.status === 401) {
-    throw new Error("Não autenticado. Faça login novamente.");
-  }
-
   if (!resp.ok) {
-    const msg = await resp.text().catch(() => "");
-    throw new Error(msg || "Falha ao registrar o pacote.");
+    throw new Error(await readErrorMessage(resp));
   }
 }
 
@@ -64,16 +68,45 @@ export type PackIdLabelCreateRequest = {
 };
 
 async function readErrorMessage(resp: Response): Promise<string> {
+  let serverMessage = "";
+
   try {
-    const data = await resp.json();
-    return data?.message || data?.error || `HTTP ${resp.status}`;
-  } catch {
-    try {
-      const text = await resp.text();
-      return text || `HTTP ${resp.status}`;
-    } catch {
-      return `HTTP ${resp.status}`;
+    const contentType = resp.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const data = await resp.json();
+      serverMessage = String(data?.message || data?.error || data?.detail || "").trim();
+    } else {
+      serverMessage = (await resp.text()).trim();
     }
+  } catch {
+    // Usa a mensagem amigável baseada no status HTTP abaixo.
+  }
+
+  if (serverMessage && !/^HTTP\s+\d+$/i.test(serverMessage)) {
+    return serverMessage;
+  }
+
+  switch (resp.status) {
+    case 400:
+      return "Os dados informados não puderam ser processados. Confira os campos e tente novamente.";
+    case 401:
+      return "Sua sessão expirou ou você não está autenticado. Entre novamente no sistema.";
+    case 403:
+      return "Você não tem permissão para realizar esta ação.";
+    case 404:
+      return "O registro solicitado não foi encontrado. Atualize a tela e tente novamente.";
+    case 409:
+      return "A ação não pôde ser concluída porque existe um conflito com outro registro.";
+    case 413:
+      return "O arquivo enviado é maior que o tamanho permitido.";
+    case 500:
+      return "Ocorreu um erro interno no servidor. Tente novamente; se persistir, informe o administrador.";
+    case 502:
+    case 503:
+    case 504:
+      return "O serviço está temporariamente indisponível. Aguarde alguns instantes e tente novamente.";
+    default:
+      return `Não foi possível concluir a operação (erro ${resp.status}).`;
   }
 }
 
@@ -124,8 +157,7 @@ export async function fetchRecentPackIds(
     }
   );
 
-  if (resp.status === 401) return [];
-  if (!resp.ok) throw new Error("Falha ao buscar histórico de encomendas.");
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
 }
 
@@ -318,7 +350,7 @@ export type ApartmentOccupancy = {
   apartment: string;
   startDate: string;
   endDate?: string | null;
-  status: "ACTIVE" | "ENDED";
+  status: "ACTIVE" | "SCHEDULED" | "ENDED";
   notes?: string | null;
 };
 
@@ -427,3 +459,72 @@ export async function endApartmentOccupancy(payload: {
   return resp.json();
 }
 
+
+
+export type GoogleAccountSettings = {
+  connected: boolean;
+  email?: string | null;
+  driveEnabled: boolean;
+  gmailEnabled: boolean;
+  connectedAt?: string | null;
+  lastRefreshAt?: string | null;
+  lastError?: string | null;
+};
+
+export type CondominiumSettings = {
+  tenantId: string;
+  tenantSlug: string;
+  condominiumId?: string | null;
+  name: string;
+  documentNumber?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  managerName?: string | null;
+  whatsapp?: string | null;
+  notes?: string | null;
+  googleAccount: GoogleAccountSettings;
+};
+
+export type CondominiumSettingsPayload = Omit<
+  CondominiumSettings,
+  "tenantId" | "tenantSlug" | "condominiumId" | "googleAccount"
+>;
+
+export async function fetchCondominiumSettings(): Promise<CondominiumSettings> {
+  const resp = await fetch(`${API_URL}/api/settings/condominium`, {
+    credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function updateCondominiumSettings(
+  payload: CondominiumSettingsPayload,
+): Promise<CondominiumSettings> {
+  const resp = await fetch(`${API_URL}/api/settings/condominium`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function disconnectOfficialGoogleAccount(): Promise<CondominiumSettings> {
+  const resp = await fetch(`${API_URL}/api/settings/google-account`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export function getGoogleAccountAuthorizeUrl(): string {
+  return `${API_URL}/api/settings/google-account/authorize`;
+}

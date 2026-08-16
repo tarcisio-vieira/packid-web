@@ -7,6 +7,7 @@ import {
   getLogoutUrl,
   registerPackIdFromLabel,
   fetchRecentPackIds,
+  userFriendlyError,
 } from "./api";
 import type { User } from "./api";
 
@@ -14,8 +15,10 @@ import LabelHistoryGrid, {
   type LabelHistoryRow,
 } from "./components/LabelHistoryGrid";
 import RegistryScreen from "./components/RegistryScreen";
+import SettingsScreen from "./components/SettingsScreen";
 
 import {
+  Alert,
   AppBar,
   Box,
   Toolbar,
@@ -28,6 +31,7 @@ import {
   ListItemText,
   Container,
   Paper,
+  Snackbar,
   Stack,
   TextField,
   Dialog,
@@ -41,7 +45,7 @@ import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import { Scanner } from "@yudiel/react-qr-scanner";
 
 // ----- Tipos -----
-type ActiveView = "home" | "identifyPackage" | "registry";
+type ActiveView = "home" | "identifyPackage" | "registry" | "settings";
 
 type CodeScannerDialogProps = Readonly<{
   open: boolean;
@@ -769,6 +773,7 @@ function printSingleLabel(
 function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
   const { t } = useTranslation();
   const [paused, setPaused] = useState(false);
+  const [scannerError, setScannerError] = useState<string | null>(null);
 
   const handleDetected = (
     detectedCodes: Array<{ rawValue?: string | null }>,
@@ -792,6 +797,12 @@ function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
             {t("identify.scanHelp")}
           </Typography>
 
+          {scannerError && (
+            <Alert severity="warning" sx={{ mt: 1 }} onClose={() => setScannerError(null)}>
+              {scannerError}
+            </Alert>
+          )}
+
           {open && (
             <Box
               sx={{
@@ -807,6 +818,7 @@ function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
                 onScan={handleDetected}
                 onError={(error) => {
                   console.error("Erro ao iniciar scanner:", error);
+                  setScannerError("Não foi possível acessar a câmera. Verifique a permissão do navegador ou digite o código manualmente.");
                 }}
                 paused={paused}
                 scanDelay={800}
@@ -859,6 +871,53 @@ function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
 // Tela inicial
 // ============
 function HomeScreen() {
+  useEffect(() => {
+    const focusInputById = (id: string) => {
+      const input = document.getElementById(id) as HTMLInputElement | null;
+      if (!input) return;
+
+      input.focus();
+      input.select();
+    };
+
+    const handleShortcut = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        return;
+      }
+
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+      // Enquanto houver um modal aberto, as setas pertencem ao próprio modal.
+      if (document.querySelector('[role="dialog"]')) return;
+
+      // Não interfere com campos normais, textarea ou editores.
+      // A exceção são os dois campos que participam diretamente do atalho.
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName?.toLowerCase();
+      const isEditable =
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select" ||
+        Boolean(target?.isContentEditable);
+      const isShortcutField =
+        target?.id === "registry-search-input" || target?.id === "package-code-input";
+
+      if (isEditable && !isShortcutField) return;
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        focusInputById("registry-search-input");
+        return;
+      }
+
+      event.preventDefault();
+      focusInputById("package-code-input");
+    };
+
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, []);
+
   return (
     <Box
       sx={{
@@ -871,6 +930,20 @@ function HomeScreen() {
         alignItems: "start",
       }}
     >
+      <Box
+        sx={{
+          gridColumn: "1 / -1",
+          display: { xs: "none", md: "flex" },
+          justifyContent: "flex-end",
+          px: 0.5,
+          mb: -1,
+        }}
+      >
+        <Typography variant="caption" sx={{ opacity: 0.7 }}>
+          Atalhos: ← pesquisa da gestão · → recebimento de encomendas
+        </Typography>
+      </Box>
+
       <Box sx={{ minWidth: 0 }}>
         <RegistryScreen embedded />
       </Box>
@@ -962,6 +1035,7 @@ function IdentifyPackageScreen({
             onKeyDown={handlePackageCodeKeyDown}
             fullWidth
             autoComplete="off"
+            inputProps={{ id: "package-code-input", "aria-keyshortcuts": "ArrowRight" }}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
@@ -993,9 +1067,9 @@ function IdentifyPackageScreen({
           />
 
           {saveError && (
-            <Typography variant="body2" color="error">
+            <Alert severity="error">
               {saveError}
-            </Typography>
+            </Alert>
           )}
 
           <Box display="flex" justifyContent="flex-end" mt={1}>
@@ -1005,7 +1079,7 @@ function IdentifyPackageScreen({
               onClick={onRequestPrint}
               disabled={!canPrint || saving}
             >
-              {t("identify.printLabel")}
+              {saving ? "PROCESSANDO..." : t("identify.printLabel")}
             </Button>
           </Box>
         </Stack>
@@ -1037,6 +1111,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [historyRows, setHistoryRows] = useState<LabelHistoryRow[]>([]);
 
   const [historyFromDate, setHistoryFromDate] = useState<string>("");
@@ -1124,7 +1199,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
     refreshHistory(historyFromDate, historyToDate).catch((e) => {
       console.error(e);
       setSaveError(
-        e instanceof Error ? e.message : "Erro ao carregar histórico.",
+        userFriendlyError(e, "Erro ao carregar histórico."),
       );
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1136,7 +1211,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
     refreshHistory(value, historyToDate).catch((e) => {
       console.error(e);
       setSaveError(
-        e instanceof Error ? e.message : "Erro ao carregar histórico.",
+        userFriendlyError(e, "Erro ao carregar histórico."),
       );
     });
   };
@@ -1147,7 +1222,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
     refreshHistory(historyFromDate, value).catch((e) => {
       console.error(e);
       setSaveError(
-        e instanceof Error ? e.message : "Erro ao carregar histórico.",
+        userFriendlyError(e, "Erro ao carregar histórico."),
       );
     });
   };
@@ -1170,6 +1245,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
 
     setSaving(true);
     setSaveError(null);
+    setSaveSuccess(null);
 
     try {
       printSingleLabel(
@@ -1182,7 +1258,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
     } catch (e: unknown) {
       console.error(e);
       setSaveError(
-        e instanceof Error ? e.message : "Falha ao gerar a impressão.",
+        userFriendlyError(e, "Falha ao gerar a impressão."),
       );
       setSaving(false);
       return;
@@ -1197,10 +1273,11 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
       .then(() => {
         setPackageCode("");
         setApartment("");
+        setSaveSuccess("Encomenda registrada com sucesso e etiqueta enviada para impressão.");
       })
       .catch((e: unknown) => {
         const msg =
-          e instanceof Error ? e.message : "Falha ao registrar o pacote.";
+          userFriendlyError(e, "Falha ao registrar o pacote.");
         setSaveError(msg);
       })
       .finally(() => {
@@ -1227,7 +1304,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
     } catch (e) {
       console.error(e);
       setSaveError(
-        e instanceof Error ? e.message : "Falha ao reimprimir a etiqueta.",
+        userFriendlyError(e, "Falha ao reimprimir a etiqueta."),
       );
     }
   };
@@ -1264,6 +1341,28 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
         onClose={() => setScannerOpen(false)}
         onScan={handleScan}
       />
+
+      <Snackbar
+        open={Boolean(saveError)}
+        autoHideDuration={9000}
+        onClose={() => setSaveError(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert severity="error" variant="filled" onClose={() => setSaveError(null)} sx={{ width: "100%" }}>
+          {saveError}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={Boolean(saveSuccess)}
+        autoHideDuration={4500}
+        onClose={() => setSaveSuccess(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert severity="success" variant="filled" onClose={() => setSaveSuccess(null)} sx={{ width: "100%" }}>
+          {saveSuccess}
+        </Alert>
+      </Snackbar>
     </>
   );
 }
@@ -1277,14 +1376,25 @@ function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [activeView, setActiveView] = useState<ActiveView>("home");
+  const initialQueryParams = new URLSearchParams(globalThis.location.search);
+  const initialView: ActiveView = initialQueryParams.get("view") === "settings" ? "settings" : "home";
+  const [activeView, setActiveView] = useState<ActiveView>(initialView);
+  const initialGoogleConnectionStatus: "success" | "error" | null =
+    initialQueryParams.get("googleConnected") === "1"
+      ? "success"
+      : initialQueryParams.get("googleError") === "1"
+        ? "error"
+        : null;
+  const [googleConnectionStatus, setGoogleConnectionStatus] = useState<
+    "success" | "error" | null
+  >(initialGoogleConnectionStatus);
 
   useEffect(() => {
     fetchCurrentUser()
       .then(setUser)
       .catch((err: unknown) => {
         console.error(err);
-        setError("Falha ao verificar a autenticação.");
+        setError(userFriendlyError(err, "Falha ao verificar a autenticação."));
         setUser(null);
       });
   }, []);
@@ -1296,6 +1406,12 @@ function App() {
   const handleLogout = () => {
     globalThis.location.href = getLogoutUrl();
   };
+
+  const handleGoogleConnectionHandled = useCallback(() => {
+    setGoogleConnectionStatus(null);
+    const cleanUrl = `${globalThis.location.pathname}${globalThis.location.hash || ""}`;
+    globalThis.history.replaceState({}, document.title, cleanUrl);
+  }, []);
 
   const toggleDrawer = (open: boolean) => () => {
     setDrawerOpen(open);
@@ -1327,9 +1443,9 @@ function App() {
               </Typography>
 
               {error && (
-                <Typography variant="body2" color="error">
+                <Alert severity="error" sx={{ width: "100%" }}>
                   {error}
-                </Typography>
+                </Alert>
               )}
 
               <Button variant="contained" color="primary" onClick={handleLogin}>
@@ -1347,6 +1463,15 @@ function App() {
 
     if (activeView === "registry") {
       return <RegistryScreen />;
+    }
+
+    if (activeView === "settings") {
+      return (
+        <SettingsScreen
+          googleConnectionStatus={googleConnectionStatus}
+          onGoogleConnectionHandled={handleGoogleConnectionHandled}
+        />
+      );
     }
 
     return <HomeScreen />;
@@ -1413,6 +1538,12 @@ function App() {
             <ListItemButton onClick={() => setActiveView("registry")}>
               <ListItemText primary={t("menu.registry")} />
             </ListItemButton>
+
+            {user?.role?.toUpperCase() === "ADMIN" && (
+              <ListItemButton onClick={() => setActiveView("settings")}>
+                <ListItemText primary={t("menu.settings")} />
+              </ListItemButton>
+            )}
           </List>
         </Box>
       </Drawer>
