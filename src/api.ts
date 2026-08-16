@@ -168,7 +168,8 @@ export type RegistryEntryType =
   | "VISITOR"
   | "BICYCLE"
   | "PET"
-  | "VEHICLE";
+  | "VEHICLE"
+  | "SERVICE_PROVIDER";
 
 export type RegistryEntry = {
   id: string;
@@ -182,6 +183,8 @@ export type RegistryEntry = {
   block?: string | null;
   apartment?: string | null;
   company?: string | null;
+  serviceCompanyId?: string | null;
+  serviceCompanyName?: string | null;
   ownerName?: string | null;
   brand?: string | null;
   model?: string | null;
@@ -194,6 +197,12 @@ export type RegistryEntry = {
   photoAvailable: boolean;
   photoOwnedByCurrentUser: boolean;
   photoFileName?: string | null;
+  cpfPhotoAvailable?: boolean;
+  cpfPhotoOwnedByCurrentUser?: boolean;
+  cpfPhotoFileName?: string | null;
+  rgPhotoAvailable?: boolean;
+  rgPhotoOwnedByCurrentUser?: boolean;
+  rgPhotoFileName?: string | null;
   active: boolean;
   createdAt: string;
   updatedAt?: string | null;
@@ -209,6 +218,13 @@ export type RegistryEntryPayload = Omit<
   | "photoAvailable"
   | "photoOwnedByCurrentUser"
   | "photoFileName"
+  | "serviceCompanyName"
+  | "cpfPhotoAvailable"
+  | "cpfPhotoOwnedByCurrentUser"
+  | "cpfPhotoFileName"
+  | "rgPhotoAvailable"
+  | "rgPhotoOwnedByCurrentUser"
+  | "rgPhotoFileName"
 >;
 
 export async function fetchRegistryEntries(
@@ -365,6 +381,7 @@ export type UnitRegistrySummary = {
   pets: RegistryEntry[];
   visits: VisitorVisit[];
   deliveries: DeliveryRecord[];
+  serviceRecords: ServiceRecord[];
   packIds: PackIdRecentItem[];
 };
 
@@ -461,6 +478,122 @@ export async function endApartmentOccupancy(payload: {
 
 
 
+
+export type RegistryDocumentKind = "cpf" | "rg";
+
+export async function uploadRegistryDocumentPhoto(id: string, kind: RegistryDocumentKind, file: File): Promise<RegistryEntry> {
+  const form = new FormData();
+  form.append("file", file);
+  const resp = await fetch(`${API_URL}/api/registry/${id}/documents/${kind}`, {
+    method: "PUT", credentials: "include", body: form,
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function deleteRegistryDocumentPhoto(id: string, kind: RegistryDocumentKind): Promise<RegistryEntry> {
+  const resp = await fetch(`${API_URL}/api/registry/${id}/documents/${kind}`, {
+    method: "DELETE", credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export function registryDocumentPhotoUrl(id: string, kind: RegistryDocumentKind, version?: string | null): string {
+  const suffix = version ? `?v=${encodeURIComponent(version)}` : "";
+  return `${API_URL}/api/registry/${id}/documents/${kind}${suffix}`;
+}
+
+export type ServiceCompany = {
+  id: string;
+  name: string;
+  tradeName?: string | null;
+  documentNumber?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  contactName?: string | null;
+  addressLine?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  notes?: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt?: string | null;
+};
+
+export type ServiceCompanyPayload = Omit<ServiceCompany, "id" | "createdAt" | "updatedAt">;
+
+export async function fetchServiceCompanies(): Promise<ServiceCompany[]> {
+  const resp = await fetch(`${API_URL}/api/service-companies`, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function createServiceCompany(payload: ServiceCompanyPayload): Promise<ServiceCompany> {
+  const resp = await fetch(`${API_URL}/api/service-companies`, {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function updateServiceCompany(id: string, payload: ServiceCompanyPayload): Promise<ServiceCompany> {
+  const resp = await fetch(`${API_URL}/api/service-companies/${id}`, {
+    method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function deleteServiceCompany(id: string): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/service-companies/${id}`, { method: "DELETE", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+}
+
+export type ServiceRecord = {
+  id: string;
+  serviceProviderRegistryEntryId: string;
+  serviceProviderName?: string | null;
+  serviceCompanyId?: string | null;
+  serviceCompanyName?: string | null;
+  serviceScope: "UNIT" | "CONDOMINIUM";
+  block?: string | null;
+  apartment?: string | null;
+  performedAt: string;
+  serviceDescription: string;
+  notes?: string | null;
+  createdBy?: string | null;
+};
+
+export type ServiceRecordPayload = {
+  serviceProviderRegistryEntryId: string;
+  serviceScope: "UNIT" | "CONDOMINIUM";
+  block?: string | null;
+  apartment?: string | null;
+  performedAt?: string | null;
+  serviceDescription: string;
+  notes?: string | null;
+};
+
+export async function createServiceRecord(payload: ServiceRecordPayload): Promise<ServiceRecord> {
+  const resp = await fetch(`${API_URL}/api/service-records`, {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchServiceRecords(providerId?: string, scope?: "UNIT" | "CONDOMINIUM"): Promise<ServiceRecord[]> {
+  const params = new URLSearchParams();
+  if (providerId) params.set("providerId", providerId);
+  if (scope) params.set("scope", scope);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const resp = await fetch(`${API_URL}/api/service-records${suffix}`, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
 export type GoogleAccountSettings = {
   connected: boolean;
   email?: string | null;
@@ -487,6 +620,7 @@ export type CondominiumSettings = {
   managerName?: string | null;
   whatsapp?: string | null;
   notes?: string | null;
+  emailNotificationsEnabled: boolean;
   googleAccount: GoogleAccountSettings;
 };
 
@@ -511,6 +645,15 @@ export async function updateCondominiumSettings(
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function testOfficialGoogleGmail(): Promise<CondominiumSettings> {
+  const resp = await fetch(`${API_URL}/api/settings/google-account/test-gmail`, {
+    method: "POST",
+    credentials: "include",
   });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();

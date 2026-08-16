@@ -6,9 +6,11 @@ import {
   Chip,
   CircularProgress,
   Divider,
+  FormControlLabel,
   Paper,
   Snackbar,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -16,10 +18,12 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import GoogleIcon from "@mui/icons-material/Google";
 import SaveIcon from "@mui/icons-material/Save";
 import LinkOffIcon from "@mui/icons-material/LinkOff";
+import EmailIcon from "@mui/icons-material/Email";
 import {
   disconnectOfficialGoogleAccount,
   fetchCondominiumSettings,
   getGoogleAccountAuthorizeUrl,
+  testOfficialGoogleGmail,
   updateCondominiumSettings,
   userFriendlyError,
   type CondominiumSettings,
@@ -40,6 +44,7 @@ function emptyPayload(): CondominiumSettingsPayload {
     managerName: "",
     whatsapp: "",
     notes: "",
+    emailNotificationsEnabled: true,
   };
 }
 
@@ -57,6 +62,7 @@ function toPayload(data: CondominiumSettings): CondominiumSettingsPayload {
     managerName: data.managerName ?? "",
     whatsapp: data.whatsapp ?? "",
     notes: data.notes ?? "",
+    emailNotificationsEnabled: data.emailNotificationsEnabled !== false,
   };
 }
 
@@ -131,7 +137,10 @@ export default function SettingsScreen({
     return JSON.stringify(form) !== JSON.stringify(toPayload(settings));
   }, [form, settings]);
 
-  const setField = (field: keyof CondominiumSettingsPayload, value: string) => {
+  const setField = <K extends keyof CondominiumSettingsPayload>(
+    field: K,
+    value: CondominiumSettingsPayload[K],
+  ) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
@@ -155,6 +164,27 @@ export default function SettingsScreen({
 
   const authorizeGoogle = () => {
     globalThis.location.href = getGoogleAccountAuthorizeUrl();
+  };
+
+  const testGmail = async () => {
+    setGoogleBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const data = await testOfficialGoogleGmail();
+      applySettings(data);
+      setSuccess(`E-mail de teste enviado para ${data.googleAccount.email ?? "a conta oficial"}.`);
+    } catch (err) {
+      setError(userFriendlyError(err, "Não foi possível testar o Gmail da conta oficial."));
+      try {
+        const refreshed = await fetchCondominiumSettings();
+        applySettings(refreshed);
+      } catch {
+        // Mantém a mensagem principal do teste.
+      }
+    } finally {
+      setGoogleBusy(false);
+    }
   };
 
   const disconnectGoogle = async () => {
@@ -234,6 +264,21 @@ export default function SettingsScreen({
         <TextField label="Observações" multiline minRows={3} value={form.notes ?? ""}
           onChange={(e) => setField("notes", e.target.value)} fullWidth sx={{ mt: 2 }} />
 
+        <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={form.emailNotificationsEnabled !== false}
+                onChange={(e) => setField("emailNotificationsEnabled", e.target.checked)}
+              />
+            }
+            label="Enviar e-mails automáticos aos condôminos"
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 6 } }}>
+            Quando ativo, os condôminos com e-mail cadastrado recebem notificações de alterações na unidade e de novas encomendas registradas no PackID. Desative para suspender todos os disparos automáticos; o botão “Testar Gmail” continua disponível para validar a integração.
+          </Typography>
+        </Paper>
+
         <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
           <Button variant="contained" startIcon={<SaveIcon />} onClick={save}
             disabled={saving || !changed}>
@@ -293,6 +338,12 @@ export default function SettingsScreen({
                 disabled={googleBusy}>
                 {settings?.googleAccount.connected ? "Reconectar conta Google" : "Conectar conta Google"}
               </Button>
+              {settings?.googleAccount.connected && (
+                <Button variant="outlined" startIcon={<EmailIcon />}
+                  onClick={testGmail} disabled={googleBusy || !settings.googleAccount.gmailEnabled}>
+                  Testar Gmail
+                </Button>
+              )}
               {settings?.googleAccount.connected && (
                 <Button variant="outlined" color="error" startIcon={<LinkOffIcon />}
                   onClick={disconnectGoogle} disabled={googleBusy}>
