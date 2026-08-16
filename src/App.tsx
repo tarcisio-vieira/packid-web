@@ -40,6 +40,7 @@ import {
   DialogContent,
   DialogActions,
   InputAdornment,
+  Tooltip,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
@@ -932,20 +933,6 @@ function HomeScreen() {
         alignItems: "start",
       }}
     >
-      <Box
-        sx={{
-          gridColumn: "1 / -1",
-          display: { xs: "none", md: "flex" },
-          justifyContent: "flex-end",
-          px: 0.5,
-          mb: -1,
-        }}
-      >
-        <Typography variant="caption" sx={{ opacity: 0.7 }}>
-          Atalhos: ← pesquisa da gestão · → recebimento de encomendas
-        </Typography>
-      </Box>
-
       <Box sx={{ minWidth: 0 }}>
         <RegistryScreen embedded />
       </Box>
@@ -1019,9 +1006,15 @@ function IdentifyPackageScreen({
       sx={{ mt: embedded ? 0 : 3, mb: embedded ? 0 : 3, minWidth: 0 }}
     >
       <Paper elevation={2} sx={{ p: embedded ? 1.5 : { xs: 2, sm: 3 } }}>
-        <Typography variant={embedded ? "h6" : "h5"} gutterBottom>
-          {t("identify.title")}
-        </Typography>
+        <Tooltip title="Atalho: → recebimento de encomendas" arrow placement="top">
+          <Typography
+            variant={embedded ? "h6" : "h5"}
+            gutterBottom
+            sx={{ display: "inline-block", cursor: "help" }}
+          >
+            {t("identify.title")}
+          </Typography>
+        </Tooltip>
 
         <Typography variant="body2" gutterBottom>
           {t("identify.description")}

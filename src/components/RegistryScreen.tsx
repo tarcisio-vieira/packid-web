@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Alert,
   Autocomplete,
@@ -47,6 +47,11 @@ import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined
 import EngineeringOutlinedIcon from "@mui/icons-material/EngineeringOutlined";
 import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
+import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
+import PedalBikeOutlinedIcon from "@mui/icons-material/PedalBikeOutlined";
+import PetsOutlinedIcon from "@mui/icons-material/PetsOutlined";
+import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import {
   createDeliveryRecord,
   createRegistryEntry,
@@ -93,6 +98,40 @@ const TYPES: Array<{ type: RegistryEntryType; label: string }> = [
   { type: "PET", label: "Pets" },
   { type: "VEHICLE", label: "Veículos" },
 ];
+
+type RegistryNavigationValue = RegistryEntryType | "SERVICE_COMPANY";
+
+const NAVIGATION_ITEMS: Array<{ value: RegistryNavigationValue; label: string; color: string }> = [
+  { value: "RESIDENT", label: "Condôminos", color: "#1976d2" },
+  { value: "SERVICE_PROVIDER", label: "Prestadores de serviço", color: "#ed6c02" },
+  { value: "DELIVERY_PERSON", label: "Entregadores", color: "#2e7d32" },
+  { value: "VISITOR", label: "Visitantes", color: "#7b1fa2" },
+  { value: "SERVICE_COMPANY", label: "Empresas", color: "#795548" },
+  { value: "BICYCLE", label: "Bicicletas", color: "#0288d1" },
+  { value: "PET", label: "Pets", color: "#d81b60" },
+  { value: "VEHICLE", label: "Veículos", color: "#3949ab" },
+];
+
+function navigationIcon(value: RegistryNavigationValue) {
+  switch (value) {
+    case "RESIDENT":
+      return <PeopleAltOutlinedIcon />;
+    case "SERVICE_PROVIDER":
+      return <EngineeringOutlinedIcon />;
+    case "DELIVERY_PERSON":
+      return <LocalShippingOutlinedIcon />;
+    case "VISITOR":
+      return <MeetingRoomOutlinedIcon />;
+    case "SERVICE_COMPANY":
+      return <BusinessOutlinedIcon />;
+    case "BICYCLE":
+      return <PedalBikeOutlinedIcon />;
+    case "PET":
+      return <PetsOutlinedIcon />;
+    case "VEHICLE":
+      return <DirectionsCarOutlinedIcon />;
+  }
+}
 
 const emptyPayload = (entryType: RegistryEntryType): RegistryEntryPayload => ({
   entryType,
@@ -288,13 +327,18 @@ function FieldCard({ label, value }: Readonly<{ label: string; value?: string | 
 function RegistryGroup({
   title,
   rows,
-}: Readonly<{ title: string; rows: RegistryEntry[] }>) {
+  icon,
+  iconColor,
+}: Readonly<{ title: string; rows: RegistryEntry[]; icon: ReactNode; iconColor: string }>) {
   return (
     <Card variant="outlined">
       <CardContent>
-        <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-          {title} ({rows.length})
-        </Typography>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+          <Box sx={{ color: iconColor, display: "flex", alignItems: "center" }}>{icon}</Box>
+          <Typography variant="subtitle1" fontWeight={700}>
+            {title} ({rows.length})
+          </Typography>
+        </Stack>
         {rows.length === 0 ? (
           <Typography variant="body2" sx={{ opacity: 0.65 }}>
             Nenhum registro.
@@ -368,9 +412,10 @@ function VisitHistory({ rows }: Readonly<{ rows: VisitorVisit[] }>) {
   return (
     <Card variant="outlined">
       <CardContent>
-        <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-          Visitas ({rows.length})
-        </Typography>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+          <MeetingRoomOutlinedIcon sx={{ color: "#7b1fa2" }} />
+          <Typography variant="subtitle1" fontWeight={700}>Visitas ({rows.length})</Typography>
+        </Stack>
         <TableContainer sx={{ maxHeight: 360 }}>
           <Table size="small" stickyHeader>
             <TableHead>
@@ -424,9 +469,10 @@ function PackIdHistory({ rows }: Readonly<{ rows: PackIdRecentItem[] }>) {
   return (
     <Card variant="outlined">
       <CardContent>
-        <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-          Encomendas ({rows.length})
-        </Typography>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+          <Inventory2OutlinedIcon sx={{ color: "#00897b" }} />
+          <Typography variant="subtitle1" fontWeight={700}>Encomendas ({rows.length})</Typography>
+        </Stack>
         <TableContainer sx={{ maxHeight: 390 }}>
           <Table size="small" stickyHeader>
             <TableHead>
@@ -478,9 +524,10 @@ function DeliveryHistory({ rows }: Readonly<{ rows: DeliveryRecord[] }>) {
   return (
     <Card variant="outlined">
       <CardContent>
-        <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-          Entregas ({rows.length})
-        </Typography>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+          <LocalShippingOutlinedIcon sx={{ color: "#2e7d32" }} />
+          <Typography variant="subtitle1" fontWeight={700}>Entregas ({rows.length})</Typography>
+        </Stack>
         <TableContainer sx={{ maxHeight: 360 }}>
           <Table size="small" stickyHeader>
             <TableHead>
@@ -541,7 +588,10 @@ function ServiceHistory({ rows, title = "Serviços realizados" }: Readonly<{ row
   return (
     <Card variant="outlined">
       <CardContent>
-        <Typography variant="subtitle1" fontWeight={700} gutterBottom>{title} ({rows.length})</Typography>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+          <EngineeringOutlinedIcon sx={{ color: "#ed6c02" }} />
+          <Typography variant="subtitle1" fontWeight={700}>{title} ({rows.length})</Typography>
+        </Stack>
         <TableContainer sx={{ maxHeight: 380 }}>
           <Table size="small" stickyHeader>
             <TableHead><TableRow>
@@ -590,8 +640,11 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraLoading, setCameraLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const registrySearchInputRef = useRef<HTMLInputElement | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const [selectedRow, setSelectedRow] = useState<RegistryEntry | null>(null);
+  const [selectedResidentVehicles, setSelectedResidentVehicles] = useState<RegistryEntry[]>([]);
+  const [selectedResidentVehiclesLoading, setSelectedResidentVehiclesLoading] = useState(false);
   const [registerNow, setRegisterNow] = useState(false);
   const [quickAccess, setQuickAccess] = useState<AccessForm>(emptyAccessForm());
   const [quickService, setQuickService] = useState<ServiceForm>(emptyServiceForm());
@@ -658,6 +711,51 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     if (type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON" || companyMode) void loadServiceCompanies();
   }, [type, companyMode]);
 
+  useEffect(() => {
+    const handleRegistryTabShortcut = (event: globalThis.KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+
+      // Enquanto houver um modal aberto, as setas pertencem ao próprio modal.
+      if (document.querySelector('[role="dialog"]')) return;
+
+      // Não interfere com campos de edição. A pesquisa da Gestão e o campo principal
+      // do PackID continuam aceitando os atalhos globais.
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName?.toLowerCase();
+      const isEditable =
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select" ||
+        Boolean(target?.isContentEditable);
+      const isHomeShortcutField =
+        target?.id === "registry-search-input" || target?.id === "package-code-input";
+      if (isEditable && !isHomeShortcutField) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const nextType: RegistryEntryType = event.key === "ArrowUp" ? "RESIDENT" : "SERVICE_PROVIDER";
+      setCompanyMode(false);
+      setType(nextType);
+      setSearch("");
+      setSortField(defaultRegistrySortField(nextType));
+      setSortDirection("asc");
+      setPage(0);
+      setSelectedRow(null);
+
+      // Aguarda a troca da aba e posiciona o cursor diretamente na pesquisa.
+      window.setTimeout(() => {
+        registrySearchInputRef.current?.focus();
+      }, 0);
+    };
+
+    // Captura o evento antes do componente Tabs/MUI para que ↑ e ↓ funcionem
+    // mesmo quando o foco estiver em elementos navegáveis da tela.
+    window.addEventListener("keydown", handleRegistryTabShortcut, true);
+    return () => window.removeEventListener("keydown", handleRegistryTabShortcut, true);
+  }, []);
+
   const visibleRows = useMemo(() => {
     const q = normalize(search.trim());
 
@@ -713,6 +811,44 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   }, [showInactive, selectedRow]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    if (
+      !selectedRow ||
+      selectedRow.entryType !== "RESIDENT" ||
+      !selectedRow.block ||
+      !selectedRow.apartment
+    ) {
+      setSelectedResidentVehicles([]);
+      setSelectedResidentVehiclesLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    setSelectedResidentVehicles([]);
+    setSelectedResidentVehiclesLoading(true);
+
+    void fetchUnitRegistrySummary(
+      selectedRow.block,
+      selectedRow.apartment,
+      selectedRow.occupancyId,
+    )
+      .then((summary) => {
+        if (!cancelled) setSelectedResidentVehicles(summary.vehicles);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setSelectedResidentVehicles([]);
+          setError(userFriendlyError(e, "Falha ao carregar os veículos da unidade."));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSelectedResidentVehiclesLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [selectedRow]);
+
+  useEffect(() => {
     const maxPage = Math.max(0, Math.ceil(visibleRows.length / rowsPerPage) - 1);
     if (page > maxPage) setPage(maxPage);
   }, [visibleRows.length, rowsPerPage, page]);
@@ -742,6 +878,13 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const isCompanyLinkedPerson = isServiceProvider || isDeliveryPerson;
   const canRegisterEvent = isAccessPerson || isServiceProvider;
   const showDetailsColumn = type !== "RESIDENT";
+
+  const tableColumnCount =
+    5 +
+    (canRegisterEvent ? 1 : 0) +
+    (type === "RESIDENT" ? 1 : 0) +
+    (type === "VEHICLE" ? 1 : 0) +
+    (showDetailsColumn ? 1 : 0);
 
   const toggleSort = (field: RegistrySortField) => {
     if (sortField === field) {
@@ -1280,7 +1423,11 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
           gap={2}
         >
           <Box>
-            <Typography variant="h5">Gestão do condomínio</Typography>
+            <Tooltip title="Atalhos: ← pesquisa da gestão · ↑ condôminos · ↓ prestadores de serviço" arrow placement="top">
+              <Typography variant="h5" sx={{ display: "inline-block", cursor: "help" }}>
+                Gestão do condomínio
+              </Typography>
+            </Tooltip>
           </Box>
           {!companyMode && (
             <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
@@ -1291,26 +1438,68 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
 
         <Tabs
           value={companyMode ? "SERVICE_COMPANY" : type}
-          onChange={(_, value: RegistryEntryType | "SERVICE_COMPANY") => {
+          onChange={(_, value: RegistryNavigationValue) => {
+            setSearch("");
+            setPage(0);
+            setSelectedRow(null);
+
             if (value === "SERVICE_COMPANY") {
               setCompanyMode(true);
-              setSelectedRow(null);
-            } else {
-              setCompanyMode(false);
-              setType(value);
-              setSearch("");
-              setSortField(defaultRegistrySortField(value));
-              setSortDirection("asc");
+              return;
             }
+
+            setCompanyMode(false);
+            setType(value);
+            setSortField(defaultRegistrySortField(value));
+            setSortDirection("asc");
           }}
           variant="scrollable"
           scrollButtons="auto"
-          sx={{ mt: 2, borderBottom: 1, borderColor: "divider" }}
+          aria-label="Navegação da gestão do condomínio"
+          sx={{
+            mt: 2,
+            borderBottom: 1,
+            borderColor: "divider",
+            minHeight: 56,
+            "& .MuiTabs-indicator": {
+              height: 3,
+              borderRadius: "3px 3px 0 0",
+            },
+          }}
         >
-          {TYPES.map((item) => (
-            <Tab key={item.type} value={item.type} label={item.label} />
+          {NAVIGATION_ITEMS.map((item) => (
+            <Tab
+              key={item.value}
+              value={item.value}
+              aria-label={item.label}
+              icon={
+                <Tooltip title={item.label} arrow placement="top">
+                  <Box
+                    component="span"
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: item.color,
+                      "& svg": { fontSize: 29 },
+                    }}
+                  >
+                    {navigationIcon(item.value)}
+                  </Box>
+                </Tooltip>
+              }
+              sx={{
+                minWidth: 68,
+                minHeight: 56,
+                px: 1.5,
+                opacity: 0.78,
+                "&.Mui-selected": {
+                  opacity: 1,
+                  bgcolor: "action.hover",
+                },
+              }}
+            />
           ))}
-          <Tab value="SERVICE_COMPANY" label="Empresas" icon={<BusinessOutlinedIcon fontSize="small" />} iconPosition="start" />
         </Tabs>
 
         {companyMode ? <ServiceCompanyPanel /> : <>
@@ -1326,11 +1515,12 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
           <TextField
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            inputRef={registrySearchInputRef}
             placeholder={`Pesquisar em ${selectedLabel.toLowerCase()}...`}
             size="small"
             fullWidth
             sx={{ maxWidth: 620 }}
-            inputProps={{ id: "registry-search-input", "aria-keyshortcuts": "ArrowLeft" }}
+            inputProps={{ id: "registry-search-input", "aria-keyshortcuts": "ArrowLeft ArrowUp ArrowDown" }}
             InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.55 }} /> }}
           />
           <FormControlLabel
@@ -1441,12 +1631,54 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                   </Stack>
                 )}
               </Stack>
+
+              {selectedRow.entryType === "RESIDENT" && (
+                <Box sx={{ mt: 2 }}>
+                  <Divider sx={{ mb: 1.5 }} />
+                  <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                    Veículos da unidade ({selectedResidentVehicles.length})
+                  </Typography>
+                  {selectedResidentVehiclesLoading ? (
+                    <Typography variant="body2" sx={{ opacity: 0.7 }}>Carregando veículos...</Typography>
+                  ) : selectedResidentVehicles.length === 0 ? (
+                    <Typography variant="body2" sx={{ opacity: 0.7 }}>Nenhum veículo cadastrado nesta ocupação.</Typography>
+                  ) : (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Veículo</TableCell>
+                            <TableCell>Placa</TableCell>
+                            <TableCell align="center">Vaga alugada/cedida</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {selectedResidentVehicles.map((vehicle) => (
+                            <TableRow key={vehicle.id}>
+                              <TableCell>{[vehicle.brand, vehicle.model].filter(Boolean).join(" ") || vehicle.name || "-"}</TableCell>
+                              <TableCell>{vehicle.identifier || "-"}</TableCell>
+                              <TableCell align="center">
+                                <Chip
+                                  size="small"
+                                  label={vehicle.parkingSpaceRented ? "Sim" : "Não"}
+                                  color={vehicle.parkingSpaceRented ? "warning" : "default"}
+                                  variant={vehicle.parkingSpaceRented ? "filled" : "outlined"}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </Box>
+              )}
             </CardContent>
           </Card>
         )}
 
         <TableContainer sx={{ mt: 2 }}>
-          <Table size="small" sx={{ minWidth: 980 }}>
+          <Table size="small" sx={{ minWidth: 760 }}>
             <TableHead>
               <TableRow>
                 {canRegisterEvent && (
@@ -1475,9 +1707,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                 </TableCell>
                 {type === "RESIDENT" && <TableCell align="center">Proprietário</TableCell>}
                 {type === "VEHICLE" && <TableCell align="center">Vaga alugada</TableCell>}
-                <TableCell>Documento / identificação</TableCell>
                 {showDetailsColumn && <TableCell>Detalhes</TableCell>}
-                <TableCell>Telefone</TableCell>
                 <TableCell align="center">Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
               </TableRow>
@@ -1485,7 +1715,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             <TableBody>
               {!loading && visibleRows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={type === "RESIDENT" ? 8 : type === "VEHICLE" ? 9 : canRegisterEvent ? 9 : 8} align="center" sx={{ py: 4, opacity: 0.7 }}>
+                  <TableCell colSpan={tableColumnCount} align="center" sx={{ py: 4, opacity: 0.7 }}>
                     {showInactive
                       ? "Nenhum cadastro encontrado."
                       : "Nenhum cadastro ativo encontrado. Marque “Mostrar inativos” para consultar registros inativos."}
@@ -1546,9 +1776,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                       <Chip size="small" label={row.parkingSpaceRented ? "Sim" : "Não"} color={row.parkingSpaceRented ? "warning" : "default"} variant={row.parkingSpaceRented ? "filled" : "outlined"} />
                     </TableCell>
                   )}
-                  <TableCell>{identifierLabel(row)}</TableCell>
                   {showDetailsColumn && <TableCell>{detailsLabel(row)}</TableCell>}
-                  <TableCell>{row.phone || "-"}</TableCell>
                   <TableCell align="center">
                     <Chip size="small" label={row.active ? "Ativo" : "Inativo"} variant={row.active ? "filled" : "outlined"} />
                   </TableCell>
@@ -2096,10 +2324,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
               </Typography>
 
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
-                <RegistryGroup title="Condôminos" rows={unitSummary.residents} />
-                <RegistryGroup title="Veículos" rows={unitSummary.vehicles} />
-                <RegistryGroup title="Pets" rows={unitSummary.pets} />
-                <RegistryGroup title="Bicicletas" rows={unitSummary.bicycles} />
+                <RegistryGroup title="Condôminos" rows={unitSummary.residents} icon={<PeopleAltOutlinedIcon />} iconColor="#1976d2" />
+                <RegistryGroup title="Veículos" rows={unitSummary.vehicles} icon={<DirectionsCarOutlinedIcon />} iconColor="#3949ab" />
+                <RegistryGroup title="Pets" rows={unitSummary.pets} icon={<PetsOutlinedIcon />} iconColor="#d81b60" />
+                <RegistryGroup title="Bicicletas" rows={unitSummary.bicycles} icon={<PedalBikeOutlinedIcon />} iconColor="#0288d1" />
               </Box>
               <PackIdHistory rows={unitSummary.packIds ?? []} />
               <VisitHistory rows={unitSummary.visits} />
