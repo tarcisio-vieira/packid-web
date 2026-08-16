@@ -44,7 +44,7 @@ export default function ServiceCompanyPanel() {
       data.sort((a,b) => a.active === b.active ? a.name.localeCompare(b.name, "pt-BR") : a.active ? -1 : 1);
       setRows(data);
       setSelected(current => current ? data.find(x => x.id === current.id) ?? null : null);
-    } catch (e) { setError(userFriendlyError(e, "Falha ao carregar empresas prestadoras.")); }
+    } catch (e) { setError(userFriendlyError(e, "Falha ao carregar empresas.")); }
     finally { setLoading(false); }
   };
 
@@ -74,28 +74,28 @@ export default function ServiceCompanyPanel() {
   const setField = <K extends keyof ServiceCompanyPayload>(k: K, v: ServiceCompanyPayload[K]) => setForm(c => ({...c,[k]:v}));
 
   const save = async () => {
-    if (!form.name.trim()) { setError("Informe o nome da empresa prestadora."); return; }
+    if (!form.name.trim()) { setError("Informe o nome da empresa."); return; }
     setLoading(true); setError(null);
     try {
       const saved = editingId ? await updateServiceCompany(editingId, form) : await createServiceCompany(form);
       setDialogOpen(false); setEditingId(null); await load(); setSelected(saved);
       setSuccess(editingId ? "Empresa atualizada com sucesso." : "Empresa cadastrada com sucesso.");
-    } catch (e) { setError(userFriendlyError(e, "Falha ao salvar empresa prestadora.")); }
+    } catch (e) { setError(userFriendlyError(e, "Falha ao salvar empresa.")); }
     finally { setLoading(false); }
   };
   const remove = async (r: ServiceCompany) => {
     if (!globalThis.confirm(`Excluir a empresa "${r.name}"?`)) return;
     setLoading(true); setError(null);
     try { await deleteServiceCompany(r.id); if (selected?.id === r.id) setSelected(null); await load(); setSuccess("Empresa removida com sucesso."); }
-    catch (e) { setError(userFriendlyError(e, "Falha ao excluir empresa prestadora.")); }
+    catch (e) { setError(userFriendlyError(e, "Falha ao excluir empresa.")); }
     finally { setLoading(false); }
   };
 
   return <Box sx={{ mt: 2 }}>
     <Stack direction={{xs:"column",sm:"row"}} justifyContent="space-between" gap={1} alignItems={{sm:"center"}}>
       <Box>
-        <Typography variant="subtitle1" fontWeight={700}>Empresas de prestação de serviço</Typography>
-        <Typography variant="body2" sx={{opacity:.7}}>Cadastre as empresas para selecioná-las no cadastro dos prestadores.</Typography>
+        <Typography variant="subtitle1" fontWeight={700}>Empresas</Typography>
+        <Typography variant="body2" sx={{opacity:.7}}>Cadastre empresas prestadoras de serviço e transportadoras para selecioná-las nos cadastros de prestadores e entregadores.</Typography>
       </Box>
       <Button variant="contained" startIcon={<AddIcon/>} onClick={openNew}>Nova empresa</Button>
     </Stack>
@@ -128,7 +128,7 @@ export default function ServiceCompanyPanel() {
       onRowsPerPageChange={e=>{setRowsPerPage(Number(e.target.value));setPage(0)}} rowsPerPageOptions={[5,10,50]}
       labelRowsPerPage="Linhas por página:" labelDisplayedRows={({from,to,count})=>`${from}-${to} de ${count}`}/>
 
-    <Dialog open={dialogOpen} onClose={()=>setDialogOpen(false)} fullWidth maxWidth="md"><DialogTitle>{editingId?"Editar empresa":"Nova empresa prestadora"}</DialogTitle><DialogContent>
+    <Dialog open={dialogOpen} onClose={()=>setDialogOpen(false)} fullWidth maxWidth="md"><DialogTitle>{editingId?"Editar empresa":"Nova empresa"}</DialogTitle><DialogContent>
       <Box sx={{mt:1,display:"grid",gridTemplateColumns:{xs:"1fr",sm:"1fr 1fr"},gap:2}}>
         <TextField label="Razão social / Nome *" value={form.name} onChange={e=>setField("name",e.target.value)} required/>
         <TextField label="Nome fantasia" value={form.tradeName ?? ""} onChange={e=>setField("tradeName",e.target.value)}/>

@@ -99,6 +99,10 @@ const emptyPayload = (entryType: RegistryEntryType): RegistryEntryPayload => ({
   document: "",
   phone: "",
   email: "",
+  unitOwner: false,
+  birthDate: "",
+  profession: "",
+  pne: false,
   block: "",
   apartment: "",
   company: "",
@@ -110,7 +114,10 @@ const emptyPayload = (entryType: RegistryEntryType): RegistryEntryPayload => ({
   identifier: "",
   species: "",
   breed: "",
+  petSize: "",
   parkingSpace: "",
+  parkingSpaceRented: false,
+  parkingSpaceRentalNotes: "",
   notes: "",
   active: true,
 });
@@ -195,17 +202,31 @@ function identifierLabel(entry: RegistryEntry): string {
 function detailsLabel(entry: RegistryEntry): string {
   switch (entry.entryType) {
     case "DELIVERY_PERSON":
-      return entry.company || "-";
+      return [entry.identifier ? `RG ${entry.identifier}` : null, entry.email].filter(Boolean).join(" • ") || "-";
     case "SERVICE_PROVIDER":
       return [entry.identifier ? `RG ${entry.identifier}` : null, entry.email].filter(Boolean).join(" • ") || "-";
     case "VISITOR":
       return entry.phone || entry.document || "-";
     case "BICYCLE":
-    case "VEHICLE":
       return [entry.brand, entry.model, entry.color].filter(Boolean).join(" • ") || "-";
+    case "VEHICLE":
+      return [
+        entry.brand,
+        entry.model,
+        entry.color,
+        entry.parkingSpaceRented ? "Vaga alugada/cedida" : null,
+        entry.parkingSpaceRentalNotes,
+      ].filter(Boolean).join(" • ") || "-";
     case "PET":
-      return [entry.ownerName, entry.breed, entry.color].filter(Boolean).join(" • ") || "-";
+      return [entry.ownerName, entry.petSize ? `Porte ${entry.petSize}` : null, entry.breed, entry.color].filter(Boolean).join(" • ") || "-";
     case "RESIDENT":
+      return [
+        entry.unitOwner ? "Proprietário da unidade" : "Morador",
+        entry.birthDate ? `Nasc. ${formatDateOnly(entry.birthDate)}` : null,
+        entry.profession,
+        entry.pne ? "PNE" : null,
+        entry.email,
+      ].filter(Boolean).join(" • ") || "-";
     default:
       return entry.email || "-";
   }
@@ -609,7 +630,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   useEffect(() => {
     setSelectedRow(null);
     if (!companyMode) void loadRows(type);
-    if (type === "SERVICE_PROVIDER" || companyMode) void loadServiceCompanies();
+    if (type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON" || companyMode) void loadServiceCompanies();
   }, [type, companyMode]);
 
   const visibleRows = useMemo(() => {
@@ -679,6 +700,8 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const selectedLabel = TYPES.find((item) => item.type === type)?.label ?? "Gestão";
   const isAccessPerson = type === "VISITOR" || type === "DELIVERY_PERSON";
   const isServiceProvider = type === "SERVICE_PROVIDER";
+  const isDeliveryPerson = type === "DELIVERY_PERSON";
+  const isCompanyLinkedPerson = isServiceProvider || isDeliveryPerson;
   const canRegisterEvent = isAccessPerson || isServiceProvider;
   const showDetailsColumn = type !== "RESIDENT";
 
@@ -821,6 +844,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       document: row.document ?? "",
       phone: row.phone ?? "",
       email: row.email ?? "",
+      unitOwner: row.unitOwner ?? false,
+      birthDate: row.birthDate ?? "",
+      profession: row.profession ?? "",
+      pne: row.pne ?? false,
       block: row.block ?? "",
       apartment: row.apartment ?? "",
       company: row.company ?? "",
@@ -832,7 +859,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       identifier: row.identifier ?? "",
       species: row.species ?? "",
       breed: row.breed ?? "",
+      petSize: row.petSize ?? "",
       parkingSpace: row.parkingSpace ?? "",
+      parkingSpaceRented: row.parkingSpaceRented ?? false,
+      parkingSpaceRentalNotes: row.parkingSpaceRentalNotes ?? "",
       notes: row.notes ?? "",
       active: row.active,
     });
@@ -973,8 +1003,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       setError("Para registrar a entrada agora, informe bloco e apartamento de destino.");
       return;
     }
-    if (isServiceProvider && !form.serviceCompanyId) {
-      setError("Selecione a empresa prestadora. Se ainda não existir, cadastre-a na aba Empresas prestadoras.");
+    if (isCompanyLinkedPerson && !form.serviceCompanyId) {
+      setError(isDeliveryPerson
+        ? "Selecione a empresa/transportadora. Se ainda não existir, cadastre-a na aba Empresas."
+        : "Selecione a empresa prestadora. Se ainda não existir, cadastre-a na aba Empresas.");
       return;
     }
     if (registerNow && isServiceProvider) {
@@ -1002,7 +1034,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       }
 
       if (photoFile) saved = await uploadRegistryEntryPhoto(saved.id, photoFile);
-      if (saved.entryType === "SERVICE_PROVIDER") {
+      if (saved.entryType === "SERVICE_PROVIDER" || saved.entryType === "DELIVERY_PERSON") {
         if (cpfPhotoFile) saved = await uploadRegistryDocumentPhoto(saved.id, "cpf", cpfPhotoFile);
         if (rgPhotoFile) saved = await uploadRegistryDocumentPhoto(saved.id, "rg", rgPhotoFile);
       }
@@ -1231,7 +1263,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
           {TYPES.map((item) => (
             <Tab key={item.type} value={item.type} label={item.label} />
           ))}
-          <Tab value="SERVICE_COMPANY" label="Empresas prestadoras" icon={<BusinessOutlinedIcon fontSize="small" />} iconPosition="start" />
+          <Tab value="SERVICE_COMPANY" label="Empresas" icon={<BusinessOutlinedIcon fontSize="small" />} iconPosition="start" />
         </Tabs>
 
         {companyMode ? <ServiceCompanyPanel /> : <>
@@ -1307,9 +1339,31 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                     }}
                   >
                     <FieldCard label="Nome / descrição" value={selectedRow.name} />
-                    <FieldCard label={selectedRow.entryType === "SERVICE_PROVIDER" ? "Empresa" : "Unidade"} value={selectedRow.entryType === "SERVICE_PROVIDER" ? (selectedRow.serviceCompanyName || selectedRow.company) : unitLabel(selectedRow)} />
+                    <FieldCard
+                      label={(selectedRow.entryType === "SERVICE_PROVIDER" || selectedRow.entryType === "DELIVERY_PERSON") ? "Empresa" : "Unidade"}
+                      value={(selectedRow.entryType === "SERVICE_PROVIDER" || selectedRow.entryType === "DELIVERY_PERSON")
+                        ? (selectedRow.serviceCompanyName || selectedRow.company)
+                        : unitLabel(selectedRow)}
+                    />
                     <FieldCard label="Documento / identificação" value={identifierLabel(selectedRow)} />
                     <FieldCard label="Telefone" value={selectedRow.phone} />
+                    {selectedRow.entryType === "RESIDENT" && (
+                      <>
+                        <FieldCard label="Proprietário da unidade" value={selectedRow.unitOwner ? "Sim" : "Não"} />
+                        <FieldCard label="Data de nascimento" value={selectedRow.birthDate ? formatDateOnly(selectedRow.birthDate) : null} />
+                        <FieldCard label="Profissão" value={selectedRow.profession} />
+                        <FieldCard label="PNE" value={selectedRow.pne ? "Sim" : "Não"} />
+                      </>
+                    )}
+                    {selectedRow.entryType === "PET" && (
+                      <FieldCard label="Porte" value={selectedRow.petSize} />
+                    )}
+                    {selectedRow.entryType === "VEHICLE" && (
+                      <>
+                        <FieldCard label="Vaga alugada/cedida" value={selectedRow.parkingSpaceRented ? "Sim" : "Não"} />
+                        <FieldCard label="Detalhes da vaga" value={selectedRow.parkingSpaceRentalNotes} />
+                      </>
+                    )}
                     <FieldCard label="Detalhes" value={detailsLabel(selectedRow)} />
                     <FieldCard label="Responsável" value={selectedRow.ownerName} />
                     <FieldCard label="Observações" value={selectedRow.notes} />
@@ -1353,7 +1407,9 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                 )}
                 <TableCell width={72}>Foto</TableCell>
                 <TableCell>Nome / descrição</TableCell>
-                <TableCell>{isServiceProvider ? "Empresa" : "Unidade"}</TableCell>
+                <TableCell>{isCompanyLinkedPerson ? "Empresa" : "Unidade"}</TableCell>
+                {type === "RESIDENT" && <TableCell align="center">Proprietário</TableCell>}
+                {type === "VEHICLE" && <TableCell align="center">Vaga alugada</TableCell>}
                 <TableCell>Documento / identificação</TableCell>
                 {showDetailsColumn && <TableCell>Detalhes</TableCell>}
                 <TableCell>Telefone</TableCell>
@@ -1364,7 +1420,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             <TableBody>
               {!loading && visibleRows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={type === "RESIDENT" ? 7 : canRegisterEvent ? 9 : 8} align="center" sx={{ py: 4, opacity: 0.7 }}>
+                  <TableCell colSpan={type === "RESIDENT" ? 8 : type === "VEHICLE" ? 9 : canRegisterEvent ? 9 : 8} align="center" sx={{ py: 4, opacity: 0.7 }}>
                     {showInactive
                       ? "Nenhum cadastro encontrado."
                       : "Nenhum cadastro ativo encontrado. Marque “Mostrar inativos” para consultar registros inativos."}
@@ -1414,7 +1470,17 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell>{isServiceProvider ? (row.serviceCompanyName || row.company || "-") : unitLabel(row)}</TableCell>
+                  <TableCell>{isCompanyLinkedPerson ? (row.serviceCompanyName || row.company || "-") : unitLabel(row)}</TableCell>
+                  {type === "RESIDENT" && (
+                    <TableCell align="center">
+                      <Chip size="small" label={row.unitOwner ? "Sim" : "Não"} color={row.unitOwner ? "primary" : "default"} variant={row.unitOwner ? "filled" : "outlined"} />
+                    </TableCell>
+                  )}
+                  {type === "VEHICLE" && (
+                    <TableCell align="center">
+                      <Chip size="small" label={row.parkingSpaceRented ? "Sim" : "Não"} color={row.parkingSpaceRented ? "warning" : "default"} variant={row.parkingSpaceRented ? "filled" : "outlined"} />
+                    </TableCell>
+                  )}
                   <TableCell>{identifierLabel(row)}</TableCell>
                   {showDetailsColumn && <TableCell>{detailsLabel(row)}</TableCell>}
                   <TableCell>{row.phone || "-"}</TableCell>
@@ -1531,7 +1597,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
               </Stack>
             </Box>
 
-            {type === "SERVICE_PROVIDER" && (
+            {isCompanyLinkedPerson && (
               <Box sx={{ gridColumn: { sm: "1 / -1" }, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
                 {(["cpf", "rg"] as const).map((kind) => {
                   const isCpf = kind === "cpf";
@@ -1544,7 +1610,9 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
                         <Avatar variant="rounded" src={preview ?? stored ?? undefined} sx={{ width: 120, height: 82 }}><BadgeOutlinedIcon /></Avatar>
                         <Box sx={{ flex: 1 }}>
-                          <Typography fontWeight={700}>Foto do {kind.toUpperCase()}</Typography>
+                          <Typography fontWeight={700}>
+                            {kind === "cpf" ? "Foto do CPF" : isDeliveryPerson ? "Foto da identidade / RG" : "Foto do RG"}
+                          </Typography>
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
                             <Button component="label" size="small" variant="outlined">
                               Escolher arquivo
@@ -1570,6 +1638,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                 type === "VEHICLE" ? "Descrição do veículo" :
                 type === "BICYCLE" ? "Descrição da bicicleta" :
                 type === "SERVICE_PROVIDER" ? "Nome do prestador" :
+                type === "DELIVERY_PERSON" ? "Nome do entregador" :
                 "Nome completo"
               }
               value={form.name}
@@ -1584,22 +1653,47 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             {(type === "RESIDENT" || type === "DELIVERY_PERSON" || type === "VISITOR" || type === "SERVICE_PROVIDER") && (
               <TextField label="Telefone" value={form.phone ?? ""} onChange={(e) => setField("phone", e.target.value)} fullWidth />
             )}
-            {(type === "RESIDENT" || type === "SERVICE_PROVIDER") && (
+            {(type === "RESIDENT" || type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON") && (
               <TextField label="E-mail" type="email" value={form.email ?? ""} onChange={(e) => setField("email", e.target.value)} fullWidth />
             )}
-            {type === "DELIVERY_PERSON" && (
-              <TextField label="Empresa / Transportadora" value={form.company ?? ""} onChange={(e) => setField("company", e.target.value)} fullWidth />
-            )}
-            {type === "SERVICE_PROVIDER" && (
+            {type === "RESIDENT" && (
               <>
-                <TextField label="RG" value={form.identifier ?? ""} onChange={(e) => setField("identifier", e.target.value)} fullWidth />
+                <FormControlLabel
+                  control={<Switch checked={Boolean(form.unitOwner)} onChange={(e) => setField("unitOwner", e.target.checked)} />}
+                  label="Proprietário da unidade"
+                />
+                <TextField
+                  label="Data de nascimento"
+                  type="date"
+                  value={form.birthDate ?? ""}
+                  onChange={(e) => setField("birthDate", e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+                <TextField label="Profissão" value={form.profession ?? ""} onChange={(e) => setField("profession", e.target.value)} fullWidth />
+                <FormControlLabel
+                  control={<Switch checked={Boolean(form.pne)} onChange={(e) => setField("pne", e.target.checked)} />}
+                  label="PNE"
+                />
+              </>
+            )}
+            {isCompanyLinkedPerson && (
+              <>
+                <TextField label="RG / Identidade" value={form.identifier ?? ""} onChange={(e) => setField("identifier", e.target.value)} fullWidth />
                 <Autocomplete
                   options={serviceCompanies.filter((company) => company.active || company.id === form.serviceCompanyId)}
                   value={serviceCompanies.find((company) => company.id === form.serviceCompanyId) ?? null}
                   onChange={(_, company) => setField("serviceCompanyId", company?.id ?? null)}
                   getOptionLabel={(company) => [company.name, company.tradeName].filter(Boolean).join(" — ")}
                   isOptionEqualToValue={(option, value) => option.id === value.id}
-                  renderInput={(params) => <TextField {...params} label="Empresa prestadora" placeholder="Digite para pesquisar a empresa" required />}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label={isDeliveryPerson ? "Empresa / Transportadora" : "Empresa prestadora"}
+                      placeholder="Digite para pesquisar a empresa"
+                      required
+                    />
+                  )}
                   noOptionsText="Nenhuma empresa encontrada"
                 />
               </>
@@ -1617,6 +1711,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             )}
             {type === "PET" && (
               <>
+                <TextField label="Porte" value={form.petSize ?? ""} onChange={(e) => setField("petSize", e.target.value)} fullWidth />
                 <TextField label="Espécie" value={form.species ?? ""} onChange={(e) => setField("species", e.target.value)} fullWidth />
                 <TextField label="Raça" value={form.breed ?? ""} onChange={(e) => setField("breed", e.target.value)} fullWidth />
                 <TextField label="Cor" value={form.color ?? ""} onChange={(e) => setField("color", e.target.value)} fullWidth />
@@ -1629,7 +1724,23 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
               </>
             )}
             {type === "VEHICLE" && (
-              <TextField label="Vaga" value={form.parkingSpace ?? ""} onChange={(e) => setField("parkingSpace", e.target.value)} fullWidth />
+              <>
+                <TextField label="Vaga" value={form.parkingSpace ?? ""} onChange={(e) => setField("parkingSpace", e.target.value)} fullWidth />
+                <FormControlLabel
+                  control={<Switch checked={Boolean(form.parkingSpaceRented)} onChange={(e) => setField("parkingSpaceRented", e.target.checked)} />}
+                  label="Vaga alugada/cedida"
+                />
+                {form.parkingSpaceRented && (
+                  <TextField
+                    label="Detalhes da vaga alugada/cedida"
+                    placeholder="Ex.: Vaga alugada do Bloco 4 / Apto 706"
+                    value={form.parkingSpaceRentalNotes ?? ""}
+                    onChange={(e) => setField("parkingSpaceRentalNotes", e.target.value)}
+                    fullWidth
+                    sx={{ gridColumn: { sm: "1 / -1" } }}
+                  />
+                )}
+              </>
             )}
 
             <TextField label="Observações" value={form.notes ?? ""} onChange={(e) => setField("notes", e.target.value)} multiline minRows={2} fullWidth sx={{ gridColumn: { sm: "1 / -1" } }} />
@@ -1680,7 +1791,13 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       </Dialog>
 
       <Dialog open={cameraOpen} onClose={closeCamera} fullWidth maxWidth="sm">
-        <DialogTitle>{cameraTarget === "profile" ? "Capturar foto do prestador" : `Capturar foto do ${cameraTarget.toUpperCase()}`}</DialogTitle>
+        <DialogTitle>
+          {cameraTarget === "profile"
+            ? `Capturar foto do ${isDeliveryPerson ? "entregador" : isServiceProvider ? "prestador" : "cadastro"}`
+            : cameraTarget === "cpf"
+              ? "Capturar foto do CPF"
+              : isDeliveryPerson ? "Capturar foto da identidade / RG" : "Capturar foto do RG"}
+        </DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             {cameraError && <Alert severity="warning">{cameraError}</Alert>}
@@ -1708,7 +1825,9 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             <Typography variant="caption" sx={{ opacity: 0.75 }}>
               {cameraTarget === "profile"
                 ? "Centralize o rosto e clique em Capturar foto. No primeiro uso, o navegador solicitará permissão para acessar a câmera."
-                : `Enquadre o ${cameraTarget.toUpperCase()} inteiro, com boa iluminação e texto legível, e clique em Capturar foto.`}
+                : cameraTarget === "cpf"
+                  ? "Enquadre o CPF inteiro, com boa iluminação e texto legível, e clique em Capturar foto."
+                  : `Enquadre a ${isDeliveryPerson ? "identidade / RG" : "identidade"} inteira, com boa iluminação e texto legível, e clique em Capturar foto.`}
             </Typography>
           </Stack>
         </DialogContent>

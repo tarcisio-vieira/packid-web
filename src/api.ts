@@ -180,6 +180,10 @@ export type RegistryEntry = {
   document?: string | null;
   phone?: string | null;
   email?: string | null;
+  unitOwner?: boolean | null;
+  birthDate?: string | null;
+  profession?: string | null;
+  pne?: boolean | null;
   block?: string | null;
   apartment?: string | null;
   company?: string | null;
@@ -192,7 +196,10 @@ export type RegistryEntry = {
   identifier?: string | null;
   species?: string | null;
   breed?: string | null;
+  petSize?: string | null;
   parkingSpace?: string | null;
+  parkingSpaceRented?: boolean | null;
+  parkingSpaceRentalNotes?: string | null;
   notes?: string | null;
   photoAvailable: boolean;
   photoOwnedByCurrentUser: boolean;
