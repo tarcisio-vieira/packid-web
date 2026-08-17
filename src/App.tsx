@@ -40,16 +40,9 @@ import {
   Snackbar,
   Stack,
   TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  InputAdornment,
   Tooltip,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
-import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
-import { Scanner } from "@yudiel/react-qr-scanner";
 
 // ----- Tipos -----
 type ActiveView = "home" | "identifyPackage" | "registry" | "spaces" | "settings";
@@ -66,19 +59,12 @@ function detectAccessRoute(): AccessRoute {
 }
 
 
-type CodeScannerDialogProps = Readonly<{
-  open: boolean;
-  onClose: () => void;
-  onScan: (text: string) => void;
-}>;
-
 type IdentifyPackageScreenProps = Readonly<{
   packageCode: string;
   apartment: string;
   onPackageCodeChange: (value: string) => void;
   onApartmentChange: (value: string) => void;
   onRequestPrint: () => void;
-  onOpenScanner: () => void;
 
   saving: boolean;
   saveError: string | null;
@@ -787,106 +773,6 @@ function printSingleLabel(
   setTimeout(runPrint, 700);
 }
 
-// ============================
-// Dialog do leitor (QR + barras)
-// ============================
-function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
-  const { t } = useTranslation();
-  const [paused, setPaused] = useState(false);
-  const [scannerError, setScannerError] = useState<string | null>(null);
-
-  const handleDetected = (
-    detectedCodes: Array<{ rawValue?: string | null }>,
-  ) => {
-    const value = detectedCodes?.[0]?.rawValue?.trim();
-
-    if (!value || paused) return;
-
-    setPaused(true);
-    onScan(value);
-    onClose();
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{t("identify.scanTitle")}</DialogTitle>
-
-      <DialogContent>
-        <Box mt={1}>
-          <Typography variant="body2" gutterBottom>
-            {t("identify.scanHelp")}
-          </Typography>
-
-          {scannerError && (
-            <Alert severity="warning" sx={{ mt: 1 }} onClose={() => setScannerError(null)}>
-              {scannerError}
-            </Alert>
-          )}
-
-          {open && (
-            <Box
-              sx={{
-                mt: 2,
-                width: "100%",
-                maxWidth: 480,
-                mx: "auto",
-                overflow: "hidden",
-                borderRadius: 2,
-              }}
-            >
-              <Scanner
-                onScan={handleDetected}
-                onError={(error) => {
-                  console.error("Erro ao iniciar scanner:", error);
-                  setScannerError("Não foi possível acessar a câmera. Verifique a permissão do navegador ou digite o código manualmente.");
-                }}
-                paused={paused}
-                scanDelay={800}
-                allowMultiple={false}
-                constraints={{
-                  facingMode: "environment",
-                }}
-                formats={[
-                  "qr_code",
-                  "code_128",
-                  "code_39",
-                  "code_93",
-                  "codabar",
-                  "ean_13",
-                  "ean_8",
-                  "upc_a",
-                  "upc_e",
-                  "itf",
-                ]}
-                components={{
-                  finder: true,
-                  torch: true,
-                  zoom: true,
-                  onOff: true,
-                }}
-                styles={{
-                  container: {
-                    width: "100%",
-                  },
-                  video: {
-                    width: "100%",
-                    height: "auto",
-                    objectFit: "cover",
-                  },
-                }}
-              />
-            </Box>
-          )}
-        </Box>
-      </DialogContent>
-
-      <DialogActions>
-        <Button onClick={onClose}>{t("common.close")}</Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
 // ============
 // Tela inicial
 // ============
@@ -979,7 +865,6 @@ function IdentifyPackageScreen({
   onPackageCodeChange,
   onApartmentChange,
   onRequestPrint,
-  onOpenScanner,
   saving,
   saveError,
   historyRows,
@@ -1050,19 +935,6 @@ function IdentifyPackageScreen({
             fullWidth
             autoComplete="off"
             inputProps={{ id: "package-code-input", "aria-keyshortcuts": "ArrowRight" }}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label={t("identify.scanButton")}
-                    onClick={onOpenScanner}
-                    edge="end"
-                  >
-                    <QrCodeScannerIcon />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
           />
 
           <TextField
@@ -1116,12 +988,11 @@ function IdentifyPackageScreen({
 }
 
 // =========================================
-// Container da tela de etiquetas + scanner
+// Container da tela de etiquetas
 // =========================================
 function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: boolean }> = {}) {
   const [packageCode, setPackageCode] = useState<string>("");
   const [apartment, setApartment] = useState<string>("");
-  const [scannerOpen, setScannerOpen] = useState<boolean>(false);
   const [labelCopies, setLabelCopies] = useState<1 | 2>(2);
 
   const [saving, setSaving] = useState(false);
@@ -1198,7 +1069,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
       const mySeq = ++seqRef.current;
 
       const items = await fetchRecentPackIds(
-        200,
+        50,
         toInstantStart(fromDate),
         toInstantEndExclusive(toDate),
       );
@@ -1343,11 +1214,6 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
     }
   };
 
-  const handleScan = (text: string) => {
-    setPackageCode(text);
-    setScannerOpen(false);
-  };
-
   return (
     <>
       <IdentifyPackageScreen
@@ -1356,7 +1222,6 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
         onPackageCodeChange={setPackageCode}
         onApartmentChange={setApartment}
         onRequestPrint={handlePrint}
-        onOpenScanner={() => setScannerOpen(true)}
         saving={saving}
         saveError={saveError}
         historyRows={historyRows}
@@ -1369,12 +1234,6 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
         embedded={embedded}
       />
 
-      <CodeScannerDialog
-        key={scannerOpen ? "scanner-open" : "scanner-closed"}
-        open={scannerOpen}
-        onClose={() => setScannerOpen(false)}
-        onScan={handleScan}
-      />
 
       <Snackbar
         open={Boolean(saveError)}
