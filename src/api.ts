@@ -228,14 +228,34 @@ export type RegistryEntryPayload = Omit<
   | "documentPhotoFileName"
 >;
 
-export async function fetchRegistryEntries(
-  type?: RegistryEntryType,
-): Promise<RegistryEntry[]> {
-  const params = new URLSearchParams();
-  if (type) params.set("type", type);
+export type RegistryEntryPage = {
+  content: RegistryEntry[];
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  size: number;
+};
 
-  const suffix = params.toString() ? `?${params.toString()}` : "";
-  const resp = await fetch(`${API_URL}/api/registry${suffix}`, {
+export async function fetchRegistryEntriesPage(options: {
+  type: RegistryEntryType;
+  search?: string;
+  includeInactive?: boolean;
+  page?: number;
+  size?: number;
+  sort?: "name" | "unit";
+  direction?: "asc" | "desc";
+}): Promise<RegistryEntryPage> {
+  const params = new URLSearchParams({
+    type: options.type,
+    page: String(options.page ?? 0),
+    size: String(options.size ?? 10),
+    includeInactive: String(Boolean(options.includeInactive)),
+    sort: options.sort ?? "unit",
+    direction: options.direction ?? "asc",
+  });
+  if (options.search?.trim()) params.set("search", options.search.trim());
+
+  const resp = await fetch(`${API_URL}/api/registry/page?${params.toString()}`, {
     credentials: "include",
   });
 
@@ -426,6 +446,20 @@ export async function fetchDeliveryRecords(
 ): Promise<DeliveryRecord[]> {
   const params = new URLSearchParams({ deliveryPersonId });
   const resp = await fetch(`${API_URL}/api/deliveries?${params.toString()}`, {
+    credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchUnitVehicles(
+  block: string,
+  apartment: string,
+  occupancyId?: string | null,
+): Promise<RegistryEntry[]> {
+  const params = new URLSearchParams({ block, apartment });
+  if (occupancyId) params.set("occupancyId", occupancyId);
+  const resp = await fetch(`${API_URL}/api/registry/unit-vehicles?${params.toString()}`, {
     credentials: "include",
   });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));

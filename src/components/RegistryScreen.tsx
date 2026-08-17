@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Alert,
   Autocomplete,
@@ -60,10 +60,11 @@ import {
   deleteRegistryEntry,
   deleteRegistryEntryPhoto,
   fetchDeliveryRecords,
-  fetchRegistryEntries,
+  fetchRegistryEntriesPage,
   fetchServiceCompanies,
   fetchServiceRecords,
   fetchUnitRegistrySummary,
+  fetchUnitVehicles,
   fetchVisitorVisits,
   startApartmentOccupancy,
   endApartmentOccupancy,
@@ -217,13 +218,6 @@ function emptyAccessForm(): AccessForm {
   };
 }
 
-function normalize(value: unknown): string {
-  return String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
 function formatUnit(block?: string | null, apartment?: string | null): string {
   const parts = [];
   if (block) parts.push(`Bloco ${block}`);
@@ -237,17 +231,6 @@ function unitLabel(entry: RegistryEntry): string {
 
 type RegistrySortField = "unit" | "name";
 type RegistrySortDirection = "asc" | "desc";
-
-const naturalCollator = new Intl.Collator("pt-BR", {
-  numeric: true,
-  sensitivity: "base",
-});
-
-function compareRegistryUnit(a: RegistryEntry, b: RegistryEntry): number {
-  const blockCompare = naturalCollator.compare(a.block ?? "", b.block ?? "");
-  if (blockCompare !== 0) return blockCompare;
-  return naturalCollator.compare(a.apartment ?? "", b.apartment ?? "");
-}
 
 function defaultRegistrySortField(entryType: RegistryEntryType): RegistrySortField {
   return entryType === "DELIVERY_PERSON" || entryType === "SERVICE_PROVIDER" ? "name" : "unit";
@@ -621,7 +604,9 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const [type, setType] = useState<RegistryEntryType>("RESIDENT");
   const [companyMode, setCompanyMode] = useState(false);
   const [rows, setRows] = useState<RegistryEntry[]>([]);
+  const [totalRows, setTotalRows] = useState(0);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -640,6 +625,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   const [cameraLoading, setCameraLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const registrySearchInputRef = useRef<HTMLInputElement | null>(null);
+  const registryRequestSeq = useRef(0);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const [selectedRow, setSelectedRow] = useState<RegistryEntry | null>(null);
   const [selectedResidentVehicles, setSelectedResidentVehicles] = useState<RegistryEntry[]>([]);
@@ -687,24 +673,52 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   };
 
   const loadRows = async (selectedType: RegistryEntryType) => {
+    const requestId = ++registryRequestSeq.current;
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchRegistryEntries(selectedType);
-      setRows(data);
+      const data = await fetchRegistryEntriesPage({
+        type: selectedType,
+        search: debouncedSearch,
+        includeInactive: showInactive,
+        page,
+        size: rowsPerPage,
+        sort: sortField,
+        direction: sortDirection,
+      });
+      if (requestId !== registryRequestSeq.current) return;
+
+      setRows(data.content);
+      setTotalRows(data.totalElements);
+      if (data.totalPages > 0 && page >= data.totalPages) {
+        setPage(data.totalPages - 1);
+      }
       setSelectedRow((current) =>
-        current ? data.find((item) => item.id === current.id) ?? null : null,
+        current ? data.content.find((item) => item.id === current.id) ?? null : null,
       );
     } catch (e) {
-      setError(userFriendlyError(e, "Falha ao carregar cadastros."));
+      if (requestId === registryRequestSeq.current) {
+        setError(userFriendlyError(e, "Falha ao carregar cadastros."));
+      }
     } finally {
-      setLoading(false);
+      if (requestId === registryRequestSeq.current) setLoading(false);
     }
   };
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     setSelectedRow(null);
+  }, [type, companyMode]);
+
+  useEffect(() => {
     if (!companyMode) void loadRows(type);
+  }, [type, companyMode, page, rowsPerPage, debouncedSearch, showInactive, sortField, sortDirection]);
+
+  useEffect(() => {
     if (type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON" || companyMode) void loadServiceCompanies();
   }, [type, companyMode]);
 
@@ -736,6 +750,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       setCompanyMode(false);
       setType(nextType);
       setSearch("");
+      setDebouncedSearch("");
       setSortField(defaultRegistrySortField(nextType));
       setSortDirection("asc");
       setPage(0);
@@ -753,53 +768,8 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     return () => window.removeEventListener("keydown", handleRegistryTabShortcut, true);
   }, []);
 
-  const visibleRows = useMemo(() => {
-    const q = normalize(search.trim());
-
-    const filtered = rows.filter((row) => {
-      // Por padrão, todos os grids de cadastro exibem somente registros ativos.
-      // O usuário pode marcar "Mostrar inativos" para consultar também o histórico.
-      if (!showInactive && !row.active) return false;
-      if (!q) return true;
-
-      return [
-        row.name,
-        row.document,
-        row.phone,
-        row.email,
-        row.block,
-        row.apartment,
-        `${row.block ?? ""}${row.apartment ?? ""}`,
-        row.company,
-        row.ownerName,
-        row.brand,
-        row.model,
-        row.color,
-        row.identifier,
-        row.species,
-        row.breed,
-        row.parkingSpace,
-        row.notes,
-      ].some((value) => normalize(value).includes(q));
-    });
-
-    const direction = sortDirection === "asc" ? 1 : -1;
-    return [...filtered].sort((a, b) => {
-      const primary = sortField === "name"
-        ? naturalCollator.compare(a.name ?? "", b.name ?? "")
-        : compareRegistryUnit(a, b);
-      if (primary !== 0) return primary * direction;
-
-      const secondary = sortField === "name"
-        ? compareRegistryUnit(a, b)
-        : naturalCollator.compare(a.name ?? "", b.name ?? "");
-      return secondary * direction;
-    });
-  }, [rows, search, showInactive, sortField, sortDirection]);
-
-  useEffect(() => {
-    setPage(0);
-  }, [type, search, showInactive, rowsPerPage]);
+  const visibleRows = rows;
+  const paginatedRows = rows;
 
   useEffect(() => {
     if (!showInactive && selectedRow && !selectedRow.active) {
@@ -824,13 +794,13 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     setSelectedResidentVehicles([]);
     setSelectedResidentVehiclesLoading(true);
 
-    void fetchUnitRegistrySummary(
+    void fetchUnitVehicles(
       selectedRow.block,
       selectedRow.apartment,
       selectedRow.occupancyId,
     )
-      .then((summary) => {
-        if (!cancelled) setSelectedResidentVehicles(summary.vehicles);
+      .then((vehicles) => {
+        if (!cancelled) setSelectedResidentVehicles(vehicles);
       })
       .catch((e) => {
         if (!cancelled) {
@@ -844,16 +814,6 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
 
     return () => { cancelled = true; };
   }, [selectedRow]);
-
-  useEffect(() => {
-    const maxPage = Math.max(0, Math.ceil(visibleRows.length / rowsPerPage) - 1);
-    if (page > maxPage) setPage(maxPage);
-  }, [visibleRows.length, rowsPerPage, page]);
-
-  const paginatedRows = useMemo(
-    () => visibleRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [visibleRows, page, rowsPerPage],
-  );
 
   const editingRow = editingId ? rows.find((row) => row.id === editingId) ?? null : null;
   const photoLockedByAnotherAccount = Boolean(
@@ -1431,6 +1391,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
           value={companyMode ? "SERVICE_COMPANY" : type}
           onChange={(_, value: RegistryNavigationValue) => {
             setSearch("");
+            setDebouncedSearch("");
             setPage(0);
             setSelectedRow(null);
 
@@ -1505,7 +1466,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         >
           <TextField
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             inputRef={registrySearchInputRef}
             placeholder={`Pesquisar em ${selectedLabel.toLowerCase()}...`}
             size="small"
@@ -1519,7 +1480,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
             control={
               <Checkbox
                 checked={showInactive}
-                onChange={(e) => setShowInactive(e.target.checked)}
+                onChange={(e) => { setShowInactive(e.target.checked); setPage(0); }}
                 size="small"
               />
             }
@@ -1804,7 +1765,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         </TableContainer>
         <TablePagination
           component="div"
-          count={visibleRows.length}
+          count={totalRows}
           page={page}
           onPageChange={(_, nextPage) => setPage(nextPage)}
           rowsPerPage={rowsPerPage}
