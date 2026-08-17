@@ -4,6 +4,9 @@ export type User = {
   name: string;
   email: string;
   role?: string;
+  canManageSettings?: boolean;
+  canManageProtectedRegistry?: boolean;
+  canOperateCondominium?: boolean;
 };
 
 export function userFriendlyError(error: unknown, fallback: string): string {
@@ -201,6 +204,8 @@ export type RegistryEntry = {
   parkingSpaceRented?: boolean | null;
   parkingSpaceRentalNotes?: string | null;
   notes?: string | null;
+  residentAccessEnabled?: boolean | null;
+  residentUsername?: string | null;
   photoAvailable: boolean;
   photoOwnedByCurrentUser: boolean;
   photoFileName?: string | null;
@@ -226,7 +231,9 @@ export type RegistryEntryPayload = Omit<
   | "documentPhotoAvailable"
   | "documentPhotoOwnedByCurrentUser"
   | "documentPhotoFileName"
->;
+> & {
+  residentPassword?: string | null;
+};
 
 export type RegistryEntryPage = {
   content: RegistryEntry[];
@@ -404,6 +411,7 @@ export type UnitRegistrySummary = {
   deliveries: DeliveryRecord[];
   serviceRecords: ServiceRecord[];
   packIds: PackIdRecentItem[];
+  spaceAccesses: SpaceAccess[];
 };
 
 export async function createVisitorVisit(
@@ -627,6 +635,203 @@ export async function fetchServiceRecords(providerId?: string, scope?: "UNIT" | 
   const resp = await fetch(`${API_URL}/api/service-records${suffix}`, { credentials: "include" });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
+}
+
+
+export type SpaceType = "PLAYROOM" | "GAMES_ROOM" | "GYM" | "SAUNA";
+export type SpaceAccessStatus =
+  | "REQUESTED_PICKUP"
+  | "IN_USE"
+  | "REQUESTED_RETURN"
+  | "COMPLETED"
+  | "CANCELLED";
+
+export type SpaceAccess = {
+  id: string;
+  residentRegistryEntryId: string;
+  residentName: string;
+  occupancyId?: string | null;
+  block: string;
+  apartment: string;
+  spaceType: SpaceType;
+  status: SpaceAccessStatus;
+  requestedAt: string;
+  releasedAt?: string | null;
+  returnRequestedAt?: string | null;
+  completedAt?: string | null;
+  releasedBy?: string | null;
+  completedBy?: string | null;
+  notes?: string | null;
+};
+
+export async function fetchPendingSpaceAccess(): Promise<SpaceAccess[]> {
+  const resp = await fetch(`${API_URL}/api/space-access/pending`, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchSpaceAccess(options: {
+  spaceType?: SpaceType | "";
+  from?: string;
+  to?: string;
+} = {}): Promise<SpaceAccess[]> {
+  const params = new URLSearchParams();
+  if (options.spaceType) params.set("spaceType", options.spaceType);
+  if (options.from) params.set("from", options.from);
+  if (options.to) params.set("to", options.to);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const resp = await fetch(`${API_URL}/api/space-access${suffix}`, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function releaseSpaceAccess(id: string): Promise<SpaceAccess> {
+  const resp = await fetch(`${API_URL}/api/space-access/${id}/release`, {
+    method: "POST", credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function completeSpaceAccess(id: string): Promise<SpaceAccess> {
+  const resp = await fetch(`${API_URL}/api/space-access/${id}/complete`, {
+    method: "POST", credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export type AppUserRole = "ADMIN" | "SECRETARY" | "PORTER";
+export type AppUserManagement = {
+  id: string;
+  tenantId: string;
+  personId?: string | null;
+  email: string;
+  fullName?: string | null;
+  provider?: "GOOGLE" | string;
+  providerSubject?: string | null;
+  role: AppUserRole;
+  enabled: boolean;
+  lastLoginAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type AppUserManagementPayload = {
+  email: string;
+  fullName?: string | null;
+  provider?: "GOOGLE";
+  providerSubject?: string | null;
+  role: AppUserRole;
+  enabled?: boolean;
+};
+
+export async function fetchAppUsers(): Promise<AppUserManagement[]> {
+  const resp = await fetch(`${API_URL}/api/app-users`, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function createAppUser(payload: AppUserManagementPayload): Promise<AppUserManagement> {
+  const resp = await fetch(`${API_URL}/api/app-users`, {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function updateAppUser(id: string, payload: Partial<AppUserManagementPayload>): Promise<AppUserManagement> {
+  const resp = await fetch(`${API_URL}/api/app-users/${id}`, {
+    method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function deleteAppUser(id: string): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/app-users/${id}`, { method: "DELETE", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+}
+
+export type PublicTenant = {
+  name: string;
+  slug: string;
+};
+
+export async function fetchPublicTenants(): Promise<PublicTenant[]> {
+  const resp = await fetch(`${API_URL}/public/tenants`, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export type ResidentSession = {
+  residentId: string;
+  residentName: string;
+  tenantName: string;
+  tenantSlug: string;
+  block: string;
+  apartment: string;
+};
+
+export type ResidentLoginPayload = {
+  tenantSlug: string;
+  username: string;
+  password: string;
+  block: string;
+  apartment: string;
+};
+
+export type ResidentPortalData = {
+  session: ResidentSession;
+  resident: RegistryEntry;
+  residents: RegistryEntry[];
+  bicycles: RegistryEntry[];
+  vehicles: RegistryEntry[];
+  pets: RegistryEntry[];
+  packIds: PackIdRecentItem[];
+  spaceAccesses: SpaceAccess[];
+};
+
+export async function residentLogin(payload: ResidentLoginPayload): Promise<ResidentSession> {
+  const resp = await fetch(`${API_URL}/api/resident-auth/login`, {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchResidentSession(): Promise<ResidentSession | null> {
+  const resp = await fetch(`${API_URL}/api/resident-auth/me`, { credentials: "include" });
+  if (resp.status === 401) return null;
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function residentLogout(): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/resident-auth/logout`, { method: "POST", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+}
+
+export async function fetchResidentPortal(): Promise<ResidentPortalData> {
+  const resp = await fetch(`${API_URL}/api/resident/portal`, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function requestResidentSpace(spaceType: SpaceType): Promise<SpaceAccess> {
+  const resp = await fetch(`${API_URL}/api/resident/spaces/${spaceType}/request`, {
+    method: "POST", credentials: "include",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export function residentRegistryPhotoUrl(id: string, version?: string | null): string {
+  const suffix = version ? `?v=${encodeURIComponent(version)}` : "";
+  return `${API_URL}/api/resident/photos/${id}${suffix}`;
 }
 
 export type GoogleAccountSettings = {

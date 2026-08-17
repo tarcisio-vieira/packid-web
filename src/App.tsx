@@ -3,6 +3,7 @@ import type { KeyboardEvent, RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import {
   fetchCurrentUser,
+  fetchResidentSession,
   getLoginUrl,
   getLogoutUrl,
   registerPackIdFromLabel,
@@ -10,13 +11,17 @@ import {
   fetchPackIdLabelPrintSettings,
   userFriendlyError,
 } from "./api";
-import type { User } from "./api";
+import type { ResidentSession, User } from "./api";
 
 import LabelHistoryGrid, {
   type LabelHistoryRow,
 } from "./components/LabelHistoryGrid";
 import RegistryScreen from "./components/RegistryScreen";
 import SettingsScreen from "./components/SettingsScreen";
+import SpaceRequestNotifier from "./components/SpaceRequestNotifier";
+import ResidentPortal from "./components/ResidentPortal";
+import CollaboratorLoginPage from "./components/CollaboratorLoginPage";
+import ResidentLoginPage from "./components/ResidentLoginPage";
 
 import {
   Alert,
@@ -47,7 +52,19 @@ import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import { Scanner } from "@yudiel/react-qr-scanner";
 
 // ----- Tipos -----
-type ActiveView = "home" | "identifyPackage" | "registry" | "settings";
+type ActiveView = "home" | "identifyPackage" | "registry" | "spaces" | "settings";
+type AccessRoute = "collaborator" | "resident";
+
+function packidAccessPath(segment: "colaborador" | "user"): string {
+  const base = (import.meta.env.BASE_URL || "/packid/").replace(/\/+$/, "");
+  return `${base}/${segment}`;
+}
+
+function detectAccessRoute(): AccessRoute {
+  const path = globalThis.location.pathname.replace(/\/+$/, "").toLowerCase();
+  return path.endsWith("/user") ? "resident" : "collaborator";
+}
+
 
 type CodeScannerDialogProps = Readonly<{
   open: boolean;
@@ -873,7 +890,7 @@ function CodeScannerDialog({ open, onClose, onScan }: CodeScannerDialogProps) {
 // ============
 // Tela inicial
 // ============
-function HomeScreen() {
+function HomeScreen({ currentUser }: Readonly<{ currentUser?: User | null }>) {
   useEffect(() => {
     const focusInputById = (id: string) => {
       const input = document.getElementById(id) as HTMLInputElement | null;
@@ -922,8 +939,9 @@ function HomeScreen() {
   }, []);
 
   return (
-    <Box
-      sx={{
+    <Box sx={{ width: "100%", maxWidth: 1900, mx: "auto" }}>
+      <Box
+        sx={{
         width: "100%",
         maxWidth: 1900,
         mx: "auto",
@@ -934,7 +952,7 @@ function HomeScreen() {
       }}
     >
       <Box sx={{ minWidth: 0 }}>
-        <RegistryScreen embedded />
+        <RegistryScreen embedded currentUser={currentUser} />
       </Box>
 
       <Box
@@ -947,6 +965,7 @@ function HomeScreen() {
       >
         <IdentifyPackageContainer embedded />
       </Box>
+    </Box>
     </Box>
   );
 }
@@ -1387,8 +1406,10 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
 // ===============
 function App() {
   const { t } = useTranslation();
+  const accessRoute = detectAccessRoute();
 
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [residentSession, setResidentSession] = useState<ResidentSession | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const initialQueryParams = new URLSearchParams(globalThis.location.search);
@@ -1405,14 +1426,42 @@ function App() {
   >(initialGoogleConnectionStatus);
 
   useEffect(() => {
-    fetchCurrentUser()
-      .then(setUser)
-      .catch((err: unknown) => {
-        console.error(err);
-        setError(userFriendlyError(err, "Falha ao verificar a autenticação."));
-        setUser(null);
-      });
+    const base = (import.meta.env.BASE_URL || "/packid/").replace(/\/+$/, "").toLowerCase();
+    const current = globalThis.location.pathname.replace(/\/+$/, "").toLowerCase();
+    if (current === base) {
+      const target = `${packidAccessPath("colaborador")}${globalThis.location.search}${globalThis.location.hash}`;
+      globalThis.history.replaceState({}, document.title, target);
+    }
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSession = async () => {
+      try {
+        if (accessRoute === "resident") {
+          const resident = await fetchResidentSession();
+          if (cancelled) return;
+          setUser(null);
+          setResidentSession(resident);
+          return;
+        }
+
+        const staffUser = await fetchCurrentUser();
+        if (cancelled) return;
+        setUser(staffUser);
+        setResidentSession(null);
+      } catch (err: unknown) {
+        console.error(err);
+        if (!cancelled) {
+          setError(userFriendlyError(err, "Falha ao verificar a autenticação."));
+          setUser(null);
+          setResidentSession(null);
+        }
+      }
+    };
+    void loadSession();
+    return () => { cancelled = true; };
+  }, [accessRoute]);
 
   const handleLogin = () => {
     globalThis.location.href = getLoginUrl();
@@ -1433,42 +1482,43 @@ function App() {
   };
 
   const renderContent = () => {
+    if (accessRoute === "resident") {
+      if (residentSession === undefined) {
+        return (
+          <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center", bgcolor: "background.default" }}>
+            <Typography variant="body1">{t("auth.loading")}</Typography>
+          </Box>
+        );
+      }
+
+      if (residentSession) {
+        return <ResidentPortal session={residentSession} onLoggedOut={() => setResidentSession(null)} />;
+      }
+
+      return (
+        <ResidentLoginPage
+          initialError={error}
+          onLoggedIn={(session) => { setResidentSession(session); setError(null); }}
+          onCollaboratorAccess={() => { globalThis.location.href = packidAccessPath("colaborador"); }}
+        />
+      );
+    }
+
     if (user === undefined) {
       return (
-        <Typography variant="body1" align="center" sx={{ mt: 4 }}>
-          {t("auth.loading")}
-        </Typography>
+        <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center", bgcolor: "background.default" }}>
+          <Typography variant="body1">{t("auth.loading")}</Typography>
+        </Box>
       );
     }
 
     if (user === null) {
       return (
-        <Container maxWidth="sm">
-          <Paper
-            elevation={3}
-            sx={{ p: { xs: 3, sm: 4 }, mt: { xs: 6, sm: 8 } }}
-          >
-            <Stack spacing={2} alignItems="center">
-              <Typography variant="h3" component="h1" gutterBottom>
-                VSGI
-              </Typography>
-
-              <Typography variant="body1" align="center">
-                {t("auth.description")}
-              </Typography>
-
-              {error && (
-                <Alert severity="error" sx={{ width: "100%" }}>
-                  {error}
-                </Alert>
-              )}
-
-              <Button variant="contained" color="primary" onClick={handleLogin}>
-                {t("auth.signInButton")}
-              </Button>
-            </Stack>
-          </Paper>
-        </Container>
+        <CollaboratorLoginPage
+          error={error}
+          onGoogleLogin={handleLogin}
+          onResidentAccess={() => { globalThis.location.href = packidAccessPath("user"); }}
+        />
       );
     }
 
@@ -1477,20 +1527,38 @@ function App() {
     }
 
     if (activeView === "registry") {
-      return <RegistryScreen />;
+      return <RegistryScreen currentUser={user} />;
+    }
+
+    if (activeView === "spaces") {
+      return <RegistryScreen currentUser={user} initialNavigation="LEISURE_AREA" />;
     }
 
     if (activeView === "settings") {
+      const canManageSettings = user.canManageSettings
+        ?? ["ADMIN", "SECRETARY"].includes((user.role ?? "").toUpperCase());
+      if (!canManageSettings) {
+        return <HomeScreen currentUser={user} />;
+      }
       return (
         <SettingsScreen
           googleConnectionStatus={googleConnectionStatus}
           onGoogleConnectionHandled={handleGoogleConnectionHandled}
+          currentUser={user}
         />
       );
     }
 
-    return <HomeScreen />;
+    return <HomeScreen currentUser={user} />;
   };
+
+  const showingStandaloneAccessPage = accessRoute === "resident"
+    ? residentSession == null
+    : user == null;
+
+  if (showingStandaloneAccessPage) {
+    return renderContent();
+  }
 
   return (
     <Box
@@ -1503,15 +1571,17 @@ function App() {
     >
       <AppBar position="static" color="default" elevation={1}>
         <Toolbar>
-          <IconButton
-            edge="start"
-            color="inherit"
-            aria-label="Abrir menu"
-            onClick={toggleDrawer(true)}
-            sx={{ mr: 1 }}
-          >
-            <MenuIcon />
-          </IconButton>
+          {user && (
+            <IconButton
+              edge="start"
+              color="inherit"
+              aria-label="Abrir menu"
+              onClick={toggleDrawer(true)}
+              sx={{ mr: 1 }}
+            >
+              <MenuIcon />
+            </IconButton>
+          )}
 
           <Typography
             variant="h6"
@@ -1554,7 +1624,13 @@ function App() {
               <ListItemText primary={t("menu.registry")} />
             </ListItemButton>
 
-            {user?.role?.toUpperCase() === "ADMIN" && (
+            {user?.canOperateCondominium !== false && (
+              <ListItemButton onClick={() => setActiveView("spaces")}>
+                <ListItemText primary="Área de lazer" />
+              </ListItemButton>
+            )}
+
+            {(user?.canManageSettings ?? ["ADMIN", "SECRETARY"].includes((user?.role ?? "").toUpperCase())) && (
               <ListItemButton onClick={() => setActiveView("settings")}>
                 <ListItemText primary={t("menu.settings")} />
               </ListItemButton>
@@ -1562,6 +1638,11 @@ function App() {
           </List>
         </Box>
       </Drawer>
+
+      <SpaceRequestNotifier
+        enabled={Boolean(user?.canOperateCondominium ?? (user && ["ADMIN", "SECRETARY", "PORTER"].includes((user.role ?? "").toUpperCase())))}
+        onOpenSpaces={() => setActiveView("spaces")}
+      />
 
       <Box sx={{ p: { xs: 1, sm: 2 }, flex: 1 }}>{renderContent()}</Box>
 

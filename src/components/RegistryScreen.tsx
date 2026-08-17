@@ -52,6 +52,7 @@ import PedalBikeOutlinedIcon from "@mui/icons-material/PedalBikeOutlined";
 import PetsOutlinedIcon from "@mui/icons-material/PetsOutlined";
 import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import DeckOutlinedIcon from "@mui/icons-material/DeckOutlined";
 import {
   createDeliveryRecord,
   createRegistryEntry,
@@ -77,6 +78,7 @@ import {
   userFriendlyError,
 } from "../api";
 import ServiceCompanyPanel from "./ServiceCompanyPanel";
+import SpacesScreen from "./SpacesScreen";
 import type {
   ApartmentOccupancy,
   DeliveryRecord,
@@ -88,6 +90,8 @@ import type {
   ServiceRecord,
   UnitRegistrySummary,
   VisitorVisit,
+  SpaceAccess,
+  User,
 } from "../api";
 
 const TYPES: Array<{ type: RegistryEntryType; label: string }> = [
@@ -100,7 +104,7 @@ const TYPES: Array<{ type: RegistryEntryType; label: string }> = [
   { type: "VEHICLE", label: "Veículos" },
 ];
 
-type RegistryNavigationValue = RegistryEntryType | "SERVICE_COMPANY";
+type RegistryNavigationValue = RegistryEntryType | "SERVICE_COMPANY" | "LEISURE_AREA";
 
 const NAVIGATION_ITEMS: Array<{ value: RegistryNavigationValue; label: string; color: string }> = [
   { value: "RESIDENT", label: "Condôminos", color: "#1976d2" },
@@ -111,6 +115,7 @@ const NAVIGATION_ITEMS: Array<{ value: RegistryNavigationValue; label: string; c
   { value: "BICYCLE", label: "Bicicletas", color: "#0288d1" },
   { value: "PET", label: "Pets", color: "#d81b60" },
   { value: "VEHICLE", label: "Veículos", color: "#3949ab" },
+  { value: "LEISURE_AREA", label: "Área de lazer", color: "#00897b" },
 ];
 
 function navigationIcon(value: RegistryNavigationValue) {
@@ -131,6 +136,8 @@ function navigationIcon(value: RegistryNavigationValue) {
       return <PetsOutlinedIcon />;
     case "VEHICLE":
       return <DirectionsCarOutlinedIcon />;
+    case "LEISURE_AREA":
+      return <DeckOutlinedIcon />;
   }
 }
 
@@ -160,6 +167,9 @@ const emptyPayload = (entryType: RegistryEntryType): RegistryEntryPayload => ({
   parkingSpaceRented: false,
   parkingSpaceRentalNotes: "",
   notes: "",
+  residentAccessEnabled: false,
+  residentUsername: "",
+  residentPassword: "",
   active: true,
 });
 
@@ -600,9 +610,68 @@ function ServiceHistory({ rows, title = "Serviços realizados" }: Readonly<{ row
   );
 }
 
-export default function RegistryScreen({ embedded = false }: Readonly<{ embedded?: boolean }>) {
-  const [type, setType] = useState<RegistryEntryType>("RESIDENT");
-  const [companyMode, setCompanyMode] = useState(false);
+
+function spaceName(type: SpaceAccess["spaceType"]): string {
+  if (type === "GYM") return "Academia";
+  if (type === "GAMES_ROOM") return "Sala de Jogos";
+  if (type === "SAUNA") return "Sauna";
+  return "Brinquedoteca";
+}
+
+function spaceStatusLabel(status: SpaceAccess["status"]): string {
+  if (status === "REQUESTED_PICKUP") return "Aguardando liberação";
+  if (status === "IN_USE") return "Chave em uso";
+  if (status === "REQUESTED_RETURN") return "Aguardando devolução";
+  if (status === "COMPLETED") return "Finalizado";
+  return "Cancelado";
+}
+
+function SpaceAccessHistory({ rows }: Readonly<{ rows: SpaceAccess[] }>) {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  useEffect(() => setPage(0), [rows]);
+  const pagedRows = rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+          <MeetingRoomOutlinedIcon sx={{ color: "#00897b" }} />
+          <Typography variant="subtitle1" fontWeight={700}>Histórico da área de lazer ({rows.length})</Typography>
+        </Stack>
+        <TableContainer sx={{ maxHeight: 380 }}>
+          <Table size="small" stickyHeader>
+            <TableHead><TableRow>
+              <TableCell>Área</TableCell><TableCell>Morador</TableCell><TableCell>Solicitado</TableCell>
+              <TableCell>Liberado</TableCell><TableCell>Solicitou devolução</TableCell><TableCell>Encerrado</TableCell><TableCell>Status</TableCell>
+            </TableRow></TableHead>
+            <TableBody>
+              {rows.length === 0 && <TableRow><TableCell colSpan={7} align="center">Nenhuma solicitação de área de lazer nesta ocupação.</TableCell></TableRow>}
+              {pagedRows.map((row) => <TableRow key={row.id}>
+                <TableCell>{spaceName(row.spaceType)}</TableCell>
+                <TableCell>{row.residentName || "-"}</TableCell>
+                <TableCell>{formatDateTime(row.requestedAt)}</TableCell>
+                <TableCell>{row.releasedAt ? formatDateTime(row.releasedAt) : "-"}</TableCell>
+                <TableCell>{row.returnRequestedAt ? formatDateTime(row.returnRequestedAt) : "-"}</TableCell>
+                <TableCell>{row.completedAt ? formatDateTime(row.completedAt) : "-"}</TableCell>
+                <TableCell><Chip size="small" label={spaceStatusLabel(row.status)} /></TableCell>
+              </TableRow>)}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        {rows.length > 0 && <PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage}
+          onPageChange={setPage} onRowsPerPageChange={value => { setRowsPerPage(value); setPage(0); }} />}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function RegistryScreen({ embedded = false, currentUser, initialNavigation }: Readonly<{ embedded?: boolean; currentUser?: User | null; initialNavigation?: RegistryNavigationValue }>) {
+  const initialRegistryType: RegistryEntryType = initialNavigation && !["SERVICE_COMPANY", "LEISURE_AREA"].includes(initialNavigation)
+    ? initialNavigation as RegistryEntryType
+    : "RESIDENT";
+  const [type, setType] = useState<RegistryEntryType>(initialRegistryType);
+  const [companyMode, setCompanyMode] = useState(initialNavigation === "SERVICE_COMPANY");
+  const [leisureMode, setLeisureMode] = useState(initialNavigation === "LEISURE_AREA");
   const [rows, setRows] = useState<RegistryEntry[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [search, setSearch] = useState("");
@@ -712,15 +781,15 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
 
   useEffect(() => {
     setSelectedRow(null);
-  }, [type, companyMode]);
+  }, [type, companyMode, leisureMode]);
 
   useEffect(() => {
-    if (!companyMode) void loadRows(type);
-  }, [type, companyMode, page, rowsPerPage, debouncedSearch, showInactive, sortField, sortDirection]);
+    if (!companyMode && !leisureMode) void loadRows(type);
+  }, [type, companyMode, leisureMode, page, rowsPerPage, debouncedSearch, showInactive, sortField, sortDirection]);
 
   useEffect(() => {
-    if (type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON" || companyMode) void loadServiceCompanies();
-  }, [type, companyMode]);
+    if (!leisureMode && (type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON" || companyMode)) void loadServiceCompanies();
+  }, [type, companyMode, leisureMode]);
 
   useEffect(() => {
     const handleRegistryTabShortcut = (event: globalThis.KeyboardEvent) => {
@@ -748,6 +817,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
 
       const nextType: RegistryEntryType = event.key === "ArrowUp" ? "RESIDENT" : "SERVICE_PROVIDER";
       setCompanyMode(false);
+      setLeisureMode(false);
       setType(nextType);
       setSearch("");
       setDebouncedSearch("");
@@ -827,6 +897,12 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     ? registryDocumentPhotoUrl(editingRow.id, "document", editingRow.updatedAt ?? editingRow.createdAt) : null;
 
   const selectedLabel = TYPES.find((item) => item.type === type)?.label ?? "Gestão";
+  const canManageProtectedRegistry = Boolean(
+    currentUser?.canManageProtectedRegistry ?? ["ADMIN", "SECRETARY"].includes((currentUser?.role ?? "").toUpperCase()),
+  );
+  const isProtectedRegistryType = (value: RegistryEntryType) =>
+    value === "RESIDENT" || value === "BICYCLE" || value === "PET" || value === "VEHICLE";
+  const protectedReadOnly = isProtectedRegistryType(type) && !canManageProtectedRegistry;
   const isAccessPerson = type === "VISITOR" || type === "DELIVERY_PERSON";
   const isServiceProvider = type === "SERVICE_PROVIDER";
   const isDeliveryPerson = type === "DELIVERY_PERSON";
@@ -964,6 +1040,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   };
 
   const openNew = () => {
+    if (isProtectedRegistryType(type) && !canManageProtectedRegistry) {
+      setError("O perfil de portaria possui somente visualização para este cadastro.");
+      return;
+    }
     closeCamera();
     setEditingId(null);
     setForm(emptyPayload(type));
@@ -975,6 +1055,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   };
 
   const openEdit = (row: RegistryEntry) => {
+    if (isProtectedRegistryType(row.entryType) && !canManageProtectedRegistry) {
+      setError("O perfil de portaria possui somente visualização para este cadastro.");
+      return;
+    }
     closeCamera();
     setEditingId(row.id);
     setSelectedRow(row);
@@ -1008,6 +1092,9 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
       parkingSpaceRented: row.parkingSpaceRented ?? false,
       parkingSpaceRentalNotes: row.parkingSpaceRentalNotes ?? "",
       notes: row.notes ?? "",
+      residentAccessEnabled: row.residentAccessEnabled ?? false,
+      residentUsername: row.residentUsername ?? "",
+      residentPassword: "",
       active: row.active,
     });
     setDialogOpen(true);
@@ -1130,6 +1217,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   };
 
   const save = async () => {
+    if (isProtectedRegistryType(type) && !canManageProtectedRegistry) {
+      setError("O perfil de portaria não pode cadastrar ou editar este tipo de registro.");
+      return;
+    }
     if (!form.name.trim()) {
       setError("Informe o nome ou a identificação principal do cadastro.");
       return;
@@ -1141,6 +1232,20 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
     ) {
       setError("Informe bloco e apartamento para vincular este cadastro à ocupação.");
       return;
+    }
+    if (type === "RESIDENT" && form.residentAccessEnabled) {
+      if (!(form.residentUsername ?? "").trim() || (form.residentUsername ?? "").trim().length < 4) {
+        setError("Para liberar o acesso do morador, informe um usuário com pelo menos 4 caracteres.");
+        return;
+      }
+      if (!editingId && (form.residentPassword ?? "").length < 6) {
+        setError("Para liberar o primeiro acesso do morador, informe uma senha com pelo menos 6 caracteres.");
+        return;
+      }
+      if (editingId && (form.residentPassword ?? "").length > 0 && (form.residentPassword ?? "").length < 6) {
+        setError("A nova senha do morador deve ter pelo menos 6 caracteres. Deixe em branco para manter a senha atual.");
+        return;
+      }
     }
     if (registerNow && isAccessPerson && (!quickAccess.block.trim() || !quickAccess.apartment.trim())) {
       setError("Para registrar a entrada agora, informe bloco e apartamento de destino.");
@@ -1199,6 +1304,10 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
   };
 
   const remove = async (row: RegistryEntry) => {
+    if (isProtectedRegistryType(row.entryType) && !canManageProtectedRegistry) {
+      setError("O perfil de portaria não pode excluir este tipo de cadastro.");
+      return;
+    }
     if (!globalThis.confirm(`Excluir o cadastro "${row.name}"?`)) return;
     setLoading(true);
     setError(null);
@@ -1380,7 +1489,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
               </Typography>
             </Tooltip>
           </Box>
-          {!companyMode && (
+          {!companyMode && !leisureMode && !protectedReadOnly && (
             <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
               Novo cadastro
             </Button>
@@ -1388,7 +1497,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
         </Stack>
 
         <Tabs
-          value={companyMode ? "SERVICE_COMPANY" : type}
+          value={leisureMode ? "LEISURE_AREA" : companyMode ? "SERVICE_COMPANY" : type}
           onChange={(_, value: RegistryNavigationValue) => {
             setSearch("");
             setDebouncedSearch("");
@@ -1397,10 +1506,18 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
 
             if (value === "SERVICE_COMPANY") {
               setCompanyMode(true);
+              setLeisureMode(false);
+              return;
+            }
+
+            if (value === "LEISURE_AREA") {
+              setCompanyMode(false);
+              setLeisureMode(true);
               return;
             }
 
             setCompanyMode(false);
+            setLeisureMode(false);
             setType(value);
             setSortField(defaultRegistrySortField(value));
             setSortDirection("asc");
@@ -1454,7 +1571,12 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
           ))}
         </Tabs>
 
-        {companyMode ? <ServiceCompanyPanel /> : <>
+        {leisureMode ? <SpacesScreen embedded /> : companyMode ? <ServiceCompanyPanel /> : <>
+        {protectedReadOnly && (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Perfil de portaria: consulta liberada. Inclusão, edição e exclusão de {selectedLabel.toLowerCase()} são restritas à secretaria/administrador.
+          </Alert>
+        )}
         <Box
           sx={{
             mt: 2,
@@ -1542,6 +1664,8 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                         <FieldCard label="Data de nascimento" value={selectedRow.birthDate ? formatDateOnly(selectedRow.birthDate) : null} />
                         <FieldCard label="Profissão" value={selectedRow.profession} />
                         <FieldCard label="PNE" value={selectedRow.pne ? "Sim" : "Não"} />
+                        <FieldCard label="Acesso do morador" value={selectedRow.residentAccessEnabled ? "Liberado" : "Não liberado"} />
+                        <FieldCard label="Usuário" value={selectedRow.residentUsername} />
                       </>
                     )}
                     {selectedRow.entryType === "PET" && (
@@ -1733,11 +1857,13 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                     <Chip size="small" label={row.active ? "Ativo" : "Inativo"} variant={row.active ? "filled" : "outlined"} />
                   </TableCell>
                   <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                    <Tooltip title="Editar">
-                      <IconButton size="small" onClick={() => openEdit(row)}>
-                        <EditOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    {(!isProtectedRegistryType(row.entryType) || canManageProtectedRegistry) && (
+                      <Tooltip title="Editar">
+                        <IconButton size="small" onClick={() => openEdit(row)}>
+                          <EditOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                     {row.entryType === "RESIDENT" && (
                       <Tooltip title="Visualizar apartamento e histórico">
                         <IconButton size="small" onClick={() => void openUnitSummary(row)}>
@@ -1752,11 +1878,13 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                         </IconButton>
                       </Tooltip>
                     )}
-                    <Tooltip title="Excluir">
-                      <IconButton size="small" onClick={() => void remove(row)}>
-                        <DeleteOutlineIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    {(!isProtectedRegistryType(row.entryType) || canManageProtectedRegistry) && (
+                      <Tooltip title="Excluir">
+                        <IconButton size="small" onClick={() => void remove(row)}>
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -1916,6 +2044,39 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                   control={<Switch checked={Boolean(form.pne)} onChange={(e) => setField("pne", e.target.checked)} />}
                   label="PNE"
                 />
+                <Box sx={{ gridColumn: { sm: "1 / -1" }, border: "1px solid", borderColor: "divider", borderRadius: 1, p: 2 }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={Boolean(form.residentAccessEnabled)}
+                        onChange={(e) => setField("residentAccessEnabled", e.target.checked)}
+                      />
+                    }
+                    label="Liberar acesso de visualização ao morador"
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: form.residentAccessEnabled ? 1.5 : 0 }}>
+                    O morador verá somente os dados da própria ocupação/unidade e poderá solicitar acesso às áreas de lazer.
+                  </Typography>
+                  {form.residentAccessEnabled && (
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                      <TextField
+                        label="Usuário do morador"
+                        value={form.residentUsername ?? ""}
+                        onChange={(e) => setField("residentUsername", e.target.value)}
+                        required
+                        helperText="Mínimo de 4 caracteres. É único dentro do condomínio."
+                      />
+                      <TextField
+                        label={editingId ? "Nova senha (opcional)" : "Senha do morador"}
+                        type="password"
+                        value={form.residentPassword ?? ""}
+                        onChange={(e) => setField("residentPassword", e.target.value)}
+                        required={!editingId}
+                        helperText={editingId ? "Deixe em branco para manter a senha atual." : "Mínimo de 6 caracteres."}
+                      />
+                    </Box>
+                  )}
+                </Box>
               </>
             )}
             {isCompanyLinkedPerson && (
@@ -2195,12 +2356,12 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                       )}
                     </Box>
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                      {unitSummary.selectedOccupancy?.status === "ACTIVE" && (
+                      {canManageProtectedRegistry && unitSummary.selectedOccupancy?.status === "ACTIVE" && (
                         <Button color="warning" variant="outlined" onClick={() => openOccupancyAction("end")}>
                           Encerrar ocupação
                         </Button>
                       )}
-                      {!unitSummary.occupancies.some((item) => item.status === "ACTIVE" || item.status === "SCHEDULED") && (
+                      {canManageProtectedRegistry && !unitSummary.occupancies.some((item) => item.status === "ACTIVE" || item.status === "SCHEDULED") && (
                         <Button color="success" variant="contained" startIcon={<AddIcon />} onClick={() => openOccupancyAction("start")}>
                           Nova ocupação
                         </Button>
@@ -2272,6 +2433,7 @@ export default function RegistryScreen({ embedded = false }: Readonly<{ embedded
                 <RegistryGroup title="Pets" rows={unitSummary.pets} icon={<PetsOutlinedIcon />} iconColor="#d81b60" />
                 <RegistryGroup title="Bicicletas" rows={unitSummary.bicycles} icon={<PedalBikeOutlinedIcon />} iconColor="#0288d1" />
               </Box>
+              <SpaceAccessHistory rows={unitSummary.spaceAccesses ?? []} />
               <PackIdHistory rows={unitSummary.packIds ?? []} />
               <VisitHistory rows={unitSummary.visits} />
               <DeliveryHistory rows={unitSummary.deliveries} />

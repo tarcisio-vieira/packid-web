@@ -28,7 +28,9 @@ import {
   userFriendlyError,
   type CondominiumSettings,
   type CondominiumSettingsPayload,
+  type User,
 } from "../api";
+import SystemUsersPanel from "./SystemUsersPanel";
 
 function emptyPayload(): CondominiumSettingsPayload {
   return {
@@ -81,11 +83,13 @@ function formatDateTime(value?: string | null): string {
 type SettingsScreenProps = Readonly<{
   googleConnectionStatus?: "success" | "error" | null;
   onGoogleConnectionHandled?: () => void;
+  currentUser?: User | null;
 }>;
 
 export default function SettingsScreen({
   googleConnectionStatus = null,
   onGoogleConnectionHandled,
+  currentUser,
 }: SettingsScreenProps) {
   const [settings, setSettings] = useState<CondominiumSettings | null>(null);
   const [form, setForm] = useState<CondominiumSettingsPayload>(emptyPayload());
@@ -370,6 +374,10 @@ export default function SettingsScreen({
             </Stack>
           </Stack>
         </Paper>
+
+        <Divider sx={{ my: 3 }} />
+        <Typography variant="h6" sx={{ mb: 1.5 }}>Acessos da equipe</Typography>
+        <SystemUsersPanel currentUser={currentUser} />
       </Paper>
 
       <Snackbar open={Boolean(success)} autoHideDuration={5000}
