@@ -47,6 +47,7 @@ function emptyPayload(): CondominiumSettingsPayload {
     whatsapp: "",
     notes: "",
     emailNotificationsEnabled: true,
+    residentCredentialEmailsEnabled: false,
     packIdPrintTwoLabels: true,
   };
 }
@@ -66,6 +67,7 @@ function toPayload(data: CondominiumSettings): CondominiumSettingsPayload {
     whatsapp: data.whatsapp ?? "",
     notes: data.notes ?? "",
     emailNotificationsEnabled: data.emailNotificationsEnabled !== false,
+    residentCredentialEmailsEnabled: data.residentCredentialEmailsEnabled === true,
     packIdPrintTwoLabels: data.packIdPrintTwoLabels !== false,
   };
 }
@@ -282,6 +284,21 @@ export default function SettingsScreen({
           />
           <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 6 } }}>
             Quando ativo, os condôminos com e-mail cadastrado recebem notificações de alterações na unidade e de novas encomendas registradas no PackID. Desative para suspender todos os disparos automáticos; o botão “Testar Gmail” continua disponível para validar a integração.
+          </Typography>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={form.residentCredentialEmailsEnabled === true}
+                onChange={(e) => setField("residentCredentialEmailsEnabled", e.target.checked)}
+              />
+            }
+            label="Enviar por e-mail as credenciais do Portal do Morador"
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 6 } }}>
+            Inicia desativado. Quando habilitado, o VSGI poderá enviar usuário e senha temporária ao criar ou redefinir o acesso de uma unidade. O envio só acontece se a opção de e-mail daquela unidade também estiver habilitada.
           </Typography>
         </Paper>
 

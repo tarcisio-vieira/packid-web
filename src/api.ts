@@ -206,6 +206,8 @@ export type RegistryEntry = {
   notes?: string | null;
   residentAccessEnabled?: boolean | null;
   residentUsername?: string | null;
+  residentMustChangePassword?: boolean | null;
+  residentCredentialEmailEnabled?: boolean | null;
   photoAvailable: boolean;
   photoOwnedByCurrentUser: boolean;
   photoFileName?: string | null;
@@ -767,12 +769,13 @@ export async function fetchPublicTenants(): Promise<PublicTenant[]> {
 }
 
 export type ResidentSession = {
-  residentId: string;
-  residentName: string;
+  occupancyId: string;
   tenantName: string;
   tenantSlug: string;
   block: string;
   apartment: string;
+  username: string;
+  mustChangePassword: boolean;
 };
 
 export type ResidentLoginPayload = {
@@ -810,6 +813,15 @@ export async function fetchResidentSession(): Promise<ResidentSession | null> {
   return resp.json();
 }
 
+export async function updateResidentCredentials(payload: { username?: string; newPassword?: string }): Promise<ResidentSession> {
+  const resp = await fetch(`${API_URL}/api/resident-auth/credentials`, {
+    method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
 export async function residentLogout(): Promise<void> {
   const resp = await fetch(`${API_URL}/api/resident-auth/logout`, { method: "POST", credentials: "include" });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
@@ -817,6 +829,25 @@ export async function residentLogout(): Promise<void> {
 
 export async function fetchResidentPortal(): Promise<ResidentPortalData> {
   const resp = await fetch(`${API_URL}/api/resident/portal`, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function updateResidentProfile(id: string, payload: { phone?: string; email?: string; profession?: string }): Promise<RegistryEntry> {
+  const resp = await fetch(`${API_URL}/api/resident/profile/${id}`, {
+    method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function uploadResidentProfilePhoto(id: string, file: File): Promise<RegistryEntry> {
+  const body = new FormData();
+  body.append("file", file);
+  const resp = await fetch(`${API_URL}/api/resident/profile/${id}/photo`, {
+    method: "PUT", credentials: "include", body,
+  });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
 }
@@ -861,6 +892,7 @@ export type CondominiumSettings = {
   whatsapp?: string | null;
   notes?: string | null;
   emailNotificationsEnabled: boolean;
+  residentCredentialEmailsEnabled: boolean;
   packIdPrintTwoLabels: boolean;
   googleAccount: GoogleAccountSettings;
 };

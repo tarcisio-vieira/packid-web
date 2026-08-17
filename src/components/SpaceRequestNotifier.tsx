@@ -63,8 +63,8 @@ export default function SpaceRequestNotifier({ enabled = true, onOpenSpaces }: R
             {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
             <Stack spacing={1}>
               {visible.map(row => <Box key={row.id} sx={{ p: 1, borderRadius: 1, bgcolor: "action.hover" }}>
-                <Typography variant="body2" fontWeight={700}>{spaceLabel(row.spaceType)} — {row.residentName}</Typography>
-                <Typography variant="caption" color="text.secondary">Bloco {row.block} / Apto {row.apartment} · {spaceAccessStatusLabel(row.status)}</Typography>
+                <Typography variant="body2" fontWeight={700}>{spaceLabel(row.spaceType)} — Bloco {row.block} / Apto {row.apartment}</Typography>
+                <Typography variant="caption" color="text.secondary">{spaceAccessStatusLabel(row.status)}</Typography>
                 <Box sx={{ mt: 0.75 }}>
                   <Button size="small" variant="contained" color={row.status === "REQUESTED_RETURN" ? "success" : "primary"}
                     startIcon={row.status === "REQUESTED_RETURN" ? <AssignmentTurnedInIcon /> : <KeyIcon />}

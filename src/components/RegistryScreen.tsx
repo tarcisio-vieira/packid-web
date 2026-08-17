@@ -53,6 +53,7 @@ import PetsOutlinedIcon from "@mui/icons-material/PetsOutlined";
 import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import DeckOutlinedIcon from "@mui/icons-material/DeckOutlined";
+import AutorenewRoundedIcon from "@mui/icons-material/AutorenewRounded";
 import {
   createDeliveryRecord,
   createRegistryEntry,
@@ -170,8 +171,20 @@ const emptyPayload = (entryType: RegistryEntryType): RegistryEntryPayload => ({
   residentAccessEnabled: false,
   residentUsername: "",
   residentPassword: "",
+  residentCredentialEmailEnabled: false,
   active: true,
 });
+
+function defaultUnitUsername(block?: string | null, apartment?: string | null): string {
+  return `${block ?? ""}${apartment ?? ""}`.replace(/[^A-Za-z0-9._-]/g, "").toLowerCase();
+}
+
+function generateTemporaryPassword(length = 10): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const bytes = new Uint32Array(length);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, value => alphabet[value % alphabet.length]).join("");
+}
 
 type AccessForm = {
   block: string;
@@ -641,14 +654,13 @@ function SpaceAccessHistory({ rows }: Readonly<{ rows: SpaceAccess[] }>) {
         <TableContainer sx={{ maxHeight: 380 }}>
           <Table size="small" stickyHeader>
             <TableHead><TableRow>
-              <TableCell>Área</TableCell><TableCell>Morador</TableCell><TableCell>Solicitado</TableCell>
+              <TableCell>Área</TableCell><TableCell>Solicitado</TableCell>
               <TableCell>Liberado</TableCell><TableCell>Solicitou devolução</TableCell><TableCell>Encerrado</TableCell><TableCell>Status</TableCell>
             </TableRow></TableHead>
             <TableBody>
-              {rows.length === 0 && <TableRow><TableCell colSpan={7} align="center">Nenhuma solicitação de área de lazer nesta ocupação.</TableCell></TableRow>}
+              {rows.length === 0 && <TableRow><TableCell colSpan={6} align="center">Nenhuma solicitação de área de lazer nesta ocupação.</TableCell></TableRow>}
               {pagedRows.map((row) => <TableRow key={row.id}>
                 <TableCell>{spaceName(row.spaceType)}</TableCell>
-                <TableCell>{row.residentName || "-"}</TableCell>
                 <TableCell>{formatDateTime(row.requestedAt)}</TableCell>
                 <TableCell>{row.releasedAt ? formatDateTime(row.releasedAt) : "-"}</TableCell>
                 <TableCell>{row.returnRequestedAt ? formatDateTime(row.returnRequestedAt) : "-"}</TableCell>
@@ -1095,6 +1107,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
       residentAccessEnabled: row.residentAccessEnabled ?? false,
       residentUsername: row.residentUsername ?? "",
       residentPassword: "",
+      residentCredentialEmailEnabled: row.residentCredentialEmailEnabled ?? false,
       active: row.active,
     });
     setDialogOpen(true);
@@ -1235,15 +1248,15 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
     }
     if (type === "RESIDENT" && form.residentAccessEnabled) {
       if (!(form.residentUsername ?? "").trim() || (form.residentUsername ?? "").trim().length < 4) {
-        setError("Para liberar o acesso do morador, informe um usuário com pelo menos 4 caracteres.");
+        setError("Para liberar o acesso da unidade, informe um usuário com pelo menos 4 caracteres.");
         return;
       }
-      if (!editingId && (form.residentPassword ?? "").length < 6) {
-        setError("Para liberar o primeiro acesso do morador, informe uma senha com pelo menos 6 caracteres.");
+      if (!editingId && (form.residentPassword ?? "").length < 8) {
+        setError("Para liberar o primeiro acesso da unidade, informe ou gere uma senha com pelo menos 8 caracteres.");
         return;
       }
-      if (editingId && (form.residentPassword ?? "").length > 0 && (form.residentPassword ?? "").length < 6) {
-        setError("A nova senha do morador deve ter pelo menos 6 caracteres. Deixe em branco para manter a senha atual.");
+      if (editingId && (form.residentPassword ?? "").length > 0 && (form.residentPassword ?? "").length < 8) {
+        setError("A nova senha deve ter pelo menos 8 caracteres. Deixe em branco para manter a senha atual.");
         return;
       }
     }
@@ -2049,32 +2062,70 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                     control={
                       <Switch
                         checked={Boolean(form.residentAccessEnabled)}
-                        onChange={(e) => setField("residentAccessEnabled", e.target.checked)}
+                        onChange={(e) => {
+                          const enabled = e.target.checked;
+                          setForm(current => ({
+                            ...current,
+                            residentAccessEnabled: enabled,
+                            residentUsername: enabled && !(current.residentUsername ?? "").trim()
+                              ? defaultUnitUsername(current.block, current.apartment)
+                              : current.residentUsername,
+                            residentPassword: enabled && !Boolean(current.residentAccessEnabled) && !(current.residentPassword ?? "")
+                              ? generateTemporaryPassword()
+                              : current.residentPassword,
+                          }));
+                        }}
                       />
                     }
-                    label="Liberar acesso de visualização ao morador"
+                    label="Liberar acesso de visualização da unidade"
                   />
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: form.residentAccessEnabled ? 1.5 : 0 }}>
-                    O morador verá somente os dados da própria ocupação/unidade e poderá solicitar acesso às áreas de lazer.
+                    O acesso pertence ao bloco/apartamento e é compartilhado pelos moradores da ocupação atual. Ao encerrar a ocupação, ele é revogado.
                   </Typography>
                   {form.residentAccessEnabled && (
-                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-                      <TextField
-                        label="Usuário do morador"
-                        value={form.residentUsername ?? ""}
-                        onChange={(e) => setField("residentUsername", e.target.value)}
-                        required
-                        helperText="Mínimo de 4 caracteres. É único dentro do condomínio."
+                    <Stack spacing={1.5}>
+                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                        <TextField
+                          label="Usuário da unidade"
+                          value={form.residentUsername ?? ""}
+                          onChange={(e) => setField("residentUsername", e.target.value)}
+                          required
+                          helperText="Sugestão: bloco + apartamento (ex.: 2608). O morador poderá alterar depois."
+                        />
+                        <TextField
+                          label={editingId ? "Nova senha (opcional)" : "Senha temporária"}
+                          type="text"
+                          value={form.residentPassword ?? ""}
+                          onChange={(e) => setField("residentPassword", e.target.value)}
+                          required={!editingId}
+                          helperText={editingId ? "A senha atual não é exibida. Digite ou gere uma nova senha para redefinir." : "Senha temporária visível para ser repassada ao morador. Mínimo de 8 caracteres."}
+                          InputProps={{
+                            endAdornment: (
+                              <Button
+                                size="small"
+                                startIcon={<AutorenewRoundedIcon />}
+                                onClick={() => setField("residentPassword", generateTemporaryPassword())}
+                                sx={{ whiteSpace: "nowrap" }}
+                              >
+                                Gerar
+                              </Button>
+                            ),
+                          }}
+                        />
+                      </Box>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={Boolean(form.residentCredentialEmailEnabled)}
+                            onChange={(e) => setField("residentCredentialEmailEnabled", e.target.checked)}
+                          />
+                        }
+                        label="Enviar novas credenciais por e-mail para os condôminos desta unidade"
                       />
-                      <TextField
-                        label={editingId ? "Nova senha (opcional)" : "Senha do morador"}
-                        type="password"
-                        value={form.residentPassword ?? ""}
-                        onChange={(e) => setField("residentPassword", e.target.value)}
-                        required={!editingId}
-                        helperText={editingId ? "Deixe em branco para manter a senha atual." : "Mínimo de 6 caracteres."}
-                      />
-                    </Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Inicia desabilitado. O envio só ocorrerá se a opção geral de e-mails de credenciais também estiver habilitada em Configurações. Uma senha criada ou redefinida pela administração será marcada para troca obrigatória no primeiro acesso.
+                      </Typography>
+                    </Stack>
                   )}
                 </Box>
               </>

@@ -120,7 +120,6 @@ export default function SpacesScreen({ embedded = false }: Readonly<{ embedded?:
     const reportRows = rows.map(row => `
       <tr>
         <td>${escapeHtml(spaceLabel(row.spaceType))}</td>
-        <td>${escapeHtml(row.residentName)}</td>
         <td>${escapeHtml(`Bloco ${row.block} / Apto ${row.apartment}`)}</td>
         <td>${escapeHtml(formatDateTime(row.requestedAt))}</td>
         <td>${escapeHtml(formatDateTime(row.releasedAt))}</td>
@@ -134,7 +133,7 @@ export default function SpacesScreen({ embedded = false }: Readonly<{ embedded?:
       <style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{font-size:20px;margin:0 0 8px}.sub{margin-bottom:18px;color:#555}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}@media print{body{padding:0}}</style></head>
       <body><h1>VSGI Condomínio — ${escapeHtml(spaceType ? spaceLabel(spaceType) : "Relatório de área de lazer")}</h1>
       <div class="sub">Período: ${escapeHtml(from || "início")} a ${escapeHtml(to || "hoje")} · ${rows.length} registro(s)</div>
-      <table><thead><tr><th>Área</th><th>Morador</th><th>Unidade</th><th>Solicitação</th><th>Liberação</th><th>Pedido devolução</th><th>Encerramento</th><th>Status</th></tr></thead><tbody>${reportRows}</tbody></table>
+      <table><thead><tr><th>Área</th><th>Unidade</th><th>Solicitação</th><th>Liberação</th><th>Pedido devolução</th><th>Encerramento</th><th>Status</th></tr></thead><tbody>${reportRows}</tbody></table>
       <script>window.onload=()=>window.print()</script></body></html>`);
     popup.document.close();
   };
@@ -179,14 +178,13 @@ export default function SpacesScreen({ embedded = false }: Readonly<{ embedded?:
           <TableContainer>
             <Table size="small" sx={{ minWidth: 1050 }}>
               <TableHead><TableRow>
-                <TableCell>Área</TableCell><TableCell>Morador</TableCell><TableCell>Unidade</TableCell><TableCell>Solicitado</TableCell>
+                <TableCell>Área</TableCell><TableCell>Unidade</TableCell><TableCell>Solicitado</TableCell>
                 <TableCell>Liberado</TableCell><TableCell>Pedido devolução</TableCell><TableCell>Encerrado</TableCell><TableCell>Status</TableCell><TableCell align="right">Ação</TableCell>
               </TableRow></TableHead>
               <TableBody>
-                {rows.length === 0 && <TableRow><TableCell colSpan={9} align="center" sx={{ py: 4 }}>Nenhum registro no período.</TableCell></TableRow>}
+                {rows.length === 0 && <TableRow><TableCell colSpan={8} align="center" sx={{ py: 4 }}>Nenhum registro no período.</TableCell></TableRow>}
                 {rows.map(row => <TableRow key={row.id} hover>
                   <TableCell><Stack direction="row" spacing={1} alignItems="center">{spaceIcon(row.spaceType)}<span>{spaceLabel(row.spaceType)}</span></Stack></TableCell>
-                  <TableCell>{row.residentName}</TableCell>
                   <TableCell>Bloco {row.block} / Apto {row.apartment}</TableCell>
                   <TableCell>{formatDateTime(row.requestedAt)}</TableCell>
                   <TableCell>{formatDateTime(row.releasedAt)}</TableCell>
