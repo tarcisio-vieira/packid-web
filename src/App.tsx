@@ -1624,12 +1624,6 @@ function App() {
               <ListItemText primary={t("menu.registry")} />
             </ListItemButton>
 
-            {user?.canOperateCondominium !== false && (
-              <ListItemButton onClick={() => setActiveView("spaces")}>
-                <ListItemText primary="Área de lazer" />
-              </ListItemButton>
-            )}
-
             {(user?.canManageSettings ?? ["ADMIN", "SECRETARY"].includes((user?.role ?? "").toUpperCase())) && (
               <ListItemButton onClick={() => setActiveView("settings")}>
                 <ListItemText primary={t("menu.settings")} />
