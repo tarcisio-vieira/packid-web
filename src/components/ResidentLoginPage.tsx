@@ -95,60 +95,48 @@ export default function ResidentLoginPage({
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "grid",
         placeItems: "center",
-        px: 2,
-        py: 4,
-        background:
-          "radial-gradient(circle at 12% 18%, rgba(46,125,50,.10), transparent 34%), radial-gradient(circle at 88% 82%, rgba(25,118,210,.09), transparent 30%), #f6f3ea",
+        px: { xs: 1.5, sm: 2 },
+        pt: "calc(16px + env(safe-area-inset-top))",
+        pb: "calc(16px + env(safe-area-inset-bottom))",
+        bgcolor: "#f6f7f8",
       }}
     >
       <Card
         elevation={0}
         sx={{
           width: "100%",
-          maxWidth: 480,
-          borderRadius: 5,
+          maxWidth: 440,
+          borderRadius: { xs: 4, sm: 5 },
           border: "1px solid",
           borderColor: "divider",
-          boxShadow: "0 24px 70px rgba(25, 38, 55, .12)",
+          boxShadow: { xs: "0 10px 30px rgba(20,32,48,.08)", sm: "0 20px 60px rgba(20,32,48,.10)" },
           overflow: "hidden",
         }}
       >
-        <Box sx={{ height: 7, background: "linear-gradient(90deg, #2e7d32, #66bb6a, #1976d2)" }} />
-        <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
-          <Stack alignItems="center" spacing={1.2} textAlign="center">
-            <Box
-              sx={{
-                width: 68,
-                height: 68,
-                borderRadius: 4,
-                display: "grid",
-                placeItems: "center",
-                bgcolor: "success.main",
-                color: "success.contrastText",
-                boxShadow: "0 12px 28px rgba(46,125,50,.24)",
-              }}
-            >
-              <HomeRoundedIcon sx={{ fontSize: 38 }} />
+        <CardContent sx={{ p: { xs: 2.25, sm: 3.5 }, "&:last-child": { pb: { xs: 2.25, sm: 3.5 } } }}>
+          <Stack alignItems="center" spacing={0.9} textAlign="center">
+            <Box sx={{ width: 54, height: 54, borderRadius: 3, display: "grid", placeItems: "center", bgcolor: "#263746", color: "white" }}>
+              <HomeRoundedIcon sx={{ fontSize: 30 }} />
             </Box>
-            <Typography variant="h4" fontWeight={900} letterSpacing={-0.8}>Portal do Morador</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 365 }}>
-              Consulte os dados da sua unidade e solicite acesso às áreas de lazer do condomínio.
+            <Typography variant="overline" sx={{ letterSpacing: 2, fontWeight: 900, lineHeight: 1.3 }}>VSGI</Typography>
+            <Typography fontWeight={900} sx={{ fontSize: { xs: 23, sm: 28 }, letterSpacing: -0.5 }}>Portal do Morador</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 340 }}>
+              Entre para consultar sua unidade, encomendas e chaves das áreas de lazer.
             </Typography>
           </Stack>
 
-          {error && <Alert severity="error" sx={{ mt: 2.5 }}>{error}</Alert>}
+          {error && <Alert severity="error" sx={{ mt: 2, borderRadius: 2.5 }}>{error}</Alert>}
 
-          <Stack spacing={1.7} sx={{ mt: 3 }}>
+          <Stack spacing={1.35} sx={{ mt: 2.25 }}>
             <TextField
               select
               label="Condomínio"
               value={tenantSlug}
               onChange={(e) => setTenantSlug(e.target.value)}
               disabled={loadingTenants}
-              helperText={loadingTenants ? "Carregando condomínios..." : tenants.length === 0 ? "Nenhum condomínio disponível." : "Selecione o condomínio da sua unidade."}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -158,15 +146,13 @@ export default function ResidentLoginPage({
               }}
               fullWidth
             >
-              {tenants.map((tenant) => (
-                <MenuItem key={tenant.slug} value={tenant.slug}>{tenant.name}</MenuItem>
-              ))}
+              {tenants.map((tenant) => <MenuItem key={tenant.slug} value={tenant.slug}>{tenant.name}</MenuItem>)}
             </TextField>
 
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-              <TextField label="Bloco" value={block} onChange={(e) => setBlock(e.target.value)} fullWidth />
-              <TextField label="Apartamento" value={apartment} onChange={(e) => setApartment(e.target.value)} fullWidth />
-            </Stack>
+            <Box sx={{ display: "grid", gridTemplateColumns: "0.8fr 1.2fr", gap: 1.15 }}>
+              <TextField label="Bloco" value={block} onChange={(e) => setBlock(e.target.value)} fullWidth inputProps={{ inputMode: "numeric" }} />
+              <TextField label="Apartamento" value={apartment} onChange={(e) => setApartment(e.target.value)} fullWidth inputProps={{ inputMode: "numeric" }} />
+            </Box>
 
             <TextField
               label="Usuário"
@@ -191,25 +177,18 @@ export default function ResidentLoginPage({
               size="large"
               fullWidth
               variant="contained"
-              color="success"
               startIcon={<LoginRoundedIcon />}
               onClick={() => void submit()}
               disabled={!canSubmit || loading || loadingTenants}
-              sx={{ py: 1.35, borderRadius: 2.5, textTransform: "none", fontWeight: 800 }}
+              sx={{ py: 1.25, mt: 0.3, borderRadius: 2.5, textTransform: "none", fontWeight: 850 }}
             >
-              {loading ? "Entrando..." : "Entrar no Portal do Morador"}
+              {loading ? "Entrando..." : "Entrar"}
             </Button>
           </Stack>
 
-          <Divider sx={{ my: 3 }} />
-          <Button
-            fullWidth
-            color="inherit"
-            startIcon={<ArrowBackRoundedIcon />}
-            onClick={onCollaboratorAccess}
-            sx={{ textTransform: "none", fontWeight: 700 }}
-          >
-            Acesso da secretaria e portaria
+          <Divider sx={{ my: 2.2 }} />
+          <Button fullWidth color="inherit" size="small" startIcon={<ArrowBackRoundedIcon />} onClick={onCollaboratorAccess} sx={{ textTransform: "none", color: "text.secondary" }}>
+            Acesso da portaria e secretaria
           </Button>
         </CardContent>
       </Card>
