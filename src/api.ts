@@ -855,8 +855,25 @@ export async function uploadResidentProfilePhoto(id: string, file: File): Promis
   return resp.json();
 }
 
-export async function requestResidentSpace(spaceType: SpaceType): Promise<SpaceAccess> {
-  const resp = await fetch(`${API_URL}/api/resident/spaces/${spaceType}/request`, {
+export type SpaceKeyAvailability = {
+  available: boolean;
+  currentRequestId?: string | null;
+  holderResidentName?: string | null;
+  holderBlock?: string | null;
+  holderApartment?: string | null;
+};
+
+export async function fetchResidentSpaceAvailability(spaceType: SpaceType): Promise<SpaceKeyAvailability> {
+  const resp = await fetch(`${API_URL}/api/resident/spaces/${spaceType}/availability`, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function requestResidentSpace(spaceType: SpaceType, assumeResponsibility = false): Promise<SpaceAccess> {
+  const params = new URLSearchParams();
+  if (assumeResponsibility) params.set("assumeResponsibility", "true");
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const resp = await fetch(`${API_URL}/api/resident/spaces/${spaceType}/request${suffix}`, {
     method: "POST", credentials: "include",
   });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
@@ -866,6 +883,46 @@ export async function requestResidentSpace(spaceType: SpaceType): Promise<SpaceA
 export function residentRegistryPhotoUrl(id: string, version?: string | null): string {
   const suffix = version ? `?v=${encodeURIComponent(version)}` : "";
   return `${API_URL}/api/resident/photos/${id}${suffix}`;
+}
+
+async function downloadExcel(resp: Response, fallbackName: string): Promise<void> {
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  const blob = await resp.blob();
+  const disposition = resp.headers.get("content-disposition") ?? "";
+  const utf8Name = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plainName = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  let fileName = fallbackName;
+  try {
+    fileName = utf8Name ? decodeURIComponent(utf8Name) : (plainName || fallbackName);
+  } catch {
+    fileName = plainName || fallbackName;
+  }
+  const url = URL.createObjectURL(blob);
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export async function exportRegistryExcel(type: RegistryEntryType): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/exports/registry?type=${encodeURIComponent(type)}`, { credentials: "include" });
+  await downloadExcel(resp, `${type.toLowerCase()}.xlsx`);
+}
+
+export async function exportServiceCompaniesExcel(): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/exports/service-companies`, { credentials: "include" });
+  await downloadExcel(resp, "empresas.xlsx");
+}
+
+export async function exportSpaceAccessExcel(): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/exports/space-access`, { credentials: "include" });
+  await downloadExcel(resp, "area-lazer.xlsx");
 }
 
 export type GoogleAccountSettings = {

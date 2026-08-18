@@ -56,6 +56,7 @@ import DeckOutlinedIcon from "@mui/icons-material/DeckOutlined";
 import AutorenewRoundedIcon from "@mui/icons-material/AutorenewRounded";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import PersonOffOutlinedIcon from "@mui/icons-material/PersonOffOutlined";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import {
   createDeliveryRecord,
   createRegistryEntry,
@@ -73,6 +74,8 @@ import {
   fetchVisitorVisits,
   startApartmentOccupancy,
   endApartmentOccupancy,
+  exportRegistryExcel,
+  exportServiceCompaniesExcel,
   registryEntryPhotoUrl,
   registryDocumentPhotoUrl,
   updateRegistryEntry,
@@ -721,6 +724,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const [showInactive, setShowInactive] = useState(false);
   const [showOwnersOnly, setShowOwnersOnly] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [page, setPage] = useState(0);
@@ -990,6 +994,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const canManageProtectedRegistry = Boolean(
     currentUser?.canManageProtectedRegistry ?? ["ADMIN", "SECRETARY"].includes((currentUser?.role ?? "").toUpperCase()),
   );
+  const canExportExcel = ["ADMIN", "SECRETARY"].includes((currentUser?.role ?? "").toUpperCase());
   const isProtectedRegistryType = (value: RegistryEntryType) =>
     value === "RESIDENT" || value === "BICYCLE" || value === "PET" || value === "VEHICLE";
   const protectedReadOnly = isProtectedRegistryType(type) && !canManageProtectedRegistry;
@@ -1545,6 +1550,20 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
     }
   };
 
+  const exportCurrentTab = async () => {
+    if (!canExportExcel || leisureMode) return;
+    setExporting(true);
+    setError(null);
+    try {
+      if (companyMode) await exportServiceCompaniesExcel();
+      else await exportRegistryExcel(type);
+    } catch (e) {
+      setError(userFriendlyError(e, "Não foi possível exportar os dados para Excel."));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const openHistory = async (row: RegistryEntry) => {
     if (row.entryType !== "VISITOR" && row.entryType !== "DELIVERY_PERSON" && row.entryType !== "SERVICE_PROVIDER") return;
     setHistoryRow(row);
@@ -1654,29 +1673,84 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
             </Tabs>
           </Tooltip>
 
-          {!leisureMode && (companyMode || !protectedReadOnly) && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={companyMode ? () => setCompanyNewRequestSeq((current) => current + 1) : openNew}
-              sx={{
-                flexShrink: 0,
-                whiteSpace: "nowrap",
-                mr: { xs: 0.25, sm: 0.75 },
-              }}
-            >
-              Novo cadastro
-            </Button>
-          )}
         </Box>
 
-        {leisureMode ? <SpacesScreen embedded /> : companyMode ? <ServiceCompanyPanel newRequestSeq={companyNewRequestSeq} /> : <>
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="subtitle1" fontWeight={700}>{selectedLabel}</Typography>
-          <Typography variant="body2" sx={{ opacity: 0.7 }}>
-            {REGISTRY_SECTION_DESCRIPTIONS[type]}
-          </Typography>
-        </Box>
+        {leisureMode ? (
+          <SpacesScreen embedded canExport={canExportExcel} />
+        ) : companyMode ? (
+          <>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              justifyContent="space-between"
+              alignItems={{ sm: "center" }}
+              spacing={1.5}
+              sx={{ mt: 2 }}
+            >
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700}>Empresas</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                  Cadastre empresas prestadoras de serviço e transportadoras para selecioná-las nos cadastros de prestadores e entregadores.
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1} flexShrink={0}>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => setCompanyNewRequestSeq((current) => current + 1)}
+                >
+                  Novo cadastro
+                </Button>
+                {canExportExcel && (
+                  <Button
+                    variant="outlined"
+                    startIcon={<FileDownloadOutlinedIcon />}
+                    onClick={() => void exportCurrentTab()}
+                    disabled={exporting}
+                  >
+                    {exporting ? "Exportando..." : "Exportar Excel"}
+                  </Button>
+                )}
+              </Stack>
+            </Stack>
+            {error && (
+              <Alert severity="error" sx={{ mt: 1.5 }} onClose={() => setError(null)}>
+                {error}
+              </Alert>
+            )}
+            <ServiceCompanyPanel newRequestSeq={companyNewRequestSeq} hideHeader />
+          </>
+        ) : <>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          justifyContent="space-between"
+          alignItems={{ sm: "center" }}
+          spacing={1.5}
+          sx={{ mt: 2 }}
+        >
+          <Box>
+            <Typography variant="subtitle1" fontWeight={700}>{selectedLabel}</Typography>
+            <Typography variant="body2" sx={{ opacity: 0.7 }}>
+              {REGISTRY_SECTION_DESCRIPTIONS[type]}
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={1} flexShrink={0}>
+            {!protectedReadOnly && (
+              <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
+                Novo cadastro
+              </Button>
+            )}
+            {canExportExcel && (
+              <Button
+                variant="outlined"
+                startIcon={<FileDownloadOutlinedIcon />}
+                onClick={() => void exportCurrentTab()}
+                disabled={exporting}
+              >
+                {exporting ? "Exportando..." : "Exportar Excel"}
+              </Button>
+            )}
+          </Stack>
+        </Stack>
         {protectedReadOnly && (
           <Alert severity="info" sx={{ mt: 1.5 }}>
             Perfil de portaria: consulta liberada. Inclusão, edição e exclusão de {selectedLabel.toLowerCase()} são restritas à secretaria/administrador.

@@ -22,10 +22,12 @@ import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import ToysIcon from "@mui/icons-material/Toys";
 import KeyIcon from "@mui/icons-material/Key";
 import PrintIcon from "@mui/icons-material/Print";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import SpaOutlinedIcon from "@mui/icons-material/SpaOutlined";
 import {
   completeSpaceAccess,
+  exportSpaceAccessExcel,
   fetchSpaceAccess,
   releaseSpaceAccess,
   userFriendlyError,
@@ -78,12 +80,13 @@ function escapeHtml(value: unknown): string {
     .replaceAll("'", "&#039;");
 }
 
-export default function SpacesScreen({ embedded = false }: Readonly<{ embedded?: boolean }> = {}) {
+export default function SpacesScreen({ embedded = false, canExport = false }: Readonly<{ embedded?: boolean; canExport?: boolean }> = {}) {
   const [rows, setRows] = useState<SpaceAccess[]>([]);
   const [spaceType, setSpaceType] = useState<SpaceType | "">("");
   const [from, setFrom] = useState(todayOffset(-30));
   const [to, setTo] = useState(todayOffset(0));
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
@@ -116,11 +119,23 @@ export default function SpacesScreen({ embedded = false }: Readonly<{ embedded?:
     finally { setLoading(false); }
   };
 
+  const exportExcel = async () => {
+    setExporting(true);
+    setError(null);
+    try {
+      await exportSpaceAccessExcel();
+    } catch (err) {
+      setError(userFriendlyError(err, "Não foi possível exportar a área de lazer para Excel."));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const printReport = () => {
     const reportRows = rows.map(row => `
       <tr>
         <td>${escapeHtml(spaceLabel(row.spaceType))}</td>
-        <td>${escapeHtml(`Bloco ${row.block} / Apto ${row.apartment}`)}</td>
+        <td>${escapeHtml(`Bloco ${row.block} Apto ${row.apartment}`)}</td>
         <td>${escapeHtml(formatDateTime(row.requestedAt))}</td>
         <td>${escapeHtml(formatDateTime(row.releasedAt))}</td>
         <td>${escapeHtml(formatDateTime(row.returnRequestedAt))}</td>
@@ -145,7 +160,14 @@ export default function SpacesScreen({ embedded = false }: Readonly<{ embedded?:
           <Typography variant="subtitle1" fontWeight={700}>Área de lazer</Typography>
           <Typography variant="body2" sx={{ opacity: 0.7 }}>Liberação e devolução de chaves da Brinquedoteca, Sala de Jogos, Academia e Sauna.</Typography>
         </Box>
-        <Button variant="outlined" startIcon={<PrintIcon />} onClick={printReport} disabled={loading}>Imprimir relatório</Button>
+        <Stack direction="row" spacing={1} flexWrap="wrap">
+          <Button variant="outlined" startIcon={<PrintIcon />} onClick={printReport} disabled={loading}>Imprimir relatório</Button>
+          {canExport && (
+            <Button variant="outlined" startIcon={<FileDownloadOutlinedIcon />} onClick={() => void exportExcel()} disabled={loading || exporting}>
+              {exporting ? "Exportando..." : "Exportar Excel"}
+            </Button>
+          )}
+        </Stack>
       </Stack>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -185,7 +207,7 @@ export default function SpacesScreen({ embedded = false }: Readonly<{ embedded?:
                 {rows.length === 0 && <TableRow><TableCell colSpan={8} align="center" sx={{ py: 4 }}>Nenhum registro no período.</TableCell></TableRow>}
                 {rows.map(row => <TableRow key={row.id} hover>
                   <TableCell><Stack direction="row" spacing={1} alignItems="center">{spaceIcon(row.spaceType)}<span>{spaceLabel(row.spaceType)}</span></Stack></TableCell>
-                  <TableCell>Bloco {row.block} / Apto {row.apartment}</TableCell>
+                  <TableCell>Bloco {row.block} Apto {row.apartment}</TableCell>
                   <TableCell>{formatDateTime(row.requestedAt)}</TableCell>
                   <TableCell>{formatDateTime(row.releasedAt)}</TableCell>
                   <TableCell>{formatDateTime(row.returnRequestedAt)}</TableCell>

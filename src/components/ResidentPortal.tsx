@@ -41,6 +41,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import PhotoCameraOutlinedIcon from "@mui/icons-material/PhotoCameraOutlined";
 import {
   fetchResidentPortal,
+  fetchResidentSpaceAvailability,
   requestResidentSpace,
   residentLogout,
   residentRegistryPhotoUrl,
@@ -52,6 +53,7 @@ import {
   type ResidentPortalData,
   type ResidentSession,
   type SpaceAccess,
+  type SpaceKeyAvailability,
   type SpaceType,
 } from "../api";
 import { spaceAccessStatusLabel, spaceLabel } from "./SpacesScreen";
@@ -143,6 +145,7 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busySpace, setBusySpace] = useState<SpaceType | null>(null);
+  const [transferPrompt, setTransferPrompt] = useState<{ type: SpaceType; availability: SpaceKeyAvailability } | null>(null);
   const [accountOpen, setAccountOpen] = useState(session.mustChangePassword);
   const [accountUsername, setAccountUsername] = useState(session.username ?? "");
   const [newPassword, setNewPassword] = useState("");
@@ -175,9 +178,54 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
 
   const toggleSpace = async (type: SpaceType) => {
     setBusySpace(type); setError(null); setSuccess(null);
-    try { await requestResidentSpace(type); await load(); }
-    catch (err) { setError(userFriendlyError(err, "Não foi possível atualizar a solicitação da chave.")); }
-    finally { setBusySpace(null); }
+    try {
+      const ownCurrent = latestActive(activeRows, type);
+      if (!ownCurrent) {
+        const availability = await fetchResidentSpaceAvailability(type);
+        if (!availability.available) {
+          setTransferPrompt({ type, availability });
+          return;
+        }
+      }
+      await requestResidentSpace(type);
+      await load();
+    } catch (err) {
+      const message = userFriendlyError(err, "Não foi possível atualizar a solicitação da chave.");
+      if (/chave já está com o morador da unidade/i.test(message)) {
+        try {
+          const availability = await fetchResidentSpaceAvailability(type);
+          if (!availability.available) {
+            setTransferPrompt({ type, availability });
+            return;
+          }
+        } catch {
+          // Mantém abaixo a mensagem original retornada pela API.
+        }
+      }
+      setError(message);
+    } finally {
+      setBusySpace(null);
+    }
+  };
+
+  const assumeKeyResponsibility = async () => {
+    if (!transferPrompt) return;
+    const { type } = transferPrompt;
+    setBusySpace(type); setError(null); setSuccess(null);
+    try {
+      const updated = await requestResidentSpace(type, true);
+      setTransferPrompt(null);
+      setSuccess(
+        updated.status === "IN_USE"
+          ? `A responsabilidade pela chave da ${spaceLabel(type)} foi transferida para a sua unidade.`
+          : `A chave da ${spaceLabel(type)} não estava mais em uso. Sua solicitação foi registrada normalmente.`,
+      );
+      await load();
+    } catch (err) {
+      setError(userFriendlyError(err, "Não foi possível transferir a responsabilidade pela chave."));
+    } finally {
+      setBusySpace(null);
+    }
   };
 
   const logout = async () => {
@@ -327,6 +375,33 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
           </Table></TableContainer>
         </CardContent></Card>
       </>}
+
+      <Dialog
+        open={Boolean(transferPrompt)}
+        onClose={() => busySpace ? undefined : setTransferPrompt(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Chave em uso por outra unidade</DialogTitle>
+        <DialogContent>
+          {transferPrompt && (
+            <Stack spacing={2} sx={{ mt: 0.5 }}>
+              <Alert severity="warning">
+                A chave da <strong>{spaceLabel(transferPrompt.type)}</strong> já está com o morador da unidade <strong>Bloco {transferPrompt.availability.holderBlock || "-"} Apto {transferPrompt.availability.holderApartment || "-"}</strong>.
+              </Alert>
+              <Typography variant="body2">
+                Se você assumir a responsabilidade, deverá receber a chave diretamente dessa unidade. O sistema encerrará a responsabilidade da unidade atual e registrará a chave como <strong>em uso pela sua unidade</strong>.
+              </Typography>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTransferPrompt(null)} disabled={Boolean(busySpace)}>Cancelar</Button>
+          <Button variant="contained" onClick={() => void assumeKeyResponsibility()} disabled={Boolean(busySpace)}>
+            {busySpace ? "Transferindo..." : "Assumir responsabilidade"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={accountOpen}

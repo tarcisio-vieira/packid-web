@@ -23,7 +23,7 @@ function normalize(v: unknown): string {
   return String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-export default function ServiceCompanyPanel({ newRequestSeq = 0 }: Readonly<{ newRequestSeq?: number }>) {
+export default function ServiceCompanyPanel({ newRequestSeq = 0, hideHeader = false }: Readonly<{ newRequestSeq?: number; hideHeader?: boolean }>) {
   const [rows, setRows] = useState<ServiceCompany[]>([]);
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
@@ -96,12 +96,12 @@ export default function ServiceCompanyPanel({ newRequestSeq = 0 }: Readonly<{ ne
     finally { setLoading(false); }
   };
 
-  return <Box sx={{ mt: 2 }}>
-    <Box>
+  return <Box sx={{ mt: hideHeader ? 0 : 2 }}>
+    {!hideHeader && <Box>
       <Typography variant="subtitle1" fontWeight={700}>Empresas</Typography>
       <Typography variant="body2" sx={{opacity:.7}}>Cadastre empresas prestadoras de serviço e transportadoras para selecioná-las nos cadastros de prestadores e entregadores.</Typography>
-    </Box>
-    <Stack direction={{xs:"column",sm:"row"}} gap={2} sx={{mt:2}} alignItems={{sm:"center"}}>
+    </Box>}
+    <Stack direction={{xs:"column",sm:"row"}} gap={2} sx={{mt: hideHeader ? 2 : 2}} alignItems={{sm:"center"}}>
       <TextField size="small" fullWidth sx={{maxWidth:620}} value={search} onChange={e=>setSearch(e.target.value)}
         placeholder="Pesquisar empresa, CNPJ, contato..." InputProps={{startAdornment:<SearchIcon sx={{mr:1,opacity:.55}}/>}} />
       <Tooltip title="Mostrar inativos" arrow>
