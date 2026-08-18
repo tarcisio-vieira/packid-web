@@ -54,9 +54,12 @@ import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import DeckOutlinedIcon from "@mui/icons-material/DeckOutlined";
 import AutorenewRoundedIcon from "@mui/icons-material/AutorenewRounded";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
+import PersonOffOutlinedIcon from "@mui/icons-material/PersonOffOutlined";
 import {
   createDeliveryRecord,
   createRegistryEntry,
+  createServiceCompany,
   createServiceRecord,
   createVisitorVisit,
   deleteRegistryEntry,
@@ -88,6 +91,7 @@ import type {
   RegistryEntryPayload,
   RegistryEntryType,
   ServiceCompany,
+  ServiceCompanyPayload,
   ServiceRecord,
   UnitRegistrySummary,
   VisitorVisit,
@@ -118,6 +122,16 @@ const NAVIGATION_ITEMS: Array<{ value: RegistryNavigationValue; label: string; c
   { value: "VEHICLE", label: "Veículos", color: "#3949ab" },
   { value: "LEISURE_AREA", label: "Área de lazer", color: "#00897b" },
 ];
+
+const REGISTRY_SECTION_DESCRIPTIONS: Record<RegistryEntryType, string> = {
+  RESIDENT: "Cadastre condôminos, identifique proprietários e consulte os moradores vinculados a cada unidade.",
+  SERVICE_PROVIDER: "Cadastre prestadores de serviço, vincule-os às empresas e registre os serviços realizados no condomínio.",
+  DELIVERY_PERSON: "Cadastre entregadores e transportadoras para agilizar o registro de entregas e autorizações de entrada.",
+  VISITOR: "Cadastre visitantes e registre as visitas realizadas às unidades do condomínio.",
+  BICYCLE: "Cadastre as bicicletas dos moradores e mantenha cada uma vinculada à sua unidade.",
+  PET: "Cadastre os pets dos moradores e mantenha as informações vinculadas às respectivas unidades.",
+  VEHICLE: "Cadastre os veículos dos moradores, placas e informações de vagas vinculadas às unidades.",
+};
 
 function navigationIcon(value: RegistryNavigationValue) {
   switch (value) {
@@ -172,6 +186,21 @@ const emptyPayload = (entryType: RegistryEntryType): RegistryEntryPayload => ({
   residentUsername: "",
   residentPassword: "",
   residentCredentialEmailEnabled: false,
+  active: true,
+});
+
+const emptyServiceCompanyPayload = (name = ""): ServiceCompanyPayload => ({
+  name,
+  tradeName: "",
+  documentNumber: "",
+  phone: "",
+  email: "",
+  contactName: "",
+  addressLine: "",
+  city: "",
+  state: "",
+  zipCode: "",
+  notes: "",
   active: true,
 });
 
@@ -245,14 +274,14 @@ function formatUnit(block?: string | null, apartment?: string | null): string {
   const parts = [];
   if (block) parts.push(`Bloco ${block}`);
   if (apartment) parts.push(`Apto ${apartment}`);
-  return parts.join(" / ") || "-";
+  return parts.join(" ") || "-";
 }
 
 function unitLabel(entry: RegistryEntry): string {
   return formatUnit(entry.block, entry.apartment);
 }
 
-type RegistrySortField = "unit" | "name";
+type RegistrySortField = "unit" | "name" | "owner";
 type RegistrySortDirection = "asc" | "desc";
 
 function defaultRegistrySortField(entryType: RegistryEntryType): RegistrySortField {
@@ -684,11 +713,13 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const [type, setType] = useState<RegistryEntryType>(initialRegistryType);
   const [companyMode, setCompanyMode] = useState(initialNavigation === "SERVICE_COMPANY");
   const [leisureMode, setLeisureMode] = useState(initialNavigation === "LEISURE_AREA");
+  const [companyNewRequestSeq, setCompanyNewRequestSeq] = useState(0);
   const [rows, setRows] = useState<RegistryEntry[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const [showOwnersOnly, setShowOwnersOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -734,6 +765,11 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const [deliveryHistory, setDeliveryHistory] = useState<DeliveryRecord[]>([]);
   const [serviceHistory, setServiceHistory] = useState<ServiceRecord[]>([]);
   const [serviceCompanies, setServiceCompanies] = useState<ServiceCompany[]>([]);
+  const [serviceCompanySearch, setServiceCompanySearch] = useState("");
+  const [newCompanyDialogOpen, setNewCompanyDialogOpen] = useState(false);
+  const [newCompanyForm, setNewCompanyForm] = useState<ServiceCompanyPayload>(emptyServiceCompanyPayload());
+  const [newCompanySaving, setNewCompanySaving] = useState(false);
+  const [newCompanyError, setNewCompanyError] = useState<string | null>(null);
   const [documentPhotoFile, setDocumentPhotoFile] = useState<File | null>(null);
   const [documentPhotoPreview, setDocumentPhotoPreview] = useState<string | null>(null);
   const [cameraTarget, setCameraTarget] = useState<"profile" | "document">("profile");
@@ -753,6 +789,42 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
     }
   };
 
+  const openNewServiceCompany = () => {
+    setNewCompanyForm(emptyServiceCompanyPayload(serviceCompanySearch.trim()));
+    setNewCompanyError(null);
+    setNewCompanyDialogOpen(true);
+  };
+
+  const setNewCompanyField = <K extends keyof ServiceCompanyPayload>(
+    field: K,
+    value: ServiceCompanyPayload[K],
+  ) => setNewCompanyForm((current) => ({ ...current, [field]: value }));
+
+  const saveNewServiceCompany = async () => {
+    if (!newCompanyForm.name.trim()) {
+      setNewCompanyError("Informe o nome da empresa.");
+      return;
+    }
+
+    setNewCompanySaving(true);
+    setNewCompanyError(null);
+    try {
+      const saved = await createServiceCompany(newCompanyForm);
+      setServiceCompanies((current) =>
+        [...current.filter((company) => company.id !== saved.id), saved]
+          .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+      );
+      setForm((current) => ({ ...current, serviceCompanyId: saved.id }));
+      setServiceCompanySearch([saved.name, saved.tradeName].filter(Boolean).join(" — "));
+      setNewCompanyDialogOpen(false);
+      setSuccessMessage("Empresa cadastrada e selecionada no prestador.");
+    } catch (e) {
+      setNewCompanyError(userFriendlyError(e, "Falha ao cadastrar empresa."));
+    } finally {
+      setNewCompanySaving(false);
+    }
+  };
+
   const loadRows = async (selectedType: RegistryEntryType) => {
     const requestId = ++registryRequestSeq.current;
     setLoading(true);
@@ -762,6 +834,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
         type: selectedType,
         search: debouncedSearch,
         includeInactive: showInactive,
+        ownersOnly: selectedType === "RESIDENT" && showOwnersOnly,
         page,
         size: rowsPerPage,
         sort: sortField,
@@ -774,9 +847,14 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
       if (data.totalPages > 0 && page >= data.totalPages) {
         setPage(data.totalPages - 1);
       }
-      setSelectedRow((current) =>
-        current ? data.content.find((item) => item.id === current.id) ?? null : null,
-      );
+      setSelectedRow((current) => {
+        // Na pesquisa de condôminos, já abre o primeiro resultado encontrado.
+        // Sem pesquisa, a tela volta a exibir somente o grid.
+        if (selectedType === "RESIDENT" && debouncedSearch.trim()) {
+          return data.content[0] ?? null;
+        }
+        return current ? data.content.find((item) => item.id === current.id) ?? null : null;
+      });
     } catch (e) {
       if (requestId === registryRequestSeq.current) {
         setError(userFriendlyError(e, "Falha ao carregar cadastros."));
@@ -797,7 +875,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
 
   useEffect(() => {
     if (!companyMode && !leisureMode) void loadRows(type);
-  }, [type, companyMode, leisureMode, page, rowsPerPage, debouncedSearch, showInactive, sortField, sortDirection]);
+  }, [type, companyMode, leisureMode, page, rowsPerPage, debouncedSearch, showInactive, showOwnersOnly, sortField, sortDirection]);
 
   useEffect(() => {
     if (!leisureMode && (type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON" || companyMode)) void loadServiceCompanies();
@@ -934,7 +1012,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
       setSortDirection((current) => current === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
-      setSortDirection("asc");
+      // Para proprietário, o primeiro clique mostra "Sim" antes de "Não".
+      setSortDirection(field === "owner" ? "desc" : "asc");
     }
     setPage(0);
   };
@@ -1059,6 +1138,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
     closeCamera();
     setEditingId(null);
     setForm(emptyPayload(type));
+    setServiceCompanySearch("");
     setRegisterNow(false);
     setQuickAccess(emptyAccessForm());
     setQuickService(emptyServiceForm());
@@ -1266,8 +1346,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
     }
     if (isCompanyLinkedPerson && !form.serviceCompanyId) {
       setError(isDeliveryPerson
-        ? "Selecione a empresa/transportadora. Se ainda não existir, cadastre-a na aba Empresas."
-        : "Selecione a empresa prestadora. Se ainda não existir, cadastre-a na aba Empresas.");
+        ? "Selecione a empresa/transportadora ou cadastre uma nova empresa neste formulário."
+        : "Selecione a empresa prestadora ou cadastre uma nova empresa neste formulário.");
       return;
     }
     if (registerNow && isServiceProvider) {
@@ -1489,27 +1569,17 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   return (
     <Box sx={{ maxWidth: embedded ? "none" : 1500, mx: embedded ? 0 : "auto", mt: embedded ? 0 : 2, mb: embedded ? 0 : 3, minWidth: 0 }}>
       <Paper elevation={2} sx={{ p: embedded ? { xs: 1.25, sm: 1.75 } : { xs: 1.5, sm: 2.5 } }}>
-        <Stack
-          direction={{ xs: "column", md: "row" }}
-          justifyContent="space-between"
-          alignItems={{ xs: "stretch", md: "center" }}
-          gap={2}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: { xs: 0.5, sm: 1 },
+            borderBottom: 1,
+            borderColor: "divider",
+          }}
         >
-          <Box>
-            <Tooltip title="Atalhos: ← pesquisa da gestão · ↑ condôminos · ↓ prestadores de serviço" arrow placement="top">
-              <Typography variant="h5" sx={{ display: "inline-block", cursor: "help" }}>
-                Gestão do condomínio
-              </Typography>
-            </Tooltip>
-          </Box>
-          {!companyMode && !leisureMode && !protectedReadOnly && (
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
-              Novo cadastro
-            </Button>
-          )}
-        </Stack>
-
-        <Tabs
+          <Tooltip title="Atalhos: ← pesquisa da gestão · ↑ condôminos · ↓ prestadores de serviço" arrow placement="top">
+            <Tabs
           value={leisureMode ? "LEISURE_AREA" : companyMode ? "SERVICE_COMPANY" : type}
           onChange={(_, value: RegistryNavigationValue) => {
             setSearch("");
@@ -1539,9 +1609,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
           scrollButtons="auto"
           aria-label="Navegação da gestão do condomínio"
           sx={{
-            mt: 2,
-            borderBottom: 1,
-            borderColor: "divider",
+            flex: 1,
+            minWidth: 0,
             minHeight: 56,
             "& .MuiTabs-indicator": {
               height: 3,
@@ -1582,11 +1651,34 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
               }}
             />
           ))}
-        </Tabs>
+            </Tabs>
+          </Tooltip>
 
-        {leisureMode ? <SpacesScreen embedded /> : companyMode ? <ServiceCompanyPanel /> : <>
+          {!leisureMode && (companyMode || !protectedReadOnly) && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={companyMode ? () => setCompanyNewRequestSeq((current) => current + 1) : openNew}
+              sx={{
+                flexShrink: 0,
+                whiteSpace: "nowrap",
+                mr: { xs: 0.25, sm: 0.75 },
+              }}
+            >
+              Novo cadastro
+            </Button>
+          )}
+        </Box>
+
+        {leisureMode ? <SpacesScreen embedded /> : companyMode ? <ServiceCompanyPanel newRequestSeq={companyNewRequestSeq} /> : <>
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="subtitle1" fontWeight={700}>{selectedLabel}</Typography>
+          <Typography variant="body2" sx={{ opacity: 0.7 }}>
+            {REGISTRY_SECTION_DESCRIPTIONS[type]}
+          </Typography>
+        </Box>
         {protectedReadOnly && (
-          <Alert severity="info" sx={{ mt: 2 }}>
+          <Alert severity="info" sx={{ mt: 1.5 }}>
             Perfil de portaria: consulta liberada. Inclusão, edição e exclusão de {selectedLabel.toLowerCase()} são restritas à secretaria/administrador.
           </Alert>
         )}
@@ -1601,7 +1693,24 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
         >
           <TextField
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            onChange={(e) => {
+              const nextSearch = e.target.value;
+              const normalizedSearch = nextSearch.trim();
+              const queryChanged = normalizedSearch !== debouncedSearch;
+
+              // Invalida eventual resposta de uma pesquisa anterior e remove a
+              // visualização atual somente quando o filtro efetivamente mudou.
+              if (queryChanged) {
+                registryRequestSeq.current += 1;
+                setSelectedRow(null);
+              }
+              setSearch(nextSearch);
+              setPage(0);
+
+              // Ao apagar a pesquisa, recarrega imediatamente a lista completa
+              // e mantém somente o grid na tela.
+              if (!normalizedSearch) setDebouncedSearch("");
+            }}
             inputRef={registrySearchInputRef}
             placeholder={`Pesquisar em ${selectedLabel.toLowerCase()}...`}
             size="small"
@@ -1610,17 +1719,44 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
             inputProps={{ id: "registry-search-input", "aria-keyshortcuts": "ArrowLeft ArrowUp ArrowDown" }}
             InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.55 }} /> }}
           />
-          <FormControlLabel
-            sx={{ ml: { xs: 0, sm: 0 }, whiteSpace: "nowrap" }}
-            control={
-              <Checkbox
-                checked={showInactive}
-                onChange={(e) => { setShowInactive(e.target.checked); setPage(0); }}
+          <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+            {type === "RESIDENT" && (
+              <Tooltip title="Somente proprietários" arrow>
+                <IconButton
+                  size="small"
+                  aria-label="Somente proprietários"
+                  aria-pressed={showOwnersOnly}
+                  onClick={() => { setShowOwnersOnly((current) => !current); setPage(0); }}
+                  sx={{
+                    color: showOwnersOnly ? "text.primary" : "text.secondary",
+                    bgcolor: showOwnersOnly ? "action.selected" : "transparent",
+                    border: "1px solid",
+                    borderColor: showOwnersOnly ? "text.disabled" : "divider",
+                    "&:hover": { bgcolor: "action.hover" },
+                  }}
+                >
+                  <HomeOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            <Tooltip title="Mostrar inativos" arrow>
+              <IconButton
                 size="small"
-              />
-            }
-            label="Mostrar inativos"
-          />
+                aria-label="Mostrar inativos"
+                aria-pressed={showInactive}
+                onClick={() => { setShowInactive((current) => !current); setPage(0); }}
+                sx={{
+                  color: showInactive ? "text.primary" : "text.secondary",
+                  bgcolor: showInactive ? "action.selected" : "transparent",
+                  border: "1px solid",
+                  borderColor: showInactive ? "text.disabled" : "divider",
+                  "&:hover": { bgcolor: "action.hover" },
+                }}
+              >
+                <PersonOffOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
           {isServiceProvider && (
             <Button variant="outlined" startIcon={<VisibilityOutlinedIcon />} onClick={() => void openCondominiumServiceHistory()}>
               Serviços do condomínio
@@ -1662,38 +1798,37 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                       gap: 1.5,
                     }}
                   >
-                    <FieldCard label="Nome / descrição" value={selectedRow.name} />
+                    <FieldCard label={selectedRow.entryType === "RESIDENT" ? "Nome" : "Nome / descrição"} value={selectedRow.name} />
                     <FieldCard
                       label={(selectedRow.entryType === "SERVICE_PROVIDER" || selectedRow.entryType === "DELIVERY_PERSON") ? "Empresa" : "Unidade"}
                       value={(selectedRow.entryType === "SERVICE_PROVIDER" || selectedRow.entryType === "DELIVERY_PERSON")
                         ? (selectedRow.serviceCompanyName || selectedRow.company)
                         : unitLabel(selectedRow)}
                     />
-                    <FieldCard label="Documento / identificação" value={identifierLabel(selectedRow)} />
-                    <FieldCard label="Telefone" value={selectedRow.phone} />
-                    {selectedRow.entryType === "RESIDENT" && (
+                    {selectedRow.entryType === "RESIDENT" ? (
                       <>
-                        <FieldCard label="Proprietário da unidade" value={selectedRow.unitOwner ? "Sim" : "Não"} />
-                        <FieldCard label="Data de nascimento" value={selectedRow.birthDate ? formatDateOnly(selectedRow.birthDate) : null} />
-                        <FieldCard label="Profissão" value={selectedRow.profession} />
-                        <FieldCard label="PNE" value={selectedRow.pne ? "Sim" : "Não"} />
-                        <FieldCard label="Acesso do morador" value={selectedRow.residentAccessEnabled ? "Liberado" : "Não liberado"} />
-                        <FieldCard label="Usuário" value={selectedRow.residentUsername} />
+                        <FieldCard label="Proprietário" value={selectedRow.unitOwner ? "Sim" : "Não"} />
+                        <FieldCard label="Telefone" value={selectedRow.phone} />
+                      </>
+                    ) : (
+                      <>
+                        <FieldCard label="Documento / identificação" value={identifierLabel(selectedRow)} />
+                        <FieldCard label="Telefone" value={selectedRow.phone} />
+                        {selectedRow.entryType === "PET" && (
+                          <FieldCard label="Porte" value={selectedRow.petSize} />
+                        )}
+                        {selectedRow.entryType === "VEHICLE" && (
+                          <>
+                            <FieldCard label="Vaga alugada/cedida" value={selectedRow.parkingSpaceRented ? "Sim" : "Não"} />
+                            <FieldCard label="Detalhes da vaga" value={selectedRow.parkingSpaceRentalNotes} />
+                          </>
+                        )}
+                        <FieldCard label="Detalhes" value={detailsLabel(selectedRow)} />
+                        <FieldCard label="Responsável" value={selectedRow.ownerName} />
+                        <FieldCard label="Observações" value={selectedRow.notes} />
+                        <FieldCard label="Status" value={selectedRow.active ? "Ativo" : "Inativo"} />
                       </>
                     )}
-                    {selectedRow.entryType === "PET" && (
-                      <FieldCard label="Porte" value={selectedRow.petSize} />
-                    )}
-                    {selectedRow.entryType === "VEHICLE" && (
-                      <>
-                        <FieldCard label="Vaga alugada/cedida" value={selectedRow.parkingSpaceRented ? "Sim" : "Não"} />
-                        <FieldCard label="Detalhes da vaga" value={selectedRow.parkingSpaceRentalNotes} />
-                      </>
-                    )}
-                    <FieldCard label="Detalhes" value={detailsLabel(selectedRow)} />
-                    <FieldCard label="Responsável" value={selectedRow.ownerName} />
-                    <FieldCard label="Observações" value={selectedRow.notes} />
-                    <FieldCard label="Status" value={selectedRow.active ? "Ativo" : "Inativo"} />
                   </Box>
                 </Box>
                 {selectedRow.entryType === "RESIDENT" && (
@@ -1780,7 +1915,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                     direction={sortField === "name" ? sortDirection : "asc"}
                     onClick={() => toggleSort("name")}
                   >
-                    Nome / descrição
+                    {type === "RESIDENT" ? "Nome" : "Nome / descrição"}
                   </TableSortLabel>
                 </TableCell>
                 <TableCell sortDirection={!isCompanyLinkedPerson && sortField === "unit" ? sortDirection : false}>
@@ -1794,7 +1929,17 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                     </TableSortLabel>
                   )}
                 </TableCell>
-                {type === "RESIDENT" && <TableCell align="center">Proprietário</TableCell>}
+                {type === "RESIDENT" && (
+                  <TableCell align="center" sortDirection={sortField === "owner" ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortField === "owner"}
+                      direction={sortField === "owner" ? sortDirection : "desc"}
+                      onClick={() => toggleSort("owner")}
+                    >
+                      Proprietário
+                    </TableSortLabel>
+                  </TableCell>
+                )}
                 {type === "VEHICLE" && <TableCell align="center">Vaga alugada</TableCell>}
                 {showDetailsColumn && <TableCell>Detalhes</TableCell>}
                 <TableCell align="center">Status</TableCell>
@@ -1805,9 +1950,11 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
               {!loading && visibleRows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={tableColumnCount} align="center" sx={{ py: 4, opacity: 0.7 }}>
-                    {showInactive
-                      ? "Nenhum cadastro encontrado."
-                      : "Nenhum cadastro ativo encontrado. Marque “Mostrar inativos” para consultar registros inativos."}
+                    {showOwnersOnly && type === "RESIDENT"
+                      ? (showInactive ? "Nenhum proprietário encontrado." : "Nenhum proprietário ativo encontrado.")
+                      : showInactive
+                        ? "Nenhum cadastro encontrado."
+                        : "Nenhum cadastro ativo encontrado. Marque “Mostrar inativos” para consultar registros inativos."}
                   </TableCell>
                 </TableRow>
               )}
@@ -1835,15 +1982,20 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                   )}
                   <TableCell>
                     <Avatar
+                      variant={isCompanyLinkedPerson ? "rounded" : "circular"}
                       src={
-                        row.photoAvailable && row.photoOwnedByCurrentUser
-                          ? registryEntryPhotoUrl(row.id, row.updatedAt ?? row.createdAt)
-                          : undefined
+                        isCompanyLinkedPerson
+                          ? (row.documentPhotoAvailable && row.documentPhotoOwnedByCurrentUser
+                              ? registryDocumentPhotoUrl(row.id, "document", row.updatedAt ?? row.createdAt)
+                              : undefined)
+                          : (row.photoAvailable && row.photoOwnedByCurrentUser
+                              ? registryEntryPhotoUrl(row.id, row.updatedAt ?? row.createdAt)
+                              : undefined)
                       }
-                      alt={row.name}
-                      sx={{ width: 40, height: 40 }}
+                      alt={isCompanyLinkedPerson ? `Documento de ${row.name}` : row.name}
+                      sx={{ width: isCompanyLinkedPerson ? 56 : 40, height: 40 }}
                     >
-                      {row.name?.charAt(0)?.toUpperCase()}
+                      {isCompanyLinkedPerson ? <BadgeOutlinedIcon fontSize="small" /> : row.name?.charAt(0)?.toUpperCase()}
                     </Avatar>
                   </TableCell>
                   <TableCell>
@@ -2131,11 +2283,12 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
               </>
             )}
             {isCompanyLinkedPerson && (
-              <>
+              <Box>
                 <Autocomplete
                   options={serviceCompanies.filter((company) => company.active || company.id === form.serviceCompanyId)}
                   value={serviceCompanies.find((company) => company.id === form.serviceCompanyId) ?? null}
                   onChange={(_, company) => setField("serviceCompanyId", company?.id ?? null)}
+                  onInputChange={(_, value) => setServiceCompanySearch(value)}
                   getOptionLabel={(company) => [company.name, company.tradeName].filter(Boolean).join(" — ")}
                   isOptionEqualToValue={(option, value) => option.id === value.id}
                   renderInput={(params) => (
@@ -2146,9 +2299,18 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                       required
                     />
                   )}
-                  noOptionsText="Nenhuma empresa encontrada"
+                  noOptionsText="Nenhuma empresa encontrada. Cadastre uma nova empresa abaixo."
                 />
-              </>
+                <Button
+                  size="small"
+                  variant="text"
+                  startIcon={<AddIcon />}
+                  onClick={openNewServiceCompany}
+                  sx={{ mt: 0.5, px: 0.5, textTransform: "none" }}
+                >
+                  Cadastrar nova empresa
+                </Button>
+              </Box>
             )}
             {(type === "BICYCLE" || type === "PET" || type === "VEHICLE") && (
               <TextField label="Proprietário / Responsável" value={form.ownerName ?? ""} onChange={(e) => setField("ownerName", e.target.value)} fullWidth />
@@ -2185,7 +2347,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                 {form.parkingSpaceRented && (
                   <TextField
                     label="Detalhes da vaga alugada/cedida"
-                    placeholder="Ex.: Vaga alugada do Bloco 4 / Apto 706"
+                    placeholder="Ex.: Vaga alugada do Bloco 4 Apto 706"
                     value={form.parkingSpaceRentalNotes ?? ""}
                     onChange={(e) => setField("parkingSpaceRentalNotes", e.target.value)}
                     fullWidth
@@ -2239,6 +2401,66 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
         <DialogActions>
           <Button onClick={() => { closeCamera(); setDialogOpen(false); setEditingId(null); setRegisterNow(false); resetPhotoSelection(); }}>Cancelar</Button>
           <Button onClick={() => void save()} variant="contained" disabled={loading}>{loading ? "Salvando..." : "Salvar"}</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={newCompanyDialogOpen}
+        onClose={() => !newCompanySaving && setNewCompanyDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Nova empresa prestadora</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            A empresa será cadastrada sem fechar o prestador atual. Depois de salvar, ela ficará selecionada automaticamente.
+          </Typography>
+          {newCompanyError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setNewCompanyError(null)}>
+              {newCompanyError}
+            </Alert>
+          )}
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+            <TextField
+              label="Razão social / Nome *"
+              value={newCompanyForm.name}
+              onChange={(e) => setNewCompanyField("name", e.target.value)}
+              required
+              autoFocus
+            />
+            <TextField
+              label="Nome fantasia"
+              value={newCompanyForm.tradeName ?? ""}
+              onChange={(e) => setNewCompanyField("tradeName", e.target.value)}
+            />
+            <TextField
+              label="CNPJ / Documento"
+              value={newCompanyForm.documentNumber ?? ""}
+              onChange={(e) => setNewCompanyField("documentNumber", e.target.value)}
+            />
+            <TextField
+              label="Responsável / Contato"
+              value={newCompanyForm.contactName ?? ""}
+              onChange={(e) => setNewCompanyField("contactName", e.target.value)}
+            />
+            <TextField
+              label="Telefone"
+              value={newCompanyForm.phone ?? ""}
+              onChange={(e) => setNewCompanyField("phone", e.target.value)}
+            />
+            <TextField
+              label="E-mail"
+              type="email"
+              value={newCompanyForm.email ?? ""}
+              onChange={(e) => setNewCompanyField("email", e.target.value)}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNewCompanyDialogOpen(false)} disabled={newCompanySaving}>Cancelar</Button>
+          <Button variant="contained" onClick={() => void saveNewServiceCompany()} disabled={newCompanySaving}>
+            {newCompanySaving ? "Salvando..." : "Salvar e selecionar"}
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -2364,7 +2586,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
 
       <Dialog open={unitDialogOpen} onClose={() => setUnitDialogOpen(false)} fullWidth maxWidth="lg">
         <DialogTitle>
-          {unitSummary ? `Apartamento — Bloco ${unitSummary.block} / Apto ${unitSummary.apartment}` : "Carregando apartamento..."}
+          {unitSummary ? `Apartamento — Bloco ${unitSummary.block} Apto ${unitSummary.apartment}` : "Carregando apartamento..."}
         </DialogTitle>
         <DialogContent>
           {unitLoading && <Typography sx={{ py: 3 }}>Carregando dados da unidade...</Typography>}
@@ -2500,7 +2722,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
       <Dialog open={occupancyDialogOpen} onClose={() => setOccupancyDialogOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>
           {occupancyAction === "start" ? "Nova ocupação" : "Encerrar ocupação"}
-          {unitSummary ? ` — Bloco ${unitSummary.block} / Apto ${unitSummary.apartment}` : ""}
+          {unitSummary ? ` — Bloco ${unitSummary.block} Apto ${unitSummary.apartment}` : ""}
         </DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>

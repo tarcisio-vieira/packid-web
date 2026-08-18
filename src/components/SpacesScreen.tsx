@@ -142,8 +142,8 @@ export default function SpacesScreen({ embedded = false }: Readonly<{ embedded?:
     <Box sx={{ maxWidth: embedded ? "none" : 1500, mx: embedded ? 0 : "auto", mt: embedded ? 2 : 2, mb: embedded ? 0 : 4 }}>
       <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2} alignItems={{ md: "center" }} sx={{ mb: 2 }}>
         <Box>
-          <Typography variant="h5" fontWeight={700}>Área de lazer</Typography>
-          <Typography variant="body2" color="text.secondary">Liberação e devolução de chaves da Brinquedoteca, Sala de Jogos, Academia e Sauna.</Typography>
+          <Typography variant="subtitle1" fontWeight={700}>Área de lazer</Typography>
+          <Typography variant="body2" sx={{ opacity: 0.7 }}>Liberação e devolução de chaves da Brinquedoteca, Sala de Jogos, Academia e Sauna.</Typography>
         </Box>
         <Button variant="outlined" startIcon={<PrintIcon />} onClick={printReport} disabled={loading}>Imprimir relatório</Button>
       </Stack>

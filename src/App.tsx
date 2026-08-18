@@ -43,6 +43,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
+import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 
 // ----- Tipos -----
 type ActiveView = "home" | "identifyPackage" | "registry" | "spaces" | "settings";
@@ -1429,32 +1430,85 @@ function App() {
       }}
     >
       <AppBar position="static" color="default" elevation={1}>
-        <Toolbar>
-          {user && (
-            <IconButton
-              edge="start"
-              color="inherit"
-              aria-label="Abrir menu"
-              onClick={toggleDrawer(true)}
-              sx={{ mr: 1 }}
+        <Toolbar
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
+            alignItems: "center",
+            minHeight: { xs: 56, sm: 64 },
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", minWidth: 0 }}>
+            {user && (
+              <IconButton
+                edge="start"
+                color="inherit"
+                aria-label="Abrir menu"
+                onClick={toggleDrawer(true)}
+                sx={{ mr: { xs: 0.25, sm: 0.75 } }}
+              >
+                <MenuIcon />
+              </IconButton>
+            )}
+
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.75,
+                minWidth: 0,
+              }}
             >
-              <MenuIcon />
-            </IconButton>
-          )}
+              <Box
+                sx={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 1.5,
+                  display: { xs: "none", sm: "inline-flex" },
+                  alignItems: "center",
+                  justifyContent: "center",
+                  bgcolor: "text.primary",
+                  color: "background.paper",
+                  flexShrink: 0,
+                }}
+              >
+                <ApartmentRoundedIcon sx={{ fontSize: 20 }} />
+              </Box>
+              <Typography
+                component="div"
+                sx={{
+                  fontSize: { xs: "0.95rem", sm: "1.05rem" },
+                  fontWeight: 800,
+                  letterSpacing: "0.12em",
+                  lineHeight: 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                VSGI
+              </Typography>
+            </Box>
+          </Box>
 
           <Typography
-            variant="h6"
             component="div"
-            sx={{ flexGrow: 1, fontSize: { xs: "1rem", sm: "1.25rem" } }}
+            sx={{
+              px: { xs: 0.5, sm: 2 },
+              fontSize: { xs: "0.9rem", sm: "1.15rem" },
+              fontWeight: 600,
+              textAlign: "center",
+              whiteSpace: "nowrap",
+            }}
           >
-            {t("app.title")}
+            {user?.tenantName?.trim() || "Gestão do condomínio"}
           </Typography>
 
-          {user && (
-            <Button color="inherit" onClick={handleLogout} sx={{ ml: 1 }}>
-              {t("header.signOut")}
-            </Button>
-          )}
+          <Box sx={{ display: "flex", justifyContent: "flex-end", minWidth: 0 }}>
+            {user && (
+              <Button color="inherit" onClick={handleLogout} sx={{ minWidth: "auto", px: { xs: 0.75, sm: 1.5 } }}>
+                {t("header.signOut")}
+              </Button>
+            )}
+          </Box>
         </Toolbar>
       </AppBar>
 

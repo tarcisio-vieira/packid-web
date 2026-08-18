@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Alert, Box, Button, Card, CardContent, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle,
+  Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControlLabel, IconButton, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead,
   TablePagination, TableRow, TextField, Tooltip, Typography,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
+import PersonOffOutlinedIcon from "@mui/icons-material/PersonOffOutlined";
 import {
   createServiceCompany, deleteServiceCompany, fetchServiceCompanies, updateServiceCompany, userFriendlyError,
 } from "../api";
@@ -23,7 +23,7 @@ function normalize(v: unknown): string {
   return String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-export default function ServiceCompanyPanel() {
+export default function ServiceCompanyPanel({ newRequestSeq = 0 }: Readonly<{ newRequestSeq?: number }>) {
   const [rows, setRows] = useState<ServiceCompany[]>([]);
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
@@ -63,7 +63,12 @@ export default function ServiceCompanyPanel() {
   useEffect(() => setPage(0), [search, showInactive, rowsPerPage]);
   const paged = visible.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
-  const openNew = () => { setEditingId(null); setForm(emptyCompany()); setDialogOpen(true); };
+  useEffect(() => {
+    if (newRequestSeq <= 0) return;
+    setEditingId(null);
+    setForm(emptyCompany());
+    setDialogOpen(true);
+  }, [newRequestSeq]);
   const openEdit = (r: ServiceCompany) => {
     setEditingId(r.id);
     setForm({ name:r.name, tradeName:r.tradeName ?? "", documentNumber:r.documentNumber ?? "", phone:r.phone ?? "",
@@ -92,17 +97,30 @@ export default function ServiceCompanyPanel() {
   };
 
   return <Box sx={{ mt: 2 }}>
-    <Stack direction={{xs:"column",sm:"row"}} justifyContent="space-between" gap={1} alignItems={{sm:"center"}}>
-      <Box>
-        <Typography variant="subtitle1" fontWeight={700}>Empresas</Typography>
-        <Typography variant="body2" sx={{opacity:.7}}>Cadastre empresas prestadoras de serviço e transportadoras para selecioná-las nos cadastros de prestadores e entregadores.</Typography>
-      </Box>
-      <Button variant="contained" startIcon={<AddIcon/>} onClick={openNew}>Nova empresa</Button>
-    </Stack>
+    <Box>
+      <Typography variant="subtitle1" fontWeight={700}>Empresas</Typography>
+      <Typography variant="body2" sx={{opacity:.7}}>Cadastre empresas prestadoras de serviço e transportadoras para selecioná-las nos cadastros de prestadores e entregadores.</Typography>
+    </Box>
     <Stack direction={{xs:"column",sm:"row"}} gap={2} sx={{mt:2}} alignItems={{sm:"center"}}>
       <TextField size="small" fullWidth sx={{maxWidth:620}} value={search} onChange={e=>setSearch(e.target.value)}
         placeholder="Pesquisar empresa, CNPJ, contato..." InputProps={{startAdornment:<SearchIcon sx={{mr:1,opacity:.55}}/>}} />
-      <FormControlLabel control={<Checkbox size="small" checked={showInactive} onChange={e=>setShowInactive(e.target.checked)}/>} label="Mostrar inativos" />
+      <Tooltip title="Mostrar inativos" arrow>
+        <IconButton
+          size="small"
+          aria-label="Mostrar inativos"
+          aria-pressed={showInactive}
+          onClick={() => setShowInactive(current => !current)}
+          sx={{
+            color: showInactive ? "text.primary" : "text.secondary",
+            bgcolor: showInactive ? "action.selected" : "transparent",
+            border: "1px solid",
+            borderColor: showInactive ? "text.disabled" : "divider",
+            "&:hover": { bgcolor: "action.hover" },
+          }}
+        >
+          <PersonOffOutlinedIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
     </Stack>
     {error && <Alert severity="error" sx={{mt:1.5}} onClose={()=>setError(null)}>{error}</Alert>}
     {success && <Alert severity="success" sx={{mt:1.5}} onClose={()=>setSuccess(null)}>{success}</Alert>}

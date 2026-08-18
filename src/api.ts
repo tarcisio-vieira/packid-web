@@ -3,6 +3,7 @@ const API_URL = import.meta.env.VITE_API_URL ?? "";
 export type User = {
   name: string;
   email: string;
+  tenantName?: string;
   role?: string;
   canManageSettings?: boolean;
   canManageProtectedRegistry?: boolean;
@@ -249,9 +250,10 @@ export async function fetchRegistryEntriesPage(options: {
   type: RegistryEntryType;
   search?: string;
   includeInactive?: boolean;
+  ownersOnly?: boolean;
   page?: number;
   size?: number;
-  sort?: "name" | "unit";
+  sort?: "name" | "unit" | "owner";
   direction?: "asc" | "desc";
 }): Promise<RegistryEntryPage> {
   const params = new URLSearchParams({
@@ -259,6 +261,7 @@ export async function fetchRegistryEntriesPage(options: {
     page: String(options.page ?? 0),
     size: String(options.size ?? 10),
     includeInactive: String(Boolean(options.includeInactive)),
+    ownersOnly: String(Boolean(options.ownersOnly)),
     sort: options.sort ?? "unit",
     direction: options.direction ?? "asc",
   });
