@@ -31,6 +31,7 @@ import {
   type User,
 } from "../api";
 import SystemUsersPanel from "./SystemUsersPanel";
+import { confirmDialog } from "../utils/confirmDialog";
 
 function emptyPayload(): CondominiumSettingsPayload {
   return {
@@ -196,9 +197,11 @@ export default function SettingsScreen({
   };
 
   const disconnectGoogle = async () => {
-    const confirmed = globalThis.confirm(
-      "Desconectar a conta Google oficial? Fotos já salvas continuam no Drive, mas o VSGI não poderá acessá-las nem enviar e-mails até reconectar.",
-    );
+    const confirmed = await confirmDialog({
+      title: "Desconectar conta Google?",
+      text: "Fotos já salvas continuam no Drive, mas o VSGI não poderá acessá-las nem enviar e-mails até reconectar.",
+      confirmButtonText: "Desconectar",
+    });
     if (!confirmed) return;
 
     setGoogleBusy(true);

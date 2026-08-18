@@ -49,8 +49,8 @@ import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 type ActiveView = "home" | "identifyPackage" | "registry" | "spaces" | "settings";
 type AccessRoute = "collaborator" | "resident";
 
-function packidAccessPath(segment: "colaborador" | "user"): string {
-  const base = (import.meta.env.BASE_URL || "/packid/").replace(/\/+$/, "");
+function condominiumAccessPath(segment: "colaborador" | "user"): string {
+  const base = (import.meta.env.BASE_URL || "/condominio/").replace(/\/+$/, "");
   return `${base}/${segment}`;
 }
 
@@ -1286,10 +1286,10 @@ function App() {
   >(initialGoogleConnectionStatus);
 
   useEffect(() => {
-    const base = (import.meta.env.BASE_URL || "/packid/").replace(/\/+$/, "").toLowerCase();
+    const base = (import.meta.env.BASE_URL || "/condominio/").replace(/\/+$/, "").toLowerCase();
     const current = globalThis.location.pathname.replace(/\/+$/, "").toLowerCase();
     if (current === base) {
-      const target = `${packidAccessPath("colaborador")}${globalThis.location.search}${globalThis.location.hash}`;
+      const target = `${condominiumAccessPath("colaborador")}${globalThis.location.search}${globalThis.location.hash}`;
       globalThis.history.replaceState({}, document.title, target);
     }
   }, []);
@@ -1359,7 +1359,7 @@ function App() {
         <ResidentLoginPage
           initialError={error}
           onLoggedIn={(session) => { setResidentSession(session); setError(null); }}
-          onCollaboratorAccess={() => { globalThis.location.href = packidAccessPath("colaborador"); }}
+          onCollaboratorAccess={() => { globalThis.location.href = condominiumAccessPath("colaborador"); }}
         />
       );
     }
@@ -1377,7 +1377,7 @@ function App() {
         <CollaboratorLoginPage
           error={error}
           onGoogleLogin={handleLogin}
-          onResidentAccess={() => { globalThis.location.href = packidAccessPath("user"); }}
+          onResidentAccess={() => { globalThis.location.href = condominiumAccessPath("user"); }}
         />
       );
     }

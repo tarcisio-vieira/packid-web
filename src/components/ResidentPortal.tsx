@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Avatar,
   Box,
@@ -14,13 +17,8 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  Pagination,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Tooltip,
   Typography,
@@ -44,8 +42,12 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import PhotoCameraOutlinedIcon from "@mui/icons-material/PhotoCameraOutlined";
 import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
+import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import {
   fetchResidentPortal,
+  fetchResidentSpaces,
   fetchResidentSpaceAvailability,
   requestResidentSpace,
   residentLogout,
@@ -55,6 +57,9 @@ import {
   uploadResidentProfilePhoto,
   userFriendlyError,
   type RegistryEntry,
+  type VisitorVisit,
+  type DeliveryRecord,
+  type ServiceRecord,
   type ResidentPortalData,
   type ResidentSession,
   type SpaceAccess,
@@ -151,57 +156,127 @@ function SpaceButton({ type, rows, busy, onClick }: Readonly<{ type: SpaceType; 
   );
 }
 
-function RegistryCards({
+const PAGE_SIZE = 10;
+
+function PagedAccordion<T extends { id: string }>({
+  title,
+  rows,
+  icon,
+  emptyText,
+  renderRow,
+}: Readonly<{
+  title: string;
+  rows: T[];
+  icon: ReactNode;
+  emptyText: string;
+  renderRow: (row: T) => ReactNode;
+}>) {
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+
+  useEffect(() => {
+    setPage(1);
+  }, [rows]);
+
+  const visibleRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  return (
+    <Accordion
+      disableGutters
+      elevation={0}
+      sx={{
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: "12px !important",
+        overflow: "hidden",
+        bgcolor: "background.paper",
+        "&:before": { display: "none" },
+      }}
+    >
+      <AccordionSummary
+        expandIcon={<ExpandMoreRoundedIcon />}
+        sx={{
+          minHeight: 56,
+          px: { xs: 1.4, sm: 2 },
+          "& .MuiAccordionSummary-content": { my: 1 },
+        }}
+      >
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ width: "100%", minWidth: 0 }}>
+          {icon}
+          <Typography fontWeight={850} sx={{ minWidth: 0, flexGrow: 1 }}>{title}</Typography>
+          <Chip size="small" label={rows.length} sx={{ height: 22, mr: 0.5 }} />
+        </Stack>
+      </AccordionSummary>
+      <AccordionDetails sx={{ px: { xs: 1.25, sm: 2 }, pt: 0, pb: 1.5 }}>
+        {rows.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 0.75 }}>{emptyText}</Typography>
+        ) : (
+          <>
+            <Stack spacing={0.75}>{visibleRows.map(renderRow)}</Stack>
+            {pageCount > 1 && (
+              <Stack alignItems="center" sx={{ pt: 1.5 }}>
+                <Pagination
+                  page={page}
+                  count={pageCount}
+                  size="small"
+                  siblingCount={0}
+                  boundaryCount={1}
+                  onChange={(_, nextPage) => setPage(nextPage)}
+                />
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                  {Math.min((page - 1) * PAGE_SIZE + 1, rows.length)}-{Math.min(page * PAGE_SIZE, rows.length)} de {rows.length}
+                </Typography>
+              </Stack>
+            )}
+          </>
+        )}
+      </AccordionDetails>
+    </Accordion>
+  );
+}
+
+function RegistryAccordion({
   title,
   rows,
   icon,
   onEdit,
 }: Readonly<{ title: string; rows: RegistryEntry[]; icon: ReactNode; onEdit?: (row: RegistryEntry) => void }>) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3, overflow: "hidden" }}>
-      <CardContent sx={{ p: { xs: 1.5, sm: 2 }, "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: rows.length ? 1.25 : 0 }}>
-          {icon}
-          <Typography fontWeight={800}>{title}</Typography>
-          <Chip size="small" label={rows.length} sx={{ ml: "auto !important", height: 22 }} />
+    <PagedAccordion
+      title={title}
+      rows={rows}
+      icon={icon}
+      emptyText="Nenhum cadastro."
+      renderRow={(row) => (
+        <Stack
+          key={row.id}
+          direction="row"
+          spacing={1.1}
+          alignItems="center"
+          sx={{ p: 0.9, borderRadius: 2, bgcolor: "action.hover" }}
+        >
+          <Avatar
+            sx={{ width: 40, height: 40 }}
+            src={row.photoAvailable && row.photoOwnedByCurrentUser ? residentRegistryPhotoUrl(row.id, row.updatedAt ?? row.createdAt) : undefined}
+          >
+            {row.name?.[0]?.toUpperCase()}
+          </Avatar>
+          <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+            <Typography variant="body2" fontWeight={750} noWrap>{row.name}</Typography>
+            <Typography variant="caption" color="text.secondary" noWrap display="block">
+              {row.identifier || row.breed || row.model || row.document || "Cadastro da unidade"}
+            </Typography>
+          </Box>
+          {onEdit && (
+            <Tooltip title="Editar meus dados">
+              <IconButton size="small" onClick={() => onEdit(row)} aria-label={`Editar ${row.name}`}>
+                <EditOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Stack>
-        {rows.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">Nenhum cadastro.</Typography>
-        ) : (
-          <Stack spacing={0.75}>
-            {rows.map(row => (
-              <Stack
-                key={row.id}
-                direction="row"
-                spacing={1.1}
-                alignItems="center"
-                sx={{ p: 0.9, borderRadius: 2, bgcolor: "action.hover" }}
-              >
-                <Avatar
-                  sx={{ width: 40, height: 40 }}
-                  src={row.photoAvailable && row.photoOwnedByCurrentUser ? residentRegistryPhotoUrl(row.id, row.updatedAt ?? row.createdAt) : undefined}
-                >
-                  {row.name?.[0]?.toUpperCase()}
-                </Avatar>
-                <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-                  <Typography variant="body2" fontWeight={750} noWrap>{row.name}</Typography>
-                  <Typography variant="caption" color="text.secondary" noWrap display="block">
-                    {row.identifier || row.breed || row.model || row.document || "Cadastro da unidade"}
-                  </Typography>
-                </Box>
-                {onEdit && (
-                  <Tooltip title="Editar meus dados">
-                    <IconButton size="small" onClick={() => onEdit(row)} aria-label={`Editar ${row.name}`}>
-                      <EditOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
-              </Stack>
-            ))}
-          </Stack>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    />
   );
 }
 
@@ -243,6 +318,39 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
   useEffect(() => {
     if (!session.mustChangePassword) void load();
   }, []);
+
+  useEffect(() => {
+    if (session.mustChangePassword) return;
+    let cancelled = false;
+    let refreshing = false;
+
+    const refreshSpaces = async () => {
+      if (cancelled || refreshing || document.visibilityState !== "visible") return;
+      refreshing = true;
+      try {
+        const spaceAccesses = await fetchResidentSpaces();
+        if (!cancelled) {
+          setData(current => current ? { ...current, spaceAccesses } : current);
+        }
+      } catch {
+        // A atualização automática não substitui os dados já exibidos nem interrompe o uso do portal.
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshSpaces();
+    };
+
+    const timer = globalThis.setInterval(() => void refreshSpaces(), 5000);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      cancelled = true;
+      globalThis.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [session.mustChangePassword]);
 
   const activeRows = useMemo(() => data?.spaceAccesses ?? [], [data?.spaceAccesses]);
 
@@ -448,28 +556,33 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                 <HomeOutlinedIcon color="primary" />
                 <Box>
                   <Typography fontWeight={900} sx={{ fontSize: { xs: 17, sm: 20 } }}>Minha unidade</Typography>
-                  <Typography variant="body2" color="text.secondary">Moradores e cadastros vinculados ao apartamento.</Typography>
+                  <Typography variant="body2" color="text.secondary">Toque em uma categoria para visualizar os dados.</Typography>
                 </Box>
               </Stack>
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,minmax(0,1fr))" }, gap: 1.25 }}>
-                <RegistryCards title="Condôminos" rows={data.residents} icon={<PeopleAltOutlinedIcon color="primary" />} onEdit={openProfile} />
-                <RegistryCards title="Veículos" rows={data.vehicles} icon={<DirectionsCarOutlinedIcon color="primary" />} />
-                <RegistryCards title="Pets" rows={data.pets} icon={<PetsOutlinedIcon color="primary" />} />
-                <RegistryCards title="Bicicletas" rows={data.bicycles} icon={<PedalBikeOutlinedIcon color="primary" />} />
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,minmax(0,1fr))" }, gap: 1 }}>
+                <RegistryAccordion title="Condôminos" rows={data.residents} icon={<PeopleAltOutlinedIcon color="primary" />} onEdit={openProfile} />
+                <RegistryAccordion title="Veículos" rows={data.vehicles} icon={<DirectionsCarOutlinedIcon color="primary" />} />
+                <RegistryAccordion title="Pets" rows={data.pets} icon={<PetsOutlinedIcon color="primary" />} />
+                <RegistryAccordion title="Bicicletas" rows={data.bicycles} icon={<PedalBikeOutlinedIcon color="primary" />} />
               </Box>
             </Box>
 
-            <Card component="section" variant="outlined" sx={{ mb: 1.5, borderRadius: 3 }}>
-              <CardContent sx={{ p: { xs: 1.5, sm: 2 }, "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.25 }}>
-                  <Inventory2OutlinedIcon color="primary" />
-                  <Typography fontWeight={900}>Encomendas</Typography>
-                  <Chip size="small" label={data.packIds.length} sx={{ ml: "auto !important", height: 22 }} />
-                </Stack>
+            <Box component="section">
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.25 }}>
+                <AccessTimeRoundedIcon color="primary" />
+                <Box>
+                  <Typography fontWeight={900} sx={{ fontSize: { xs: 17, sm: 20 } }}>Histórico da unidade</Typography>
+                  <Typography variant="body2" color="text.secondary">Registros desta ocupação. As listas iniciam fechadas.</Typography>
+                </Box>
+              </Stack>
 
-                <Stack spacing={0.9} sx={{ display: { xs: "flex", md: "none" } }}>
-                  {data.packIds.length === 0 && <Typography variant="body2" color="text.secondary">Nenhuma encomenda no período desta ocupação.</Typography>}
-                  {data.packIds.map(row => (
+              <Stack spacing={1}>
+                <PagedAccordion
+                  title="Encomendas"
+                  rows={data.packIds}
+                  icon={<Inventory2OutlinedIcon color="primary" />}
+                  emptyText="Nenhuma encomenda no período desta ocupação."
+                  renderRow={(row) => (
                     <Box key={row.id} sx={{ p: 1.15, borderRadius: 2, bgcolor: "action.hover" }}>
                       <Stack direction="row" justifyContent="space-between" spacing={1}>
                         <Typography variant="body2" fontWeight={800} sx={{ overflowWrap: "anywhere" }}>{row.labelPackageCode || row.packageCode}</Typography>
@@ -478,31 +591,66 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.35 }}>{formatDateTime(row.arrivedAt)}</Typography>
                       {row.createdBy && <Typography variant="caption" color="text.secondary">Recebido por {row.createdBy}</Typography>}
                     </Box>
-                  ))}
-                </Stack>
+                  )}
+                />
 
-                <TableContainer sx={{ display: { xs: "none", md: "block" } }}>
-                  <Table size="small">
-                    <TableHead><TableRow><TableCell>Data</TableCell><TableCell>Página</TableCell><TableCell>Código</TableCell><TableCell>Recebido por</TableCell></TableRow></TableHead>
-                    <TableBody>
-                      {data.packIds.length === 0 && <TableRow><TableCell colSpan={4} align="center">Nenhuma encomenda no período desta ocupação.</TableCell></TableRow>}
-                      {data.packIds.map(row => <TableRow key={row.id}><TableCell>{formatDateTime(row.arrivedAt)}</TableCell><TableCell>{row.bookPage || "-"}</TableCell><TableCell>{row.labelPackageCode || row.packageCode}</TableCell><TableCell>{row.createdBy || "-"}</TableCell></TableRow>)}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
+                <PagedAccordion<VisitorVisit>
+                  title="Visitantes"
+                  rows={data.visits}
+                  icon={<PeopleAltOutlinedIcon color="primary" />}
+                  emptyText="Nenhuma visita registrada no período desta ocupação."
+                  renderRow={(row) => (
+                    <Box key={row.id} sx={{ p: 1.15, borderRadius: 2, bgcolor: "action.hover" }}>
+                      <Typography variant="body2" fontWeight={800}>{row.visitorName || "Visitante"}</Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">{formatDateTime(row.visitedAt)}</Typography>
+                      {row.visitorDocument && <Typography variant="caption" color="text.secondary" display="block">Documento: {row.visitorDocument}</Typography>}
+                      {row.notes && <Typography variant="caption" color="text.secondary" display="block">{row.notes}</Typography>}
+                    </Box>
+                  )}
+                />
 
-            <Card component="section" variant="outlined" sx={{ borderRadius: 3 }}>
-              <CardContent sx={{ p: { xs: 1.5, sm: 2 }, "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.25 }}>
-                  <AccessTimeRoundedIcon color="primary" />
-                  <Typography fontWeight={900}>Histórico das áreas de lazer</Typography>
-                </Stack>
+                <PagedAccordion<DeliveryRecord>
+                  title="Entregadores"
+                  rows={data.deliveries}
+                  icon={<LocalShippingOutlinedIcon color="primary" />}
+                  emptyText="Nenhuma entrega registrada no período desta ocupação."
+                  renderRow={(row) => (
+                    <Box key={row.id} sx={{ p: 1.15, borderRadius: 2, bgcolor: "action.hover" }}>
+                      <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="flex-start">
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="body2" fontWeight={800}>{row.deliveryPersonName || "Entregador"}</Typography>
+                          {row.company && <Typography variant="caption" color="text.secondary" display="block">{row.company}</Typography>}
+                        </Box>
+                        <Chip size="small" variant="outlined" label={row.authorizedToEnter ? "Entrada autorizada" : "Sem entrada"} sx={{ height: 22, flex: "0 0 auto" }} />
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.35 }}>{formatDateTime(row.deliveredAt)}</Typography>
+                      {row.notes && <Typography variant="caption" color="text.secondary" display="block">{row.notes}</Typography>}
+                    </Box>
+                  )}
+                />
 
-                <Stack spacing={0.9} sx={{ display: { xs: "flex", md: "none" } }}>
-                  {data.spaceAccesses.length === 0 && <Typography variant="body2" color="text.secondary">Nenhuma solicitação.</Typography>}
-                  {data.spaceAccesses.map(row => (
+                <PagedAccordion<ServiceRecord>
+                  title="Prestadores de serviço"
+                  rows={data.serviceRecords}
+                  icon={<BuildOutlinedIcon color="primary" />}
+                  emptyText="Nenhum serviço registrado no período desta ocupação."
+                  renderRow={(row) => (
+                    <Box key={row.id} sx={{ p: 1.15, borderRadius: 2, bgcolor: "action.hover" }}>
+                      <Typography variant="body2" fontWeight={800}>{row.serviceProviderName || "Prestador de serviço"}</Typography>
+                      {row.serviceCompanyName && <Typography variant="caption" color="text.secondary" display="block">{row.serviceCompanyName}</Typography>}
+                      <Typography variant="caption" color="text.secondary" display="block">{formatDateTime(row.performedAt)}</Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">Serviço: {row.serviceDescription}</Typography>
+                      {row.notes && <Typography variant="caption" color="text.secondary" display="block">{row.notes}</Typography>}
+                    </Box>
+                  )}
+                />
+
+                <PagedAccordion<SpaceAccess>
+                  title="Áreas de lazer"
+                  rows={data.spaceAccesses}
+                  icon={<AccessTimeRoundedIcon color="primary" />}
+                  emptyText="Nenhuma solicitação de área de lazer."
+                  renderRow={(row) => (
                     <Box key={row.id} sx={{ p: 1.15, borderRadius: 2, bgcolor: "action.hover" }}>
                       <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="center">
                         <Typography variant="body2" fontWeight={800}>{spaceLabel(row.spaceType)}</Typography>
@@ -510,22 +658,13 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                       </Stack>
                       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.4 }}>Solicitado: {formatDateTime(row.requestedAt)}</Typography>
                       {row.releasedAt && <Typography variant="caption" color="text.secondary" display="block">Liberado: {formatDateTime(row.releasedAt)}</Typography>}
+                      {row.returnRequestedAt && <Typography variant="caption" color="text.secondary" display="block">Devolução solicitada: {formatDateTime(row.returnRequestedAt)}</Typography>}
                       {row.completedAt && <Typography variant="caption" color="text.secondary" display="block">Encerrado: {formatDateTime(row.completedAt)}</Typography>}
                     </Box>
-                  ))}
-                </Stack>
-
-                <TableContainer sx={{ display: { xs: "none", md: "block" } }}>
-                  <Table size="small">
-                    <TableHead><TableRow><TableCell>Área</TableCell><TableCell>Solicitado</TableCell><TableCell>Liberado</TableCell><TableCell>Pedido devolução</TableCell><TableCell>Encerrado</TableCell><TableCell>Status</TableCell></TableRow></TableHead>
-                    <TableBody>
-                      {data.spaceAccesses.length === 0 && <TableRow><TableCell colSpan={6} align="center">Nenhuma solicitação.</TableCell></TableRow>}
-                      {data.spaceAccesses.map(row => <TableRow key={row.id}><TableCell>{spaceLabel(row.spaceType)}</TableCell><TableCell>{formatDateTime(row.requestedAt)}</TableCell><TableCell>{formatDateTime(row.releasedAt)}</TableCell><TableCell>{formatDateTime(row.returnRequestedAt)}</TableCell><TableCell>{formatDateTime(row.completedAt)}</TableCell><TableCell><Chip size="small" label={spaceAccessStatusLabel(row.status)} /></TableCell></TableRow>)}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
+                  )}
+                />
+              </Stack>
+            </Box>
           </>
         )}
       </Box>

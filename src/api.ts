@@ -670,7 +670,7 @@ export type SpaceAccess = {
 };
 
 export async function fetchPendingSpaceAccess(): Promise<SpaceAccess[]> {
-  const resp = await fetch(`${API_URL}/api/space-access/pending`, { credentials: "include" });
+  const resp = await fetch(`${API_URL}/api/space-access/pending`, { credentials: "include", cache: "no-store" });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
 }
@@ -685,7 +685,7 @@ export async function fetchSpaceAccess(options: {
   if (options.from) params.set("from", options.from);
   if (options.to) params.set("to", options.to);
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  const resp = await fetch(`${API_URL}/api/space-access${suffix}`, { credentials: "include" });
+  const resp = await fetch(`${API_URL}/api/space-access${suffix}`, { credentials: "include", cache: "no-store" });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
 }
@@ -796,6 +796,9 @@ export type ResidentPortalData = {
   bicycles: RegistryEntry[];
   vehicles: RegistryEntry[];
   pets: RegistryEntry[];
+  visits: VisitorVisit[];
+  deliveries: DeliveryRecord[];
+  serviceRecords: ServiceRecord[];
   packIds: PackIdRecentItem[];
   spaceAccesses: SpaceAccess[];
 };
@@ -832,6 +835,12 @@ export async function residentLogout(): Promise<void> {
 
 export async function fetchResidentPortal(): Promise<ResidentPortalData> {
   const resp = await fetch(`${API_URL}/api/resident/portal`, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchResidentSpaces(): Promise<SpaceAccess[]> {
+  const resp = await fetch(`${API_URL}/api/resident/spaces`, { credentials: "include", cache: "no-store" });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
 }

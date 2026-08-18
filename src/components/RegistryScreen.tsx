@@ -5,7 +5,6 @@ import {
   Avatar,
   Box,
   Button,
-  Checkbox,
   Card,
   CardContent,
   Chip,
@@ -86,6 +85,7 @@ import {
 } from "../api";
 import ServiceCompanyPanel from "./ServiceCompanyPanel";
 import SpacesScreen from "./SpacesScreen";
+import { confirmDialog } from "../utils/confirmDialog";
 import type {
   ApartmentOccupancy,
   DeliveryRecord,
@@ -1241,7 +1241,12 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
 
   const removeDocumentPhoto = async () => {
     if (!editingId) return;
-    if (!globalThis.confirm("Remover a foto do documento do Google Drive?")) return;
+    const confirmed = await confirmDialog({
+      title: "Remover foto do documento?",
+      text: "A foto do documento será removida do Google Drive.",
+      confirmButtonText: "Remover",
+    });
+    if (!confirmed) return;
     setLoading(true); setError(null);
     try {
       await deleteRegistryDocumentPhoto(editingId, "document");
@@ -1255,7 +1260,12 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
 
   const removePhoto = async () => {
     if (!editingId || !editingRow?.photoAvailable) return;
-    if (!globalThis.confirm("Remover a foto deste cadastro do Google Drive?")) return;
+    const confirmed = await confirmDialog({
+      title: "Remover foto?",
+      text: "A foto deste cadastro será removida do Google Drive.",
+      confirmButtonText: "Remover",
+    });
+    if (!confirmed) return;
     setLoading(true);
     setError(null);
     try {
@@ -1406,7 +1416,12 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
       setError("O perfil de portaria não pode excluir este tipo de cadastro.");
       return;
     }
-    if (!globalThis.confirm(`Excluir o cadastro "${row.name}"?`)) return;
+    const confirmed = await confirmDialog({
+      title: "Excluir cadastro?",
+      text: `Tem certeza que deseja excluir "${row.name}"?`,
+      confirmButtonText: "Excluir",
+    });
+    if (!confirmed) return;
     setLoading(true);
     setError(null);
     try {

@@ -101,7 +101,28 @@ export default function SpacesScreen({ embedded = false, canExport = false }: Re
     }
   };
 
-  useEffect(() => { void load(); }, [spaceType, from, to]);
+  useEffect(() => {
+    void load();
+    const timer = globalThis.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void fetchSpaceAccess({ spaceType, from: from || undefined, to: to || undefined })
+          .then(setRows)
+          .catch(() => undefined);
+      }
+    }, 5000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchSpaceAccess({ spaceType, from: from || undefined, to: to || undefined })
+          .then(setRows)
+          .catch(() => undefined);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      globalThis.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [spaceType, from, to]);
 
   const pending = useMemo(() => rows.filter(r => r.status === "REQUESTED_PICKUP" || r.status === "REQUESTED_RETURN"), [rows]);
 

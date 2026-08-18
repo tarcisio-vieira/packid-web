@@ -38,6 +38,7 @@ import {
   type AppUserRole,
   type User,
 } from "../api";
+import { confirmDialog } from "../utils/confirmDialog";
 
 type UserForm = {
   email: string;
@@ -126,7 +127,12 @@ export default function SystemUsersPanel({ currentUser }: Readonly<{ currentUser
   };
 
   const remove = async (user: AppUserManagement) => {
-    if (!globalThis.confirm(`Excluir o acesso de ${user.email}?`)) return;
+    const confirmed = await confirmDialog({
+      title: "Excluir acesso?",
+      text: `Tem certeza que deseja excluir o acesso de ${user.email}?`,
+      confirmButtonText: "Excluir",
+    });
+    if (!confirmed) return;
     setLoading(true);
     setError(null);
     try {

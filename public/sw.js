@@ -1,4 +1,4 @@
-const CACHE_NAME = "vsgi-shell-v1";
+const CACHE_NAME = "vsgi-shell-v2";
 const OFFLINE_URL = new URL("offline.html", self.registration.scope).toString();
 
 self.addEventListener("install", (event) => {

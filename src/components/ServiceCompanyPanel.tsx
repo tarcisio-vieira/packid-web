@@ -13,6 +13,7 @@ import {
   createServiceCompany, deleteServiceCompany, fetchServiceCompanies, updateServiceCompany, userFriendlyError,
 } from "../api";
 import type { ServiceCompany, ServiceCompanyPayload } from "../api";
+import { confirmDialog } from "../utils/confirmDialog";
 
 const emptyCompany = (): ServiceCompanyPayload => ({
   name: "", tradeName: "", documentNumber: "", phone: "", email: "", contactName: "", addressLine: "",
@@ -89,7 +90,12 @@ export default function ServiceCompanyPanel({ newRequestSeq = 0, hideHeader = fa
     finally { setLoading(false); }
   };
   const remove = async (r: ServiceCompany) => {
-    if (!globalThis.confirm(`Excluir a empresa "${r.name}"?`)) return;
+    const confirmed = await confirmDialog({
+      title: "Excluir empresa?",
+      text: `Tem certeza que deseja excluir "${r.name}"?`,
+      confirmButtonText: "Excluir",
+    });
+    if (!confirmed) return;
     setLoading(true); setError(null);
     try { await deleteServiceCompany(r.id); if (selected?.id === r.id) setSelected(null); await load(); setSuccess("Empresa removida com sucesso."); }
     catch (e) { setError(userFriendlyError(e, "Falha ao excluir empresa.")); }

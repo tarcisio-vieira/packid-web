@@ -32,8 +32,17 @@ export default function SpaceRequestNotifier({ enabled = true, onOpenSpaces }: R
   useEffect(() => {
     if (!enabled) return;
     void load();
-    const timer = globalThis.setInterval(() => void load(), 15000);
-    return () => globalThis.clearInterval(timer);
+    const timer = globalThis.setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, 5000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      globalThis.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [enabled]);
 
   const act = async (row: SpaceAccess) => {
