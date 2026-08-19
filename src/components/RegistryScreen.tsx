@@ -36,7 +36,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
@@ -445,7 +444,6 @@ function SpaceAccessHistory({ rows }: Readonly<{ rows: SpaceAccess[] }>) {
 }
 
 export default function RegistryScreen({ embedded = false, currentUser, initialNavigation }: Readonly<{ embedded?: boolean; currentUser?: User | null; initialNavigation?: RegistryNavigationValue }>) {
-  const theme = useTheme();
   const initialRegistryType: RegistryEntryType = initialNavigation && !["SERVICE_COMPANY", "LEISURE_AREA", "POOL_CARDS"].includes(initialNavigation)
     ? initialNavigation as RegistryEntryType
     : "RESIDENT";
