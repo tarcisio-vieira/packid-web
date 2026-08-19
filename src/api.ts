@@ -1081,7 +1081,26 @@ export type ResidentialUnitPayload = {
 export async function fetchResidentialUnits(): Promise<ResidentialUnit[]> {
   const resp = await fetch(`${API_URL}/api/residential-units`, { credentials: "include" });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
-  return resp.json();
+
+  // Existem unidades antigas no banco, anteriores ao cadastro mestre de
+  // bloco/apartamento, que podem chegar com block/apartment nulos. O restante
+  // da interface trabalha apenas com unidades que possuem os dois campos.
+  // Normalizar aqui evita erro de renderização (ex.: localeCompare em null)
+  // e impede que um registro legado derrube toda a tela em produção.
+  const items = (await resp.json()) as Array<
+    Omit<ResidentialUnit, "block" | "apartment"> & {
+      block?: string | null;
+      apartment?: string | null;
+    }
+  >;
+
+  return items
+    .map((unit) => ({
+      ...unit,
+      block: (unit.block ?? "").trim(),
+      apartment: (unit.apartment ?? "").trim(),
+    }))
+    .filter((unit): unit is ResidentialUnit => Boolean(unit.block && unit.apartment));
 }
 
 export async function createResidentialUnit(payload: ResidentialUnitPayload): Promise<ResidentialUnit> {
@@ -1146,11 +1165,40 @@ export type PoolCardPayload = {
   underTen: boolean;
 };
 
-export async function fetchPoolCards(search?: string): Promise<PoolCard[]> {
-  const params = new URLSearchParams();
+export type PoolCardPage = {
+  content: PoolCard[];
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  size: number;
+};
+
+export type PoolCardResidentOption = {
+  id: string;
+  name: string;
+  block?: string | null;
+  apartment?: string | null;
+};
+
+export async function fetchPoolCards(options?: {
+  search?: string;
+  page?: number;
+  size?: number;
+}): Promise<PoolCardPage> {
+  const params = new URLSearchParams({
+    page: String(options?.page ?? 0),
+    size: String(options?.size ?? 10),
+  });
+  if (options?.search?.trim()) params.set("search", options.search.trim());
+  const resp = await fetch(`${API_URL}/api/pool-cards/page?${params.toString()}`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchPoolCardResidentOptions(search?: string, limit = 20): Promise<PoolCardResidentOption[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
   if (search?.trim()) params.set("search", search.trim());
-  const suffix = params.toString() ? `?${params.toString()}` : "";
-  const resp = await fetch(`${API_URL}/api/pool-cards${suffix}`, { credentials: "include", cache: "no-store" });
+  const resp = await fetch(`${API_URL}/api/pool-cards/residents?${params.toString()}`, { credentials: "include", cache: "no-store" });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
 }

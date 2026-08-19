@@ -1,4 +1,5 @@
-import { StrictMode } from "react";
+import { Component, StrictMode } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
@@ -15,6 +16,38 @@ const theme = createTheme({
   },
 });
 
+
+class AppErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("Erro não tratado na interface do VSGI Condomínio:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 24, fontFamily: "Arial, sans-serif" }}>
+          <h2>Não foi possível carregar esta tela.</h2>
+          <p>Atualize a página. Se o problema continuar, informe a administração.</p>
+          <button type="button" onClick={() => globalThis.location.reload()}>
+            Recarregar
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {
@@ -25,7 +58,9 @@ createRoot(rootElement).render(
   <StrictMode>
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <App />
+      <AppErrorBoundary>
+        <App />
+      </AppErrorBoundary>
     </ThemeProvider>
   </StrictMode>
 );

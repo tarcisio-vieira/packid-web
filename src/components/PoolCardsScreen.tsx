@@ -40,16 +40,16 @@ import {
   deletePoolCard,
   exportPoolCardsExcel,
   fetchPoolCards,
+  fetchPoolCardResidentOptions,
   fetchPoolCardSettings,
-  fetchRegistryEntriesPage,
   poolCardMedicalReportDriveUrl,
   poolCardPdfUrl,
   updatePoolCard,
   uploadPoolCardMedicalReport,
   userFriendlyError,
   type PoolCard,
+  type PoolCardResidentOption,
   type PoolCardSettings,
-  type RegistryEntry,
   type User,
 } from "../api";
 import PoolCardVisual from "./PoolCardVisual";
@@ -72,7 +72,9 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
 
   const [cards, setCards] = useState<PoolCard[]>([]);
   const [settings, setSettings] = useState<PoolCardSettings | null>(null);
-  const [residents, setResidents] = useState<RegistryEntry[]>([]);
+  const [residentOptions, setResidentOptions] = useState<PoolCardResidentOption[]>([]);
+  const [residentQuery, setResidentQuery] = useState("");
+  const [residentsLoading, setResidentsLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -80,70 +82,75 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
   const [editing, setEditing] = useState<PoolCard | null>(null);
   const [viewing, setViewing] = useState<PoolCard | null>(null);
   const [formOpen, setFormOpen] = useState(false);
-  const [resident, setResident] = useState<RegistryEntry | null>(null);
+  const [resident, setResident] = useState<PoolCardResidentOption | null>(null);
   const [issueDate, setIssueDate] = useState(today());
   const [underTen, setUnderTen] = useState(false);
   const [report, setReport] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalElements, setTotalElements] = useState(0);
 
-  const load = useCallback(async () => {
+  const loadCards = useCallback(async (requestedPage = page) => {
     setLoading(true);
     setError("");
     try {
-      const [items, config] = await Promise.all([fetchPoolCards(search), fetchPoolCardSettings()]);
-      setCards(items);
-      setSettings(config);
-      if (canManage && residents.length === 0) {
-        const firstPage = await fetchRegistryEntriesPage({
-          type: "RESIDENT",
-          includeInactive: false,
-          page: 0,
-          size: 100,
-          sort: "unit",
-          direction: "asc",
-        });
-        const allResidents = [...firstPage.content];
-        for (let residentPage = 1; residentPage < firstPage.totalPages; residentPage += 1) {
-          const nextPage = await fetchRegistryEntriesPage({
-            type: "RESIDENT",
-            includeInactive: false,
-            page: residentPage,
-            size: 100,
-            sort: "unit",
-            direction: "asc",
-          });
-          allResidents.push(...nextPage.content);
-        }
-        setResidents(allResidents);
+      const result = await fetchPoolCards({ search, page: requestedPage, size: rowsPerPage });
+      setCards(result.content);
+      setTotalElements(result.totalElements);
+      if (result.totalPages > 0 && requestedPage >= result.totalPages) {
+        setPage(result.totalPages - 1);
       }
     } catch (e) {
       setError(userFriendlyError(e, "Não foi possível carregar as carteirinhas."));
     } finally {
       setLoading(false);
     }
-  }, [search, canManage, residents.length]);
+  }, [page, rowsPerPage, search]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void load(), 250);
+    let active = true;
+    void fetchPoolCardSettings()
+      .then((config) => { if (active) setSettings(config); })
+      .catch((e) => { if (active) setError(userFriendlyError(e, "Não foi possível carregar as configurações da piscina.")); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadCards(), 250);
     return () => window.clearTimeout(timer);
-  }, [load]);
+  }, [loadCards]);
 
-  useEffect(() => setPage(0), [search, rowsPerPage]);
   useEffect(() => {
-    const lastPage = Math.max(0, Math.ceil(cards.length / rowsPerPage) - 1);
-    if (page > lastPage) setPage(lastPage);
-  }, [cards.length, page, rowsPerPage]);
-
-  const pagedCards = useMemo(
-    () => cards.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [cards, page, rowsPerPage],
-  );
+    if (!formOpen || !canManage) return undefined;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setResidentsLoading(true);
+      void fetchPoolCardResidentOptions(residentQuery, 20)
+        .then((items) => {
+          if (!active) return;
+          if (resident && !items.some((item) => item.id === resident.id)) {
+            setResidentOptions([resident, ...items]);
+          } else {
+            setResidentOptions(items);
+          }
+        })
+        .catch((e) => {
+          if (active) setError(userFriendlyError(e, "Não foi possível pesquisar os condôminos."));
+        })
+        .finally(() => { if (active) setResidentsLoading(false); });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [formOpen, canManage, residentQuery, resident]);
 
   const openNew = () => {
     setEditing(null);
     setResident(null);
+    setResidentQuery("");
+    setResidentOptions([]);
     setIssueDate(today());
     setUnderTen(false);
     setReport(null);
@@ -151,8 +158,16 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
   };
 
   const openEdit = (card: PoolCard) => {
+    const selectedResident: PoolCardResidentOption = {
+      id: card.residentRegistryEntryId,
+      name: card.residentName,
+      block: card.block,
+      apartment: card.apartment,
+    };
     setEditing(card);
-    setResident(residents.find((item) => item.id === card.residentRegistryEntryId) || null);
+    setResident(selectedResident);
+    setResidentQuery(card.residentName);
+    setResidentOptions([selectedResident]);
     setIssueDate(card.issueDate);
     setUnderTen(card.underTen);
     setReport(null);
@@ -183,7 +198,9 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
       }
       if (report) saved = await uploadPoolCardMedicalReport(saved.id, report);
       setFormOpen(false);
-      await load();
+      const targetPage = editing ? page : 0;
+      if (!editing) setPage(0);
+      await loadCards(targetPage);
       setViewing(saved);
     } catch (e) {
       if (createdCard) {
@@ -208,7 +225,9 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
     if (!confirmed) return;
     try {
       await deletePoolCard(card.id);
-      await load();
+      const targetPage = cards.length === 1 && page > 0 ? page - 1 : page;
+      if (targetPage !== page) setPage(targetPage);
+      await loadCards(targetPage);
     } catch (e) {
       setError(userFriendlyError(e, "Não foi possível excluir."));
     }
@@ -270,7 +289,10 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
         fullWidth
         size="small"
         value={search}
-        onChange={(event) => setSearch(event.target.value)}
+        onChange={(event) => {
+          setSearch(event.target.value);
+          setPage(0);
+        }}
         placeholder="Pesquisar condômino, bloco ou apartamento"
         sx={{ mt: 2, maxWidth: 720 }}
       />
@@ -293,7 +315,7 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
                 </TableRow>
               </TableHead>
               <TableBody>
-                {pagedCards.map((card) => (
+                {cards.map((card) => (
                   <TableRow key={card.id} hover>
                     <TableCell><strong>{card.residentName}</strong></TableCell>
                     <TableCell>{card.block || "—"}</TableCell>
@@ -364,7 +386,7 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
           </TableContainer>
           <TablePagination
             component="div"
-            count={cards.length}
+            count={totalElements}
             page={page}
             onPageChange={(_, nextPage) => setPage(nextPage)}
             rowsPerPage={rowsPerPage}
@@ -384,13 +406,32 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Autocomplete
-              options={residents}
+              options={residentOptions}
               value={resident}
+              loading={residentsLoading}
+              filterOptions={(options) => options}
               onChange={(_, value) => setResident(value)}
+              onInputChange={(_, value, reason) => {
+                if (reason === "input" || reason === "clear") setResidentQuery(value);
+              }}
               getOptionLabel={(item) => `${item.name} — Bloco ${item.block || "?"} / Apto ${item.apartment || "?"}`}
               isOptionEqualToValue={(a, b) => a.id === b.id}
               renderInput={(params) => (
-                <TextField {...params} label="Condômino" required placeholder="Digite nome, bloco ou apartamento" />
+                <TextField
+                  {...params}
+                  label="Condômino"
+                  required
+                  placeholder="Digite nome, bloco ou apartamento"
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {residentsLoading ? <CircularProgress size={18} /> : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
               )}
             />
             <TextField
