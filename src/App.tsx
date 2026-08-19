@@ -22,7 +22,6 @@ import RegistryScreen from "./components/RegistryScreen";
 import SettingsScreen from "./components/SettingsScreen";
 import SpaceRequestNotifier from "./components/SpaceRequestNotifier";
 import PackagePickupNotifier from "./components/PackagePickupNotifier";
-import PoolCardReviewNotifier from "./components/PoolCardReviewNotifier";
 import ResidentPortal from "./components/ResidentPortal";
 import CollaboratorLoginPage from "./components/CollaboratorLoginPage";
 import ResidentLoginPage from "./components/ResidentLoginPage";
@@ -1843,10 +1842,6 @@ function App() {
         onOpenSpaces={() => setActiveView("spaces")}
       />
       <PackagePickupNotifier enabled={Boolean(user?.canOperateCondominium ?? (user && ["ADMIN", "SECRETARY", "PORTER"].includes((user.role ?? "").toUpperCase())))} />
-      <PoolCardReviewNotifier
-        enabled={Boolean(user && ["ADMIN", "SECRETARY"].includes((user.role ?? "").toUpperCase()))}
-        onOpenPoolCards={() => setActiveView("poolCards")}
-      />
 
       <Box sx={{ p: { xs: 1, sm: 2 }, flex: 1 }}>{renderContent()}</Box>
 

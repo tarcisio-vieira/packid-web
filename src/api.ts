@@ -907,12 +907,6 @@ export async function uploadResidentProfilePhoto(id: string, file: File): Promis
   return resp.json();
 }
 
-export async function uploadResidentPoolCardMedicalReport(residentEntryId: string, file: File): Promise<PoolCard> {
-  const body = new FormData(); body.append("file", file);
-  const resp = await fetch(`${API_URL}/api/resident/pool-cards/residents/${residentEntryId}/medical-report`, { method: "PUT", credentials: "include", body });
-  if (!resp.ok) throw new Error(await readErrorMessage(resp));
-  return resp.json();
-}
 
 export type SpaceKeyAvailability = {
   available: boolean;
@@ -1195,13 +1189,7 @@ export type PoolCard = {
   validUntil: string;
   underTen: boolean;
   valid: boolean;
-  medicalReportAvailable: boolean;
-  medicalReportFileName?: string | null;
   reviewStatus: PoolCardReviewStatus;
-  medicalReportSubmittedAt?: string | null;
-  validatedAt?: string | null;
-  validatedBy?: string | null;
-  reviewNotes?: string | null;
   createdAt: string;
   updatedAt?: string | null;
 };
@@ -1264,23 +1252,8 @@ export async function fetchPoolCard(id: string): Promise<PoolCard> {
   return resp.json();
 }
 
-export async function fetchPendingPoolCardReviews(limit = 20): Promise<PoolCard[]> {
-  const resp = await fetch(`${API_URL}/api/pool-cards/pending-review?limit=${encodeURIComponent(String(limit))}`, { credentials: "include", cache: "no-store" });
-  if (!resp.ok) throw new Error(await readErrorMessage(resp));
-  return resp.json();
-}
 
-export async function approvePoolCard(id: string, notes?: string): Promise<PoolCard> {
-  const resp = await fetch(`${API_URL}/api/pool-cards/${id}/approve`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: notes || null }) });
-  if (!resp.ok) throw new Error(await readErrorMessage(resp));
-  return resp.json();
-}
 
-export async function rejectPoolCard(id: string, notes?: string): Promise<PoolCard> {
-  const resp = await fetch(`${API_URL}/api/pool-cards/${id}/reject`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: notes || null }) });
-  if (!resp.ok) throw new Error(await readErrorMessage(resp));
-  return resp.json();
-}
 
 export async function createPoolCard(payload: PoolCardPayload): Promise<PoolCard> {
   const resp = await fetch(`${API_URL}/api/pool-cards`, {
@@ -1303,16 +1276,7 @@ export async function deletePoolCard(id: string): Promise<void> {
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
 }
 
-export async function uploadPoolCardMedicalReport(id: string, file: File): Promise<PoolCard> {
-  const body = new FormData();
-  body.append("file", file);
-  const resp = await fetch(`${API_URL}/api/pool-cards/${id}/medical-report`, { method: "PUT", credentials: "include", body });
-  if (!resp.ok) throw new Error(await readErrorMessage(resp));
-  return resp.json();
-}
 
-export function poolCardMedicalReportUrl(id: string): string { return `${API_URL}/api/pool-cards/${id}/medical-report`; }
-export function poolCardMedicalReportDriveUrl(id: string): string { return `${API_URL}/api/pool-cards/${id}/medical-report/drive`; }
 export function poolCardPdfUrl(id: string): string { return `${API_URL}/api/pool-cards/${id}/pdf`; }
 export function residentPoolCardPdfUrl(id: string): string { return `${API_URL}/api/resident/pool-cards/${id}/pdf`; }
 export function condominiumLogoUrl(version?: string | number): string {

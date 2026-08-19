@@ -47,7 +47,6 @@ import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import PoolOutlinedIcon from "@mui/icons-material/PoolOutlined";
 import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import {
   fetchResidentPortal,
   fetchResidentSpaceAvailability,
@@ -60,7 +59,6 @@ import {
   requestResidentPackagePickup,
   residentCondominiumLogoUrl,
   residentPoolCardPdfUrl,
-  uploadResidentPoolCardMedicalReport,
   userFriendlyError,
   type RegistryEntry,
   type VisitorVisit,
@@ -74,7 +72,6 @@ import {
   type PoolCard,
 } from "../api";
 import PoolCardLandscapeViewer from "./PoolCardLandscapeViewer";
-import PoolCardStatusIcon, { poolCardStatusLabel } from "./PoolCardStatusIcon";
 import { spaceAccessStatusLabel, spaceLabel } from "./SpacesScreen";
 
 function formatDateTime(value?: string | null): string {
@@ -248,14 +245,10 @@ function RegistryAccordion({
   title,
   rows,
   icon,
-  onEdit,
-  onPoolCard,
 }: Readonly<{
   title: string;
   rows: RegistryEntry[];
   icon: ReactNode;
-  onEdit?: (row: RegistryEntry) => void;
-  onPoolCard?: (row: RegistryEntry) => void;
 }>) {
   return (
     <PagedAccordion
@@ -283,27 +276,111 @@ function RegistryAccordion({
               {row.identifier || row.breed || row.model || row.document || "Cadastro da unidade"}
             </Typography>
           </Box>
-          {row.entryType === "RESIDENT" && row.poolCardId && (
-            <>
-              <PoolCardStatusIcon status={row.poolCardReviewStatus} valid={row.poolCardValid} validUntil={row.poolCardValidUntil} size={18} />
-              {onPoolCard && (
-                <Tooltip title="Abrir carteirinha de piscina">
-                  <IconButton size="small" onClick={() => onPoolCard(row)} aria-label={`Abrir carteirinha de ${row.name}`}>
-                    <PoolOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-            </>
-          )}
-          {onEdit && (
-            <Tooltip title="Editar meus dados">
-              <IconButton size="small" onClick={() => onEdit(row)} aria-label={`Editar ${row.name}`}>
-                <EditOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
         </Stack>
       )}
+    />
+  );
+}
+
+function ResidentsAccordion({
+  rows,
+  onEdit,
+}: Readonly<{
+  rows: RegistryEntry[];
+  onEdit: (row: RegistryEntry) => void;
+}>) {
+  return (
+    <PagedAccordion
+      title="Condôminos"
+      rows={rows}
+      icon={<PeopleAltOutlinedIcon color="primary" />}
+      emptyText="Nenhum condômino cadastrado."
+      renderRow={(row) => (
+        <Stack
+          key={row.id}
+          direction="row"
+          spacing={1.1}
+          alignItems="center"
+          sx={{ p: 1, borderRadius: 2, bgcolor: "action.hover" }}
+        >
+          <Avatar
+            sx={{ width: 42, height: 42, flex: "0 0 auto" }}
+            src={row.photoAvailable && row.photoOwnedByCurrentUser ? residentRegistryPhotoUrl(row.id, row.updatedAt ?? row.createdAt) : undefined}
+          >
+            {row.name?.[0]?.toUpperCase()}
+          </Avatar>
+          <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+            <Typography variant="body2" fontWeight={800} noWrap>{row.name}</Typography>
+            {(row.phone || row.email) && (
+              <Typography variant="caption" color="text.secondary" display="block" noWrap>
+                {row.phone || row.email}
+              </Typography>
+            )}
+          </Box>
+          <Tooltip title="Editar meus dados">
+            <IconButton size="small" onClick={() => onEdit(row)} aria-label={`Editar ${row.name}`}>
+              <EditOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      )}
+    />
+  );
+}
+
+function ResidentPoolCardsAccordion({
+  cards,
+  residents,
+  onOpenPoolCard,
+}: Readonly<{
+  cards: PoolCard[];
+  residents: RegistryEntry[];
+  onOpenPoolCard: (card: PoolCard) => void;
+}>) {
+  return (
+    <PagedAccordion
+      title="Carteirinhas de piscina"
+      rows={cards}
+      icon={<PoolOutlinedIcon color="primary" />}
+      emptyText="Nenhuma carteirinha de piscina disponível para esta unidade."
+      renderRow={(card) => {
+        const resident = residents.find(item => item.id === card.residentRegistryEntryId);
+        const photoUrl = resident?.photoAvailable && resident.photoOwnedByCurrentUser
+          ? residentRegistryPhotoUrl(resident.id, resident.updatedAt ?? resident.createdAt)
+          : undefined;
+        return (
+          <Stack
+            key={card.id}
+            direction="row"
+            spacing={1.1}
+            alignItems="center"
+            sx={{ p: 1, borderRadius: 2, bgcolor: "action.hover" }}
+          >
+            <Avatar sx={{ width: 44, height: 44, flex: "0 0 auto" }} src={photoUrl}>
+              {(resident?.name || card.residentName)?.[0]?.toUpperCase()}
+            </Avatar>
+            <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+              <Typography variant="body2" fontWeight={800} noWrap>
+                {resident?.name || card.residentName}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" noWrap>
+                Bloco {card.block || resident?.block || "-"} Apto {card.apartment || resident?.apartment || "-"}
+              </Typography>
+            </Box>
+            <Tooltip title="Visualizar carteirinha">
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<PoolOutlinedIcon fontSize="small" />}
+                onClick={() => onOpenPoolCard(card)}
+                sx={{ textTransform: "none", whiteSpace: "nowrap", minWidth: { xs: 0, sm: 116 } }}
+              >
+                <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>Visualizar</Box>
+              </Button>
+            </Tooltip>
+          </Stack>
+        );
+      }}
     />
   );
 }
@@ -330,7 +407,6 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
   const [profileBusy, setProfileBusy] = useState(false);
   const [pickupBusy, setPickupBusy] = useState<string | null>(null);
   const [poolCardOpen, setPoolCardOpen] = useState<PoolCard | null>(null);
-  const [medicalReportBusy, setMedicalReportBusy] = useState<string | null>(null);
   const [logoVisible, setLogoVisible] = useState(true);
   const profilePhotoInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -521,37 +597,6 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
     }
   };
 
-  const openResidentPoolCard = (row: RegistryEntry) => {
-    if (!row.poolCardId || !data) return;
-    const card = data.poolCards.find(item => item.id === row.poolCardId || item.residentRegistryEntryId === row.id);
-    if (card) setPoolCardOpen(card);
-  };
-
-  const uploadMedicalReport = async (residentEntryId: string, file?: File) => {
-    if (!file) return;
-    const allowed = ["application/pdf", "image/jpeg", "image/png"];
-    if (!allowed.includes(file.type)) {
-      setError("O laudo deve ser PDF, JPG ou PNG.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError("O laudo deve ter no máximo 5 MB.");
-      return;
-    }
-    setMedicalReportBusy(residentEntryId);
-    setError(null);
-    setSuccess(null);
-    try {
-      await uploadResidentPoolCardMedicalReport(residentEntryId, file);
-      setSuccess("Laudo enviado. A carteirinha ficou aguardando validação da administração.");
-      await load();
-    } catch (err) {
-      setError(userFriendlyError(err, "Não foi possível enviar o laudo médico."));
-    } finally {
-      setMedicalReportBusy(null);
-    }
-  };
-
   return (
     <Box sx={{ minHeight: "100dvh", bgcolor: "#f6f7f8", px: { xs: 1.25, sm: 2 }, pt: { xs: 1.25, sm: 2 }, pb: "calc(20px + env(safe-area-inset-bottom))" }}>
       <Box sx={{ maxWidth: 1120, mx: "auto" }}>
@@ -617,61 +662,6 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
 
             <Box component="section" sx={{ mb: 2.5 }}>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.25 }}>
-                <PoolOutlinedIcon color="primary" />
-                <Box>
-                  <Typography fontWeight={900} sx={{ fontSize: { xs: 17, sm: 20 } }}>Carteirinhas de Piscina</Typography>
-                  <Typography variant="body2" color="text.secondary">Envie o laudo médico e acompanhe a validação da carteirinha.</Typography>
-                </Box>
-              </Stack>
-              <Stack spacing={1}>
-                {data.residents.map(resident => {
-                  const card = data.poolCards.find(item => item.residentRegistryEntryId === resident.id);
-                  return (
-                    <Card variant="outlined" key={resident.id} sx={{ borderRadius: 2.5 }}>
-                      <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                        <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "stretch", sm: "center" }} justifyContent="space-between" spacing={1.25}>
-                          <Box sx={{ minWidth: 0 }}>
-                            <Stack direction="row" spacing={0.75} alignItems="center">
-                              <Typography fontWeight={800} noWrap>{resident.name}</Typography>
-                              {card && <PoolCardStatusIcon status={card.reviewStatus} valid={card.valid} validUntil={card.validUntil} />}
-                            </Stack>
-                            {card ? (
-                              <>
-                                <Typography variant="caption" color="text.secondary" display="block">{poolCardStatusLabel(card.reviewStatus, card.valid, card.validUntil)}</Typography>
-                                <Typography variant="caption" color="text.secondary" display="block">Validade: {new Date(`${card.validUntil}T12:00:00`).toLocaleDateString("pt-BR")}</Typography>
-                                {card.reviewNotes && <Typography variant="caption" color={card.reviewStatus === "REJECTED" ? "error.main" : "text.secondary"} display="block">Observação: {card.reviewNotes}</Typography>}
-                              </>
-                            ) : (
-                              <Typography variant="caption" color="text.secondary">Nenhum laudo enviado.</Typography>
-                            )}
-                          </Box>
-                          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap">
-                            <Button
-                              component="label"
-                              size="small"
-                              variant="outlined"
-                              startIcon={<UploadFileOutlinedIcon />}
-                              disabled={medicalReportBusy === resident.id}
-                              sx={{ textTransform: "none" }}
-                            >
-                              {medicalReportBusy === resident.id ? "Enviando..." : card?.medicalReportAvailable ? "Trocar laudo" : "Enviar laudo"}
-                              <input hidden type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadMedicalReport(resident.id, file); }} />
-                            </Button>
-                            {card && <Button size="small" startIcon={<PoolOutlinedIcon />} onClick={() => setPoolCardOpen(card)}>Mostrar</Button>}
-                            {card?.reviewStatus === "APPROVED" && card.valid && (
-                              <Tooltip title="Exportar PDF"><IconButton component="a" href={residentPoolCardPdfUrl(card.id)} aria-label="Exportar carteirinha em PDF"><PictureAsPdfOutlinedIcon /></IconButton></Tooltip>
-                            )}
-                          </Stack>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </Stack>
-            </Box>
-
-            <Box component="section" sx={{ mb: 2.5 }}>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.25 }}>
                 <HomeOutlinedIcon color="primary" />
                 <Box>
                   <Typography fontWeight={900} sx={{ fontSize: { xs: 17, sm: 20 } }}>Minha unidade</Typography>
@@ -679,7 +669,17 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                 </Box>
               </Stack>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,minmax(0,1fr))" }, gap: 1 }}>
-                <RegistryAccordion title="Condôminos" rows={data.residents} icon={<PeopleAltOutlinedIcon color="primary" />} onEdit={openProfile} onPoolCard={openResidentPoolCard} />
+                <ResidentsAccordion
+                  rows={data.residents}
+                  onEdit={openProfile}
+                />
+                {data.poolCards.length > 0 && (
+                  <ResidentPoolCardsAccordion
+                    cards={data.poolCards}
+                    residents={data.residents}
+                    onOpenPoolCard={setPoolCardOpen}
+                  />
+                )}
                 <RegistryAccordion title="Veículos" rows={data.vehicles} icon={<DirectionsCarOutlinedIcon color="primary" />} />
                 <RegistryAccordion title="Pets" rows={data.pets} icon={<PetsOutlinedIcon color="primary" />} />
                 <RegistryAccordion title="Bicicletas" rows={data.bicycles} icon={<PedalBikeOutlinedIcon color="primary" />} />
@@ -867,7 +867,7 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
           )}
         </DialogContent>
         <DialogActions sx={mobile ? { px: 2, pb: "calc(16px + env(safe-area-inset-bottom))" } : undefined}>
-          {poolCardOpen?.reviewStatus === "APPROVED" && poolCardOpen.valid && <Button component="a" href={residentPoolCardPdfUrl(poolCardOpen.id)} startIcon={<PictureAsPdfOutlinedIcon />}>Exportar PDF</Button>}
+          {poolCardOpen?.valid && <Button component="a" href={residentPoolCardPdfUrl(poolCardOpen.id)} startIcon={<PictureAsPdfOutlinedIcon />}>Exportar PDF</Button>}
           <Button onClick={() => setPoolCardOpen(null)}>Fechar</Button>
         </DialogActions>
       </Dialog>

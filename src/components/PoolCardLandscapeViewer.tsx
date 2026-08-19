@@ -12,32 +12,51 @@ export default function PoolCardLandscapeViewer({ card, settings, logoUrl }: Rea
   const portrait = useMediaQuery("(orientation: portrait)");
   const rotate = mobile && portrait;
 
+  if (rotate) {
+    return (
+      <Box
+        sx={{
+          width: "100%",
+          height: "calc(100dvh - 126px)",
+          minHeight: 420,
+          position: "relative",
+          overflow: "hidden",
+          boxSizing: "border-box",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Box
+          sx={{
+            width: "min(142vw, calc(100dvh - 150px), 900px)",
+            maxWidth: "none",
+            flexShrink: 0,
+            transform: "rotate(90deg)",
+            transformOrigin: "center center",
+            boxSizing: "border-box",
+          }}
+        >
+          <PoolCardVisual card={card} settings={settings} logoUrl={logoUrl} />
+        </Box>
+      </Box>
+    );
+  }
+
   return (
     <Box
       sx={{
         width: "100%",
-        minHeight: rotate ? "calc(100dvh - 126px)" : "auto",
-        display: "grid",
-        placeItems: "center",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
         overflow: "hidden",
-        px: rotate ? 0 : 0.5,
-        py: rotate ? 0 : 0.5,
+        px: 0.5,
+        py: 0.5,
         boxSizing: "border-box",
       }}
     >
-      <Box
-        sx={rotate ? {
-          width: "min(142vw, calc(100dvh - 150px), 900px)",
-          maxWidth: "none",
-          transform: "rotate(90deg)",
-          transformOrigin: "center center",
-          flexShrink: 0,
-        } : {
-          width: "100%",
-          maxWidth: 900,
-          boxSizing: "border-box",
-        }}
-      >
+      <Box sx={{ width: "100%", maxWidth: 900, boxSizing: "border-box" }}>
         <PoolCardVisual card={card} settings={settings} logoUrl={logoUrl} />
       </Box>
     </Box>
