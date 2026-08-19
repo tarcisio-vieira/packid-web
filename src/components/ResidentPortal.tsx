@@ -41,13 +41,14 @@ import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlin
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import PhotoCameraOutlinedIcon from "@mui/icons-material/PhotoCameraOutlined";
 import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
-import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
 import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
+import PoolOutlinedIcon from "@mui/icons-material/PoolOutlined";
+import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import {
   fetchResidentPortal,
-  fetchResidentSpaces,
   fetchResidentSpaceAvailability,
   requestResidentSpace,
   residentLogout,
@@ -55,6 +56,9 @@ import {
   updateResidentCredentials,
   updateResidentProfile,
   uploadResidentProfilePhoto,
+  requestResidentPackagePickup,
+  residentCondominiumLogoUrl,
+  residentPoolCardPdfUrl,
   userFriendlyError,
   type RegistryEntry,
   type VisitorVisit,
@@ -65,14 +69,16 @@ import {
   type SpaceAccess,
   type SpaceKeyAvailability,
   type SpaceType,
+  type PoolCard,
 } from "../api";
+import PoolCardVisual from "./PoolCardVisual";
 import { spaceAccessStatusLabel, spaceLabel } from "./SpacesScreen";
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(date);
 }
 
 function latestActive(rows: SpaceAccess[], type: SpaceType): SpaceAccess | null {
@@ -300,6 +306,9 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
   const [profileForm, setProfileForm] = useState<ProfileForm>({ phone: "", email: "", profession: "" });
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [profileBusy, setProfileBusy] = useState(false);
+  const [pickupBusy, setPickupBusy] = useState<string | null>(null);
+  const [poolCardOpen, setPoolCardOpen] = useState<PoolCard | null>(null);
+  const [logoVisible, setLogoVisible] = useState(true);
   const profilePhotoInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = async () => {
@@ -328,10 +337,8 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
       if (cancelled || refreshing || document.visibilityState !== "visible") return;
       refreshing = true;
       try {
-        const spaceAccesses = await fetchResidentSpaces();
-        if (!cancelled) {
-          setData(current => current ? { ...current, spaceAccesses } : current);
-        }
+        const portal = await fetchResidentPortal();
+        if (!cancelled) { setData(portal); setLocalSession(portal.session); }
       } catch {
         // A atualização automática não substitui os dados já exibidos nem interrompe o uso do portal.
       } finally {
@@ -509,9 +516,11 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
           <CardContent sx={{ p: { xs: 1.25, sm: 2 }, "&:last-child": { pb: { xs: 1.25, sm: 2 } } }}>
             <Stack direction="row" justifyContent="space-between" spacing={1.5} alignItems="center">
               <Stack direction="row" spacing={1.1} alignItems="center" sx={{ minWidth: 0 }}>
-                <Box sx={{ width: 42, height: 42, borderRadius: 2.2, display: "grid", placeItems: "center", bgcolor: "#263746", color: "white", flex: "0 0 auto" }}>
-                  <ApartmentRoundedIcon />
-                </Box>
+                {logoVisible && (
+                  <Box sx={{ width: 42, height: 42, borderRadius: 2.2, display: "grid", placeItems: "center", flex: "0 0 auto", overflow: "hidden" }}>
+                    <Box component="img" src={residentCondominiumLogoUrl()} alt="Logo do condomínio" onError={() => setLogoVisible(false)} sx={{ width: "100%", height: "100%", objectFit: "contain", bgcolor: "white" }} />
+                  </Box>
+                )}
                 <Box sx={{ minWidth: 0 }}>
                   <Typography fontWeight={900} noWrap sx={{ fontSize: { xs: 15.5, sm: 20 } }}>{localSession.tenantName}</Typography>
                   <Typography variant="caption" color="text.secondary" noWrap display="block">Bloco {localSession.block} Apto {localSession.apartment}</Typography>
@@ -551,6 +560,19 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
               </Box>
             </Box>
 
+            {data.poolCards?.length > 0 && <Box component="section" sx={{ mb: 2.5 }}>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.25 }}>
+                <PoolOutlinedIcon color="primary" />
+                <Box><Typography fontWeight={900} sx={{ fontSize: { xs: 17, sm: 20 } }}>Carteirinhas de Piscina</Typography><Typography variant="body2" color="text.secondary">Visualize ou exporte sua carteirinha para PDF.</Typography></Box>
+              </Stack>
+              <Stack spacing={1}>{data.poolCards.map(card => <Card variant="outlined" key={card.id} sx={{ borderRadius: 2.5 }}><CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                  <Box><Typography fontWeight={800}>{card.residentName}</Typography><Typography variant="caption" color="text.secondary">Validade: {new Date(`${card.validUntil}T12:00:00`).toLocaleDateString("pt-BR")} · {card.valid ? "Válida" : "Fora da validade"}</Typography></Box>
+                  <Stack direction="row"><Button size="small" startIcon={<PoolOutlinedIcon />} onClick={() => setPoolCardOpen(card)}>Mostrar</Button><Tooltip title="Exportar PDF"><IconButton component="a" href={residentPoolCardPdfUrl(card.id)}><PictureAsPdfOutlinedIcon /></IconButton></Tooltip></Stack>
+                </Stack>
+              </CardContent></Card>)}</Stack>
+            </Box>}
+
             <Box component="section" sx={{ mb: 2.5 }}>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.25 }}>
                 <HomeOutlinedIcon color="primary" />
@@ -585,11 +607,13 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                   renderRow={(row) => (
                     <Box key={row.id} sx={{ p: 1.15, borderRadius: 2, bgcolor: "action.hover" }}>
                       <Stack direction="row" justifyContent="space-between" spacing={1}>
-                        <Typography variant="body2" fontWeight={800} sx={{ overflowWrap: "anywhere" }}>{row.labelPackageCode || row.packageCode}</Typography>
+                        <Box sx={{ minWidth: 0 }}><Stack direction="row" alignItems="center" spacing={.5}><Typography variant="body2" fontWeight={800} sx={{ overflowWrap: "anywhere" }}>{row.labelPackageCode || row.packageCode}</Typography>{row.residentAcknowledgedAt && <Tooltip title="Solicitação de retirada registrada pelo aplicativo. Não é necessário assinar o caderno de entrega."><CheckCircleOutlineIcon sx={{ color: "text.disabled", fontSize: 17 }} /></Tooltip>}</Stack>
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.35 }}>{formatDateTime(row.arrivedAt)}</Typography>{row.createdBy && <Typography variant="caption" color="text.secondary">Recebido por {row.createdBy}</Typography>}</Box>
                         {row.bookPage && <Chip size="small" variant="outlined" label={`Pág. ${row.bookPage}`} sx={{ height: 22, flex: "0 0 auto" }} />}
                       </Stack>
-                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.35 }}>{formatDateTime(row.arrivedAt)}</Typography>
-                      {row.createdBy && <Typography variant="caption" color="text.secondary">Recebido por {row.createdBy}</Typography>}
+                      <Box sx={{ mt: .75 }}>
+                        {row.handedOverAt ? <Chip size="small" label={`Entregue em ${formatDateTime(row.handedOverAt)}`} color="success" variant="outlined" /> : row.residentAcknowledgedAt ? <Chip size="small" label="Retirada solicitada" variant="outlined" /> : <Button size="small" variant="outlined" disabled={pickupBusy === row.id} onClick={async () => { setPickupBusy(row.id); setError(null); try { await requestResidentPackagePickup(row.id); setSuccess("Portaria avisada. Sua encomenda está com retirada solicitada."); await load(); } catch (e) { setError(userFriendlyError(e, "Não foi possível solicitar a retirada.")); } finally { setPickupBusy(null); } }}>Solicitar retirada</Button>}
+                      </Box>
                     </Box>
                   )}
                 />
@@ -731,6 +755,12 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
           <Button onClick={() => setProfileRow(null)} disabled={profileBusy}>Cancelar</Button>
           <Button variant="contained" onClick={() => void saveProfile()} disabled={profileBusy}>{profileBusy ? "Salvando..." : "Salvar"}</Button>
         </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(poolCardOpen)} onClose={() => setPoolCardOpen(null)} fullWidth maxWidth="md">
+        <DialogTitle>Carteirinha de Piscina</DialogTitle>
+        <DialogContent>{poolCardOpen && data?.poolCardSettings && <PoolCardVisual card={poolCardOpen} settings={data.poolCardSettings} logoUrl={data.poolCardSettings.logoAvailable ? residentCondominiumLogoUrl() : undefined} />}</DialogContent>
+        <DialogActions>{poolCardOpen && <Button component="a" href={residentPoolCardPdfUrl(poolCardOpen.id)} startIcon={<PictureAsPdfOutlinedIcon />}>Exportar PDF</Button>}<Button onClick={() => setPoolCardOpen(null)}>Fechar</Button></DialogActions>
       </Dialog>
     </Box>
   );

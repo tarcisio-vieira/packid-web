@@ -52,6 +52,7 @@ const emptyForm = (): UserForm => ({ email: "", fullName: "", role: "PORTER", en
 function roleLabel(role: AppUserRole): string {
   if (role === "ADMIN") return "Administrador";
   if (role === "SECRETARY") return "Secretaria";
+  if (role === "POOL_ATTENDANT") return "Piscineiro";
   return "Portaria";
 }
 
@@ -64,7 +65,7 @@ export default function SystemUsersPanel({ currentUser }: Readonly<{ currentUser
   const [form, setForm] = useState<UserForm>(emptyForm());
 
   const isAdmin = (currentUser?.role ?? "").toUpperCase() === "ADMIN";
-  const roles = useMemo<AppUserRole[]>(() => isAdmin ? ["PORTER", "SECRETARY", "ADMIN"] : ["PORTER", "SECRETARY"], [isAdmin]);
+  const roles = useMemo<AppUserRole[]>(() => isAdmin ? ["PORTER", "POOL_ATTENDANT", "SECRETARY", "ADMIN"] : ["PORTER", "POOL_ATTENDANT", "SECRETARY"], [isAdmin]);
 
   const load = async () => {
     setLoading(true);
@@ -154,7 +155,7 @@ export default function SystemUsersPanel({ currentUser }: Readonly<{ currentUser
             <Typography variant="subtitle1" fontWeight={700}>Usuários do sistema</Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Cadastre previamente os e-mails Google da secretaria e da portaria. No primeiro login Google, o VSGI vincula a conta automaticamente ao perfil cadastrado.
+            Cadastre previamente os e-mails Google da secretaria, portaria e piscineiro. No primeiro login Google, o VSGI vincula a conta automaticamente ao perfil cadastrado.
           </Typography>
         </Box>
         <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>Novo usuário</Button>

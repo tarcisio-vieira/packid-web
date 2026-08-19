@@ -52,6 +52,9 @@ import PetsOutlinedIcon from "@mui/icons-material/PetsOutlined";
 import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import DeckOutlinedIcon from "@mui/icons-material/DeckOutlined";
+import PoolOutlinedIcon from "@mui/icons-material/PoolOutlined";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import AutorenewRoundedIcon from "@mui/icons-material/AutorenewRounded";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import PersonOffOutlinedIcon from "@mui/icons-material/PersonOffOutlined";
@@ -69,7 +72,7 @@ import {
   fetchServiceCompanies,
   fetchServiceRecords,
   fetchUnitRegistrySummary,
-  fetchUnitVehicles,
+  fetchResidentialUnits,
   fetchVisitorVisits,
   startApartmentOccupancy,
   endApartmentOccupancy,
@@ -85,6 +88,7 @@ import {
 } from "../api";
 import ServiceCompanyPanel from "./ServiceCompanyPanel";
 import SpacesScreen from "./SpacesScreen";
+import PoolCardsScreen from "./PoolCardsScreen";
 import { confirmDialog } from "../utils/confirmDialog";
 import type {
   ApartmentOccupancy,
@@ -100,6 +104,7 @@ import type {
   VisitorVisit,
   SpaceAccess,
   User,
+  ResidentialUnit,
 } from "../api";
 
 const TYPES: Array<{ type: RegistryEntryType; label: string }> = [
@@ -112,7 +117,7 @@ const TYPES: Array<{ type: RegistryEntryType; label: string }> = [
   { type: "VEHICLE", label: "Veículos" },
 ];
 
-type RegistryNavigationValue = RegistryEntryType | "SERVICE_COMPANY" | "LEISURE_AREA";
+type RegistryNavigationValue = RegistryEntryType | "SERVICE_COMPANY" | "LEISURE_AREA" | "POOL_CARDS";
 
 const NAVIGATION_ITEMS: Array<{ value: RegistryNavigationValue; label: string; color: string }> = [
   { value: "RESIDENT", label: "Condôminos", color: "#1976d2" },
@@ -124,6 +129,7 @@ const NAVIGATION_ITEMS: Array<{ value: RegistryNavigationValue; label: string; c
   { value: "PET", label: "Pets", color: "#d81b60" },
   { value: "VEHICLE", label: "Veículos", color: "#3949ab" },
   { value: "LEISURE_AREA", label: "Área de lazer", color: "#00897b" },
+  { value: "POOL_CARDS", label: "Carteirinhas de piscina", color: "#00796b" },
 ];
 
 const REGISTRY_SECTION_DESCRIPTIONS: Record<RegistryEntryType, string> = {
@@ -156,6 +162,8 @@ function navigationIcon(value: RegistryNavigationValue) {
       return <DirectionsCarOutlinedIcon />;
     case "LEISURE_AREA":
       return <DeckOutlinedIcon />;
+    case "POOL_CARDS":
+      return <PoolOutlinedIcon />;
   }
 }
 
@@ -240,15 +248,15 @@ function emptyServiceForm(): ServiceForm {
 }
 
 function localDateTimeNow(): string {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(new Date()).replace(" ", "T");
 }
 
 function localDateToday(): string {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
 }
 
 function occupancyStatusLabel(status: ApartmentOccupancy["status"], compact = false): string {
@@ -338,6 +346,7 @@ function formatDateTime(value?: string | null): string {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
   }).format(date);
 }
 
@@ -710,12 +719,13 @@ function SpaceAccessHistory({ rows }: Readonly<{ rows: SpaceAccess[] }>) {
 }
 
 export default function RegistryScreen({ embedded = false, currentUser, initialNavigation }: Readonly<{ embedded?: boolean; currentUser?: User | null; initialNavigation?: RegistryNavigationValue }>) {
-  const initialRegistryType: RegistryEntryType = initialNavigation && !["SERVICE_COMPANY", "LEISURE_AREA"].includes(initialNavigation)
+  const initialRegistryType: RegistryEntryType = initialNavigation && !["SERVICE_COMPANY", "LEISURE_AREA", "POOL_CARDS"].includes(initialNavigation)
     ? initialNavigation as RegistryEntryType
     : "RESIDENT";
   const [type, setType] = useState<RegistryEntryType>(initialRegistryType);
   const [companyMode, setCompanyMode] = useState(initialNavigation === "SERVICE_COMPANY");
   const [leisureMode, setLeisureMode] = useState(initialNavigation === "LEISURE_AREA");
+  const [poolMode, setPoolMode] = useState(initialNavigation === "POOL_CARDS" || (currentUser?.role || "").toUpperCase() === "POOL_ATTENDANT");
   const [companyNewRequestSeq, setCompanyNewRequestSeq] = useState(0);
   const [rows, setRows] = useState<RegistryEntry[]>([]);
   const [totalRows, setTotalRows] = useState(0);
@@ -746,6 +756,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const [selectedRow, setSelectedRow] = useState<RegistryEntry | null>(null);
   const [selectedResidentVehicles, setSelectedResidentVehicles] = useState<RegistryEntry[]>([]);
   const [selectedResidentVehiclesLoading, setSelectedResidentVehiclesLoading] = useState(false);
+  const [selectedResidentPackages, setSelectedResidentPackages] = useState<PackIdRecentItem[]>([]);
+  const [residentialUnits, setResidentialUnits] = useState<ResidentialUnit[]>([]);
   const [registerNow, setRegisterNow] = useState(false);
   const [quickAccess, setQuickAccess] = useState<AccessForm>(emptyAccessForm());
   const [quickService, setQuickService] = useState<ServiceForm>(emptyServiceForm());
@@ -875,18 +887,19 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
 
   useEffect(() => {
     setSelectedRow(null);
-  }, [type, companyMode, leisureMode]);
+  }, [type, companyMode, leisureMode, poolMode]);
 
   useEffect(() => {
-    if (!companyMode && !leisureMode) void loadRows(type);
-  }, [type, companyMode, leisureMode, page, rowsPerPage, debouncedSearch, showInactive, showOwnersOnly, sortField, sortDirection]);
+    if (!companyMode && !leisureMode && !poolMode) void loadRows(type);
+  }, [type, companyMode, leisureMode, poolMode, page, rowsPerPage, debouncedSearch, showInactive, showOwnersOnly, sortField, sortDirection]);
 
   useEffect(() => {
-    if (!leisureMode && (type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON" || companyMode)) void loadServiceCompanies();
-  }, [type, companyMode, leisureMode]);
+    if (!leisureMode && !poolMode && (type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON" || companyMode)) void loadServiceCompanies();
+  }, [type, companyMode, leisureMode, poolMode]);
 
   useEffect(() => {
     const handleRegistryTabShortcut = (event: globalThis.KeyboardEvent) => {
+      if ((currentUser?.role || "").toUpperCase() === "POOL_ATTENDANT") return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
 
@@ -912,6 +925,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
       const nextType: RegistryEntryType = event.key === "ArrowUp" ? "RESIDENT" : "SERVICE_PROVIDER";
       setCompanyMode(false);
       setLeisureMode(false);
+      setPoolMode(false);
       setType(nextType);
       setSearch("");
       setDebouncedSearch("");
@@ -930,7 +944,13 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
     // mesmo quando o foco estiver em elementos navegáveis da tela.
     window.addEventListener("keydown", handleRegistryTabShortcut, true);
     return () => window.removeEventListener("keydown", handleRegistryTabShortcut, true);
-  }, []);
+  }, [currentUser?.role]);
+
+  useEffect(() => {
+    if (poolMode) return;
+    void fetchResidentialUnits().then((items) => setResidentialUnits(items.filter((u) => u.active !== false)))
+      .catch((e) => setError(userFriendlyError(e, "Falha ao carregar blocos e apartamentos cadastrados.")));
+  }, [poolMode]);
 
   const visibleRows = rows;
   const paginatedRows = rows;
@@ -943,40 +963,23 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
 
   useEffect(() => {
     let cancelled = false;
-
-    if (
-      !selectedRow ||
-      selectedRow.entryType !== "RESIDENT" ||
-      !selectedRow.block ||
-      !selectedRow.apartment
-    ) {
-      setSelectedResidentVehicles([]);
-      setSelectedResidentVehiclesLoading(false);
-      return () => { cancelled = true; };
-    }
-
-    setSelectedResidentVehicles([]);
-    setSelectedResidentVehiclesLoading(true);
-
-    void fetchUnitVehicles(
-      selectedRow.block,
-      selectedRow.apartment,
-      selectedRow.occupancyId,
-    )
-      .then((vehicles) => {
-        if (!cancelled) setSelectedResidentVehicles(vehicles);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setSelectedResidentVehicles([]);
-          setError(userFriendlyError(e, "Falha ao carregar os veículos da unidade."));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setSelectedResidentVehiclesLoading(false);
-      });
-
-    return () => { cancelled = true; };
+    let timer: number | undefined;
+    const loadExtras = async () => {
+      if (!selectedRow || selectedRow.entryType !== "RESIDENT" || !selectedRow.block || !selectedRow.apartment) {
+        setSelectedResidentVehicles([]); setSelectedResidentPackages([]); setSelectedResidentVehiclesLoading(false); return;
+      }
+      setSelectedResidentVehiclesLoading(true);
+      try {
+        const summary = await fetchUnitRegistrySummary(selectedRow.block, selectedRow.apartment, selectedRow.occupancyId);
+        if (!cancelled) { setSelectedResidentVehicles(summary.vehicles || []); setSelectedResidentPackages(summary.packIds || []); }
+      } catch (e) { if (!cancelled) setError(userFriendlyError(e, "Falha ao carregar os dados da unidade.")); }
+      finally { if (!cancelled) setSelectedResidentVehiclesLoading(false); }
+    };
+    void loadExtras();
+    const onPackId = () => void loadExtras();
+    window.addEventListener("packid:registered", onPackId);
+    timer = window.setInterval(() => { if (document.visibilityState === "visible") void loadExtras(); }, 5000);
+    return () => { cancelled = true; window.removeEventListener("packid:registered", onPackId); if (timer) window.clearInterval(timer); };
   }, [selectedRow]);
 
   const editingRow = editingId ? rows.find((row) => row.id === editingId) ?? null : null;
@@ -1614,7 +1617,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
         >
           <Tooltip title="Atalhos: ← pesquisa da gestão · ↑ condôminos · ↓ prestadores de serviço" arrow placement="top">
             <Tabs
-          value={leisureMode ? "LEISURE_AREA" : companyMode ? "SERVICE_COMPANY" : type}
+          value={poolMode ? "POOL_CARDS" : leisureMode ? "LEISURE_AREA" : companyMode ? "SERVICE_COMPANY" : type}
           onChange={(_, value: RegistryNavigationValue) => {
             setSearch("");
             setDebouncedSearch("");
@@ -1624,18 +1627,28 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
             if (value === "SERVICE_COMPANY") {
               setCompanyMode(true);
               setLeisureMode(false);
+              setPoolMode(false);
               return;
             }
 
             if (value === "LEISURE_AREA") {
               setCompanyMode(false);
               setLeisureMode(true);
+              setPoolMode(false);
+              return;
+            }
+
+            if (value === "POOL_CARDS") {
+              setCompanyMode(false);
+              setLeisureMode(false);
+              setPoolMode(true);
               return;
             }
 
             setCompanyMode(false);
             setLeisureMode(false);
-            setType(value);
+            setPoolMode(false);
+            setType(value as RegistryEntryType);
             setSortField(defaultRegistrySortField(value));
             setSortDirection("asc");
           }}
@@ -1652,7 +1665,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
             },
           }}
         >
-          {NAVIGATION_ITEMS.map((item) => (
+          {NAVIGATION_ITEMS.filter((item) => (currentUser?.role || "").toUpperCase() !== "POOL_ATTENDANT" || item.value === "POOL_CARDS").map((item) => (
             <Tab
               key={item.value}
               value={item.value}
@@ -1690,7 +1703,9 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
 
         </Box>
 
-        {leisureMode ? (
+        {poolMode ? (
+          <PoolCardsScreen currentUser={currentUser || { name: "", email: "", role: "PORTER" }} />
+        ) : leisureMode ? (
           <SpacesScreen embedded canExport={canExportExcel} />
         ) : companyMode ? (
           <>
@@ -1898,6 +1913,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                       <>
                         <FieldCard label="Proprietário" value={selectedRow.unitOwner ? "Sim" : "Não"} />
                         <FieldCard label="Telefone" value={selectedRow.phone} />
+                        <FieldCard label="Carteirinha piscina" value={selectedRow.poolCardAvailable ? (selectedRow.poolCardValid ? "✓ Válida" : "○ Fora da validade") : "Não cadastrada"} />
+                        <FieldCard label="Validade piscina" value={selectedRow.poolCardValidUntil ? new Date(`${selectedRow.poolCardValidUntil}T12:00:00`).toLocaleDateString("pt-BR") : "—"} />
                       </>
                     ) : (
                       <>
@@ -1946,44 +1963,90 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
               </Stack>
 
               {selectedRow.entryType === "RESIDENT" && (
-                <Box sx={{ mt: 2 }}>
-                  <Divider sx={{ mb: 1.5 }} />
-                  <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-                    Veículos da unidade ({selectedResidentVehicles.length})
-                  </Typography>
-                  {selectedResidentVehiclesLoading ? (
-                    <Typography variant="body2" sx={{ opacity: 0.7 }}>Carregando veículos...</Typography>
-                  ) : selectedResidentVehicles.length === 0 ? (
-                    <Typography variant="body2" sx={{ opacity: 0.7 }}>Nenhum veículo cadastrado nesta ocupação.</Typography>
-                  ) : (
-                    <TableContainer>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Veículo</TableCell>
-                            <TableCell>Placa</TableCell>
-                            <TableCell align="center">Vaga alugada/cedida</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {selectedResidentVehicles.map((vehicle) => (
-                            <TableRow key={vehicle.id}>
-                              <TableCell>{[vehicle.brand, vehicle.model].filter(Boolean).join(" ") || vehicle.name || "-"}</TableCell>
-                              <TableCell>{vehicle.identifier || "-"}</TableCell>
-                              <TableCell align="center">
-                                <Chip
-                                  size="small"
-                                  label={vehicle.parkingSpaceRented ? "Sim" : "Não"}
-                                  color={vehicle.parkingSpaceRented ? "warning" : "default"}
-                                  variant={vehicle.parkingSpaceRented ? "filled" : "outlined"}
-                                />
-                              </TableCell>
+                <Box
+                  sx={{
+                    mt: 2,
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) minmax(0, 1fr)" },
+                    gap: 2,
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Divider sx={{ mb: 1.5 }} />
+                    <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                      Veículos da unidade ({selectedResidentVehicles.length})
+                    </Typography>
+                    {selectedResidentVehiclesLoading ? (
+                      <Typography variant="body2" sx={{ opacity: 0.7 }}>Carregando veículos...</Typography>
+                    ) : selectedResidentVehicles.length === 0 ? (
+                      <Typography variant="body2" sx={{ opacity: 0.7 }}>Nenhum veículo cadastrado nesta ocupação.</Typography>
+                    ) : (
+                      <TableContainer>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Veículo</TableCell>
+                              <TableCell>Placa</TableCell>
+                              <TableCell align="center">Vaga alugada/cedida</TableCell>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  )}
+                          </TableHead>
+                          <TableBody>
+                            {selectedResidentVehicles.map((vehicle) => (
+                              <TableRow key={vehicle.id}>
+                                <TableCell>{[vehicle.brand, vehicle.model].filter(Boolean).join(" ") || vehicle.name || "-"}</TableCell>
+                                <TableCell>{vehicle.identifier || "-"}</TableCell>
+                                <TableCell align="center">
+                                  <Chip
+                                    size="small"
+                                    label={vehicle.parkingSpaceRented ? "Sim" : "Não"}
+                                    color={vehicle.parkingSpaceRented ? "warning" : "default"}
+                                    variant={vehicle.parkingSpaceRented ? "filled" : "outlined"}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </Box>
+
+                  <Box sx={{ minWidth: 0 }}>
+                    <Divider sx={{ mb: 1.5 }} />
+                    <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                      Encomendas da unidade ({selectedResidentPackages.length})
+                    </Typography>
+                    {selectedResidentPackages.length === 0 ? (
+                      <Typography variant="body2" sx={{ opacity: .7 }}>Nenhuma encomenda registrada nesta ocupação.</Typography>
+                    ) : (
+                      <TableContainer>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Código</TableCell>
+                              <TableCell>Registrada em</TableCell>
+                              <TableCell align="center">App</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {selectedResidentPackages.slice(0, 20).map((pack) => (
+                              <TableRow key={pack.id}>
+                                <TableCell>{pack.labelPackageCode || pack.packageCode || "-"}</TableCell>
+                                <TableCell>{formatDateTime(pack.arrivedAt)}</TableCell>
+                                <TableCell align="center">
+                                  {pack.residentAcknowledgedAt ? (
+                                    <Tooltip title="Retirada solicitada pelo aplicativo — o registro eletrônico dispensa assinatura no caderno.">
+                                      <CheckCircleOutlineIcon sx={{ color: "text.disabled", fontSize: 19 }} />
+                                    </Tooltip>
+                                  ) : "—"}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </Box>
                 </Box>
               )}
             </CardContent>
@@ -2088,7 +2151,14 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                     </Avatar>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={600}>{row.name}</Typography>
+                    <Stack direction="row" spacing={0.6} alignItems="center">
+                      <Typography variant="body2" fontWeight={600}>{row.name}</Typography>
+                      {row.entryType === "RESIDENT" && row.poolCardAvailable && (
+                        <Tooltip title={row.poolCardValid ? `Carteirinha de piscina válida${row.poolCardValidUntil ? ` até ${new Date(`${row.poolCardValidUntil}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}` : "Carteirinha de piscina fora da validade"}>
+                          {row.poolCardValid ? <CheckCircleOutlineIcon sx={{ color: "text.disabled", fontSize: 17 }} /> : <ErrorOutlineIcon sx={{ color: "text.disabled", fontSize: 17 }} />}
+                        </Tooltip>
+                      )}
+                    </Stack>
                     {row.ownerName && row.entryType !== "PET" && (
                       <Typography variant="caption" sx={{ opacity: 0.7 }}>
                         Responsável: {row.ownerName}
@@ -2420,12 +2490,23 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                 <TextField label="Cor" value={form.color ?? ""} onChange={(e) => setField("color", e.target.value)} fullWidth />
               </>
             )}
-            {(type === "RESIDENT" || type === "BICYCLE" || type === "PET" || type === "VEHICLE") && (
-              <>
-                <TextField label="Bloco" value={form.block ?? ""} onChange={(e) => setField("block", e.target.value)} required={form.active} fullWidth />
-                <TextField label="Apartamento" value={form.apartment ?? ""} onChange={(e) => setField("apartment", e.target.value)} required={form.active} fullWidth />
-              </>
-            )}
+            <>
+              <Autocomplete
+                options={Array.from(new Set(residentialUnits.map((u) => u.block))).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))}
+                value={form.block || null}
+                onChange={(_, value) => setForm((current) => ({ ...current, block: value || "", apartment: residentialUnits.some(u => u.block === value && u.apartment === current.apartment) ? current.apartment : "" }))}
+                renderInput={(params) => <TextField {...params} label="Bloco" placeholder="Digite para pesquisar" required={form.active} />}
+                noOptionsText="Nenhum bloco cadastrado"
+              />
+              <Autocomplete
+                options={residentialUnits.filter((u) => !form.block || u.block === form.block).map((u) => u.apartment).filter((v,i,a) => a.indexOf(v) === i).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))}
+                value={form.apartment || null}
+                onChange={(_, value) => setField("apartment", value || "")}
+                renderInput={(params) => <TextField {...params} label="Apartamento" placeholder="Digite para pesquisar" required={form.active} />}
+                noOptionsText={form.block ? "Nenhum apartamento cadastrado neste bloco" : "Selecione o bloco primeiro"}
+                disabled={!form.block}
+              />
+            </>
             {type === "VEHICLE" && (
               <>
                 <TextField label="Vaga" value={form.parkingSpace ?? ""} onChange={(e) => setField("parkingSpace", e.target.value)} fullWidth />
@@ -2457,8 +2538,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                 />
                 {registerNow && (
                   <Box sx={{ mt: 1.5, display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-                    <TextField label="Bloco de destino" value={quickAccess.block} onChange={(e) => setQuickAccess((v) => ({ ...v, block: e.target.value }))} required />
-                    <TextField label="Apartamento de destino" value={quickAccess.apartment} onChange={(e) => setQuickAccess((v) => ({ ...v, apartment: e.target.value }))} required />
+                    <Autocomplete options={Array.from(new Set(residentialUnits.map((u) => u.block))).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))} value={quickAccess.block || null} onChange={(_, value) => setQuickAccess((v) => ({ ...v, block: value || "", apartment: residentialUnits.some(u => u.block === value && u.apartment === v.apartment) ? v.apartment : "" }))} renderInput={(params) => <TextField {...params} label="Bloco de destino" placeholder="Digite para pesquisar" required />} noOptionsText="Nenhum bloco cadastrado" />
+                    <Autocomplete options={residentialUnits.filter((u) => !quickAccess.block || u.block === quickAccess.block).map((u) => u.apartment).filter((v,i,a) => a.indexOf(v) === i).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))} value={quickAccess.apartment || null} onChange={(_, value) => setQuickAccess((v) => ({ ...v, apartment: value || "" }))} renderInput={(params) => <TextField {...params} label="Apartamento de destino" placeholder="Digite para pesquisar" required />} disabled={!quickAccess.block} noOptionsText={quickAccess.block ? "Nenhum apartamento cadastrado neste bloco" : "Selecione o bloco primeiro"} />
                     <TextField label="Data e hora" type="datetime-local" value={quickAccess.dateTime} onChange={(e) => setQuickAccess((v) => ({ ...v, dateTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
                     {type === "DELIVERY_PERSON" && (
                       <FormControlLabel control={<Switch checked={quickAccess.authorizedToEnter} onChange={(e) => setQuickAccess((v) => ({ ...v, authorizedToEnter: e.target.checked }))} />} label="Entregador autorizado a entrar" />
@@ -2476,8 +2557,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                     <FormControlLabel control={<Switch checked={quickService.scope === "CONDOMINIUM"} onChange={(e) => setQuickService(v => ({ ...v, scope: e.target.checked ? "CONDOMINIUM" : "UNIT" }))} />} label="Serviço para o condomínio como um todo" />
                     <TextField label="Data e hora" type="datetime-local" value={quickService.dateTime} onChange={(e) => setQuickService(v => ({ ...v, dateTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
                     {quickService.scope === "UNIT" && <>
-                      <TextField label="Bloco" value={quickService.block} onChange={(e) => setQuickService(v => ({ ...v, block: e.target.value }))} required />
-                      <TextField label="Apartamento" value={quickService.apartment} onChange={(e) => setQuickService(v => ({ ...v, apartment: e.target.value }))} required />
+                      <Autocomplete options={Array.from(new Set(residentialUnits.map((u) => u.block))).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))} value={quickService.block || null} onChange={(_, value) => setQuickService((v) => ({ ...v, block: value || "", apartment: residentialUnits.some(u => u.block === value && u.apartment === v.apartment) ? v.apartment : "" }))} renderInput={(params) => <TextField {...params} label="Bloco" placeholder="Digite para pesquisar" required />} noOptionsText="Nenhum bloco cadastrado" />
+                      <Autocomplete options={residentialUnits.filter((u) => !quickService.block || u.block === quickService.block).map((u) => u.apartment).filter((v,i,a) => a.indexOf(v) === i).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))} value={quickService.apartment || null} onChange={(_, value) => setQuickService((v) => ({ ...v, apartment: value || "" }))} renderInput={(params) => <TextField {...params} label="Apartamento" placeholder="Digite para pesquisar" required />} disabled={!quickService.block} noOptionsText={quickService.block ? "Nenhum apartamento cadastrado neste bloco" : "Selecione o bloco primeiro"} />
                     </>}
                     <TextField label="Serviço realizado" value={quickService.serviceDescription} onChange={(e) => setQuickService(v => ({ ...v, serviceDescription: e.target.value }))} required sx={{ gridColumn: { sm: "1 / -1" } }} />
                     <TextField label="Observações" value={quickService.notes} onChange={(e) => setQuickService(v => ({ ...v, notes: e.target.value }))} multiline minRows={2} sx={{ gridColumn: { sm: "1 / -1" } }} />
@@ -2610,8 +2691,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
         </DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 1, display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-            <TextField label="Bloco de destino" value={eventForm.block} onChange={(e) => setEventForm((v) => ({ ...v, block: e.target.value }))} required autoFocus />
-            <TextField label="Apartamento de destino" value={eventForm.apartment} onChange={(e) => setEventForm((v) => ({ ...v, apartment: e.target.value }))} required />
+            <Autocomplete options={Array.from(new Set(residentialUnits.map((u) => u.block))).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))} value={eventForm.block || null} onChange={(_, value) => setEventForm((v) => ({ ...v, block: value || "", apartment: residentialUnits.some(u => u.block === value && u.apartment === v.apartment) ? v.apartment : "" }))} renderInput={(params) => <TextField {...params} label="Bloco de destino" placeholder="Digite para pesquisar" required autoFocus />} noOptionsText="Nenhum bloco cadastrado" />
+            <Autocomplete options={residentialUnits.filter((u) => !eventForm.block || u.block === eventForm.block).map((u) => u.apartment).filter((v,i,a) => a.indexOf(v) === i).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))} value={eventForm.apartment || null} onChange={(_, value) => setEventForm((v) => ({ ...v, apartment: value || "" }))} renderInput={(params) => <TextField {...params} label="Apartamento de destino" placeholder="Digite para pesquisar" required />} disabled={!eventForm.block} noOptionsText={eventForm.block ? "Nenhum apartamento cadastrado neste bloco" : "Selecione o bloco primeiro"} />
             <TextField label="Data e hora" type="datetime-local" value={eventForm.dateTime} onChange={(e) => setEventForm((v) => ({ ...v, dateTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
             {eventRow?.entryType === "DELIVERY_PERSON" && (
               <FormControlLabel control={<Switch checked={eventForm.authorizedToEnter} onChange={(e) => setEventForm((v) => ({ ...v, authorizedToEnter: e.target.checked }))} />} label="Autorizado a entrar" />
@@ -2635,8 +2716,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
             />
             {serviceForm.scope === "UNIT" && (
               <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
-                <TextField label="Bloco" value={serviceForm.block} onChange={(e) => setServiceForm(v => ({ ...v, block: e.target.value }))} required autoFocus />
-                <TextField label="Apartamento" value={serviceForm.apartment} onChange={(e) => setServiceForm(v => ({ ...v, apartment: e.target.value }))} required />
+                <Autocomplete options={Array.from(new Set(residentialUnits.map((u) => u.block))).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))} value={serviceForm.block || null} onChange={(_, value) => setServiceForm((v) => ({ ...v, block: value || "", apartment: residentialUnits.some(u => u.block === value && u.apartment === v.apartment) ? v.apartment : "" }))} renderInput={(params) => <TextField {...params} label="Bloco" placeholder="Digite para pesquisar" required autoFocus />} noOptionsText="Nenhum bloco cadastrado" />
+                <Autocomplete options={residentialUnits.filter((u) => !serviceForm.block || u.block === serviceForm.block).map((u) => u.apartment).filter((v,i,a) => a.indexOf(v) === i).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))} value={serviceForm.apartment || null} onChange={(_, value) => setServiceForm((v) => ({ ...v, apartment: value || "" }))} renderInput={(params) => <TextField {...params} label="Apartamento" placeholder="Digite para pesquisar" required />} disabled={!serviceForm.block} noOptionsText={serviceForm.block ? "Nenhum apartamento cadastrado neste bloco" : "Selecione o bloco primeiro"} />
               </Box>
             )}
             <TextField label="Data e hora" type="datetime-local" value={serviceForm.dateTime} onChange={(e) => setServiceForm(v => ({ ...v, dateTime: e.target.value }))} InputLabelProps={{ shrink: true }} />

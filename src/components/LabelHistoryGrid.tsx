@@ -59,11 +59,13 @@ function formatDateTimeParts(
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: "America/Sao_Paulo",
   });
 
   const time = d.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
   });
 
   return { date, time };

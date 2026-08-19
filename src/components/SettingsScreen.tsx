@@ -19,18 +19,25 @@ import GoogleIcon from "@mui/icons-material/Google";
 import SaveIcon from "@mui/icons-material/Save";
 import LinkOffIcon from "@mui/icons-material/LinkOff";
 import EmailIcon from "@mui/icons-material/Email";
+import PoolIcon from "@mui/icons-material/Pool";
+import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import {
+  deleteCondominiumLogo,
   disconnectOfficialGoogleAccount,
+  condominiumLogoUrl,
   fetchCondominiumSettings,
   getGoogleAccountAuthorizeUrl,
   testOfficialGoogleGmail,
   updateCondominiumSettings,
+  uploadCondominiumLogo,
   userFriendlyError,
   type CondominiumSettings,
   type CondominiumSettingsPayload,
   type User,
 } from "../api";
 import SystemUsersPanel from "./SystemUsersPanel";
+import UnitManagementPanel from "./UnitManagementPanel";
 import { confirmDialog } from "../utils/confirmDialog";
 
 function emptyPayload(): CondominiumSettingsPayload {
@@ -50,6 +57,19 @@ function emptyPayload(): CondominiumSettingsPayload {
     emailNotificationsEnabled: true,
     residentCredentialEmailsEnabled: false,
     packIdPrintTwoLabels: true,
+    poolCardTitle: "PISCINA",
+    poolCardSubtitle: "USO DA PISCINA",
+    poolOpeningHours: "Todos os dias das 09h às 17h.",
+    poolShowOpeningHours: true,
+    poolClosedDaysMessage: "Toda segunda-feira fechada para tratamento e manutenção de fundo.",
+    poolShowClosedDays: true,
+    poolValidityMonths: 6,
+    poolValidityMessage: "A carteirinha terá validade de 06 meses, com necessária apresentação do exame médico atualizado para validação.",
+    poolShowValidityMessage: true,
+    poolGeneralInfo: "Regras da Piscina são regidas pelo Regulamento Interno e Decreto 4.447/81.",
+    poolShowGeneralInfo: true,
+    poolAdditionalInfo: "Administração",
+    poolCardColor: "#0B5C2B",
   };
 }
 
@@ -70,6 +90,19 @@ function toPayload(data: CondominiumSettings): CondominiumSettingsPayload {
     emailNotificationsEnabled: data.emailNotificationsEnabled !== false,
     residentCredentialEmailsEnabled: data.residentCredentialEmailsEnabled === true,
     packIdPrintTwoLabels: data.packIdPrintTwoLabels !== false,
+    poolCardTitle: data.poolCardTitle ?? "PISCINA",
+    poolCardSubtitle: data.poolCardSubtitle ?? "USO DA PISCINA",
+    poolOpeningHours: data.poolOpeningHours ?? "",
+    poolShowOpeningHours: data.poolShowOpeningHours !== false,
+    poolClosedDaysMessage: data.poolClosedDaysMessage ?? "",
+    poolShowClosedDays: data.poolShowClosedDays !== false,
+    poolValidityMonths: data.poolValidityMonths ?? 6,
+    poolValidityMessage: data.poolValidityMessage ?? "",
+    poolShowValidityMessage: data.poolShowValidityMessage !== false,
+    poolGeneralInfo: data.poolGeneralInfo ?? "",
+    poolShowGeneralInfo: data.poolShowGeneralInfo !== false,
+    poolAdditionalInfo: data.poolAdditionalInfo ?? "",
+    poolCardColor: data.poolCardColor ?? "#0B5C2B",
   };
 }
 
@@ -80,6 +113,7 @@ function formatDateTime(value?: string | null): string {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
   }).format(date);
 }
 
@@ -99,6 +133,8 @@ export default function SettingsScreen({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoVersion, setLogoVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -169,6 +205,39 @@ export default function SettingsScreen({
     } finally {
       setSaving(false);
     }
+  };
+
+  const uploadLogo = async (file?: File | null) => {
+    if (!file) return;
+    setLogoBusy(true);
+    setError(null);
+    try {
+      const data = await uploadCondominiumLogo(file);
+      applySettings(data);
+      setLogoVersion((v) => v + 1);
+      globalThis.dispatchEvent(new Event("condominium-logo-updated"));
+      setSuccess("Logo do condomínio atualizado com sucesso.");
+    } catch (err) {
+      setError(userFriendlyError(err, "Não foi possível enviar o logo do condomínio."));
+    } finally { setLogoBusy(false); }
+  };
+
+  const removeLogo = async () => {
+    const confirmed = await confirmDialog({
+      title: "Remover logo do condomínio?",
+      text: "O nome do condomínio continuará aparecendo normalmente na barra superior e na carteirinha.",
+      confirmButtonText: "Remover",
+    });
+    if (!confirmed) return;
+    setLogoBusy(true); setError(null);
+    try {
+      const data = await deleteCondominiumLogo();
+      applySettings(data);
+      setLogoVersion((v) => v + 1);
+      globalThis.dispatchEvent(new Event("condominium-logo-updated"));
+      setSuccess("Logo removido.");
+    } catch (err) { setError(userFriendlyError(err, "Não foi possível remover o logo.")); }
+    finally { setLogoBusy(false); }
   };
 
   const authorizeGoogle = () => {
@@ -276,6 +345,36 @@ export default function SettingsScreen({
           onChange={(e) => setField("notes", e.target.value)} fullWidth sx={{ mt: 2 }} />
 
         <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
+            <Box
+              sx={{
+                width: 92, height: 72, border: "1px dashed", borderColor: "divider", borderRadius: 2,
+                display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", bgcolor: "background.default",
+              }}
+            >
+              {settings?.logoAvailable ? (
+                <Box component="img" src={condominiumLogoUrl(logoVersion)} alt="Logo do condomínio" sx={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+              ) : <ImageOutlinedIcon color="disabled" />}
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography fontWeight={700}>Foto ou logo do condomínio</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Quando houver logo, ele será exibido ao lado do nome do condomínio e na carteirinha da piscina. Sem logo, será mostrado somente o nome.
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
+                <Button component="label" variant="outlined" size="small" disabled={logoBusy} startIcon={<ImageOutlinedIcon />}>
+                  {settings?.logoAvailable ? "Trocar logo" : "Enviar logo"}
+                  <input hidden type="file" accept="image/png,image/jpeg" onChange={(e) => void uploadLogo(e.target.files?.[0])} />
+                </Button>
+                {settings?.logoAvailable && (
+                  <Button variant="outlined" color="error" size="small" disabled={logoBusy} startIcon={<DeleteOutlineIcon />} onClick={() => void removeLogo()}>Remover</Button>
+                )}
+              </Stack>
+            </Box>
+          </Stack>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
           <FormControlLabel
             control={
               <Switch
@@ -318,6 +417,45 @@ export default function SettingsScreen({
           <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 6 } }}>
             Ativado: imprime duas etiquetas idênticas na mesma página, como hoje. Desativado: imprime somente uma etiqueta, mantendo exatamente o mesmo desenho e as mesmas dimensões da etiqueta.
           </Typography>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+            <PoolIcon color="primary" />
+            <Typography variant="h6">Carteirinha da piscina</Typography>
+          </Stack>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Defina o conteúdo, a validade e a cor utilizada no contorno e nas ondas da carteirinha. Cada mensagem pode ser exibida ou ocultada.
+          </Typography>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+            <TextField label="Cabeçalho" value={form.poolCardTitle ?? ""} onChange={(e) => setField("poolCardTitle", e.target.value)} helperText="Ex.: PISCINA" />
+            <TextField label="Descrição do cabeçalho" value={form.poolCardSubtitle ?? ""} onChange={(e) => setField("poolCardSubtitle", e.target.value)} helperText="Ex.: USO DA PISCINA" />
+            <TextField type="number" label="Validade da carteirinha (meses)" value={form.poolValidityMonths ?? 6} inputProps={{ min: 1, max: 60 }} onChange={(e) => setField("poolValidityMonths", Math.max(1, Number(e.target.value) || 1))} />
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Box component="input" type="color" value={form.poolCardColor || "#0B5C2B"} onChange={(e) => setField("poolCardColor", e.currentTarget.value)} sx={{ width: 54, height: 42, border: 0, p: 0, bgcolor: "transparent", cursor: "pointer" }} />
+              <TextField label="Cor da carteirinha" value={form.poolCardColor ?? ""} onChange={(e) => setField("poolCardColor", e.target.value)} fullWidth helperText="Cor do contorno e das ondas" />
+            </Stack>
+          </Box>
+
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <Box>
+              <FormControlLabel control={<Switch checked={form.poolShowOpeningHours !== false} onChange={(e) => setField("poolShowOpeningHours", e.target.checked)} />} label="Mostrar horário de funcionamento" />
+              <TextField multiline minRows={2} label="Horário de funcionamento" value={form.poolOpeningHours ?? ""} onChange={(e) => setField("poolOpeningHours", e.target.value)} fullWidth />
+            </Box>
+            <Box>
+              <FormControlLabel control={<Switch checked={form.poolShowClosedDays !== false} onChange={(e) => setField("poolShowClosedDays", e.target.checked)} />} label="Mostrar dias de não funcionamento" />
+              <TextField multiline minRows={2} label="Dias de não funcionamento / mensagem" value={form.poolClosedDaysMessage ?? ""} onChange={(e) => setField("poolClosedDaysMessage", e.target.value)} fullWidth />
+            </Box>
+            <Box>
+              <FormControlLabel control={<Switch checked={form.poolShowValidityMessage !== false} onChange={(e) => setField("poolShowValidityMessage", e.target.checked)} />} label="Mostrar mensagem de validade" />
+              <TextField multiline minRows={2} label="Mensagem de validade" value={form.poolValidityMessage ?? ""} onChange={(e) => setField("poolValidityMessage", e.target.value)} fullWidth />
+            </Box>
+            <Box>
+              <FormControlLabel control={<Switch checked={form.poolShowGeneralInfo !== false} onChange={(e) => setField("poolShowGeneralInfo", e.target.checked)} />} label="Mostrar informação geral" />
+              <TextField multiline minRows={2} label="Informação geral" value={form.poolGeneralInfo ?? ""} onChange={(e) => setField("poolGeneralInfo", e.target.value)} fullWidth />
+            </Box>
+            <TextField label="Informação adicional" value={form.poolAdditionalInfo ?? ""} onChange={(e) => setField("poolAdditionalInfo", e.target.value)} fullWidth helperText="Ex.: Administração" />
+          </Stack>
         </Paper>
 
         <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
@@ -394,6 +532,14 @@ export default function SettingsScreen({
             </Stack>
           </Stack>
         </Paper>
+
+        {(currentUser?.role ?? "").toUpperCase() === "ADMIN" && settings?.tenantId && settings?.condominiumId && (
+          <>
+            <Divider sx={{ my: 3 }} />
+            <Typography variant="h6" sx={{ mb: 1.5 }}>Estrutura do condomínio</Typography>
+            <UnitManagementPanel tenantId={settings.tenantId} condominiumId={settings.condominiumId} />
+          </>
+        )}
 
         <Divider sx={{ my: 3 }} />
         <Typography variant="h6" sx={{ mb: 1.5 }}>Acessos da equipe</Typography>

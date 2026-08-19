@@ -10,6 +10,7 @@ import {
   fetchRecentPackIds,
   fetchPackIdLabelPrintSettings,
   userFriendlyError,
+  condominiumLogoUrl,
 } from "./api";
 import type { ResidentSession, User } from "./api";
 
@@ -19,6 +20,7 @@ import LabelHistoryGrid, {
 import RegistryScreen from "./components/RegistryScreen";
 import SettingsScreen from "./components/SettingsScreen";
 import SpaceRequestNotifier from "./components/SpaceRequestNotifier";
+import PackagePickupNotifier from "./components/PackagePickupNotifier";
 import ResidentPortal from "./components/ResidentPortal";
 import CollaboratorLoginPage from "./components/CollaboratorLoginPage";
 import ResidentLoginPage from "./components/ResidentLoginPage";
@@ -46,7 +48,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 
 // ----- Tipos -----
-type ActiveView = "home" | "identifyPackage" | "registry" | "spaces" | "settings";
+type ActiveView = "home" | "identifyPackage" | "registry" | "spaces" | "poolCards" | "settings";
 type AccessRoute = "collaborator" | "resident";
 
 function condominiumAccessPath(segment: "colaborador" | "user"): string {
@@ -254,6 +256,7 @@ function printSingleLabel(
   const printedAt = new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
   }).format(now);
 
   const unit = splitUnit(apartment);
@@ -1007,6 +1010,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
   const packageCodeInputRef = useRef<HTMLInputElement | null>(null);
   const seqRef = useRef(0);
 
+
   useEffect(() => {
     let cancelled = false;
 
@@ -1179,6 +1183,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
         setPackageCode("");
         setApartment("");
         setSaveSuccess("Encomenda registrada com sucesso e etiqueta enviada para impressão.");
+        window.dispatchEvent(new Event("packid:registered"));
       })
       .catch((e: unknown) => {
         const msg =
@@ -1272,6 +1277,8 @@ function App() {
   const [residentSession, setResidentSession] = useState<ResidentSession | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [logoVersion, setLogoVersion] = useState(0);
+  const [logoVisible, setLogoVisible] = useState(true);
   const initialQueryParams = new URLSearchParams(globalThis.location.search);
   const initialView: ActiveView = initialQueryParams.get("view") === "settings" ? "settings" : "home";
   const [activeView, setActiveView] = useState<ActiveView>(initialView);
@@ -1284,6 +1291,15 @@ function App() {
   const [googleConnectionStatus, setGoogleConnectionStatus] = useState<
     "success" | "error" | null
   >(initialGoogleConnectionStatus);
+
+  useEffect(() => {
+    const update = () => {
+      setLogoVersion((version) => version + 1);
+      setLogoVisible(true);
+    };
+    window.addEventListener("condominium-logo-updated", update);
+    return () => window.removeEventListener("condominium-logo-updated", update);
+  }, []);
 
   useEffect(() => {
     const base = (import.meta.env.BASE_URL || "/condominio/").replace(/\/+$/, "").toLowerCase();
@@ -1386,8 +1402,16 @@ function App() {
       return <IdentifyPackageContainer />;
     }
 
+    if ((user.role || "").toUpperCase() === "POOL_ATTENDANT") {
+      return <RegistryScreen currentUser={user} initialNavigation="POOL_CARDS" />;
+    }
+
     if (activeView === "registry") {
       return <RegistryScreen currentUser={user} />;
+    }
+
+    if (activeView === "poolCards") {
+      return <RegistryScreen currentUser={user} initialNavigation="POOL_CARDS" />;
     }
 
     if (activeView === "spaces") {
@@ -1489,18 +1513,12 @@ function App() {
             </Box>
           </Box>
 
-          <Typography
-            component="div"
-            sx={{
-              px: { xs: 0.5, sm: 2 },
-              fontSize: { xs: "0.9rem", sm: "1.15rem" },
-              fontWeight: 600,
-              textAlign: "center",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {user?.tenantName?.trim() || "Gestão do condomínio"}
-          </Typography>
+          <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ px: { xs: .5, sm: 2 }, minWidth: 0 }}>
+            {user && logoVisible && <Box component="img" src={condominiumLogoUrl(logoVersion)} alt="Logo do condomínio" onLoad={() => setLogoVisible(true)} onError={() => setLogoVisible(false)} sx={{ width: { xs: 28, sm: 34 }, height: { xs: 28, sm: 34 }, objectFit: "contain", borderRadius: 1, flexShrink: 0 }} />}
+            <Typography component="div" sx={{ fontSize: { xs: "0.9rem", sm: "1.15rem" }, fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>
+              {user?.tenantName?.trim() || "Gestão do condomínio"}
+            </Typography>
+          </Stack>
 
           <Box sx={{ display: "flex", justifyContent: "flex-end", minWidth: 0 }}>
             {user && (
@@ -1525,6 +1543,7 @@ function App() {
           </Box>
 
           <List component="nav" aria-label="Opções do menu principal">
+            {(user?.role || "").toUpperCase() !== "POOL_ATTENDANT" && <>
             <ListItemButton onClick={() => setActiveView("home")}>
               <ListItemText primary={t("menu.home")} />
             </ListItemButton>
@@ -1542,6 +1561,10 @@ function App() {
                 <ListItemText primary={t("menu.settings")} />
               </ListItemButton>
             )}
+            </>}
+            {(user?.canViewPoolCards ?? ["ADMIN", "SECRETARY", "PORTER", "POOL_ATTENDANT"].includes((user?.role ?? "").toUpperCase())) && (
+              <ListItemButton onClick={() => setActiveView("poolCards")}><ListItemText primary="Carteirinhas de piscina" /></ListItemButton>
+            )}
           </List>
         </Box>
       </Drawer>
@@ -1550,6 +1573,7 @@ function App() {
         enabled={Boolean(user?.canOperateCondominium ?? (user && ["ADMIN", "SECRETARY", "PORTER"].includes((user.role ?? "").toUpperCase())))}
         onOpenSpaces={() => setActiveView("spaces")}
       />
+      <PackagePickupNotifier enabled={Boolean(user?.canOperateCondominium ?? (user && ["ADMIN", "SECRETARY", "PORTER"].includes((user.role ?? "").toUpperCase())))} />
 
       <Box sx={{ p: { xs: 1, sm: 2 }, flex: 1 }}>{renderContent()}</Box>
 

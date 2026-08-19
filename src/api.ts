@@ -8,6 +8,8 @@ export type User = {
   canManageSettings?: boolean;
   canManageProtectedRegistry?: boolean;
   canOperateCondominium?: boolean;
+  canViewPoolCards?: boolean;
+  canManagePoolCards?: boolean;
 };
 
 export function userFriendlyError(error: unknown, fallback: string): string {
@@ -142,6 +144,8 @@ export type PackIdRecentItem = {
   labelPackageCode?: string; // NOVO: o que foi digitado no front
   observations?: string;
   arrivedAt: string; // ISO
+  residentAcknowledgedAt?: string | null;
+  handedOverAt?: string | null;
   createdBy: string;
 };
 
@@ -215,6 +219,9 @@ export type RegistryEntry = {
   documentPhotoAvailable?: boolean;
   documentPhotoOwnedByCurrentUser?: boolean;
   documentPhotoFileName?: string | null;
+  poolCardAvailable?: boolean;
+  poolCardValid?: boolean;
+  poolCardValidUntil?: string | null;
   active: boolean;
   createdAt: string;
   updatedAt?: string | null;
@@ -417,6 +424,8 @@ export type UnitRegistrySummary = {
   serviceRecords: ServiceRecord[];
   packIds: PackIdRecentItem[];
   spaceAccesses: SpaceAccess[];
+  poolCards: PoolCard[];
+  poolCardSettings: PoolCardSettings;
 };
 
 export async function createVisitorVisit(
@@ -706,7 +715,7 @@ export async function completeSpaceAccess(id: string): Promise<SpaceAccess> {
   return resp.json();
 }
 
-export type AppUserRole = "ADMIN" | "SECRETARY" | "PORTER";
+export type AppUserRole = "ADMIN" | "SECRETARY" | "PORTER" | "POOL_ATTENDANT";
 export type AppUserManagement = {
   id: string;
   tenantId: string;
@@ -801,6 +810,8 @@ export type ResidentPortalData = {
   serviceRecords: ServiceRecord[];
   packIds: PackIdRecentItem[];
   spaceAccesses: SpaceAccess[];
+  poolCards: PoolCard[];
+  poolCardSettings: PoolCardSettings;
 };
 
 export async function residentLogin(payload: ResidentLoginPayload): Promise<ResidentSession> {
@@ -963,12 +974,27 @@ export type CondominiumSettings = {
   emailNotificationsEnabled: boolean;
   residentCredentialEmailsEnabled: boolean;
   packIdPrintTwoLabels: boolean;
+  logoAvailable: boolean;
+  logoFileName?: string | null;
+  poolCardTitle: string;
+  poolCardSubtitle: string;
+  poolOpeningHours?: string | null;
+  poolShowOpeningHours: boolean;
+  poolClosedDaysMessage?: string | null;
+  poolShowClosedDays: boolean;
+  poolValidityMonths: number;
+  poolValidityMessage?: string | null;
+  poolShowValidityMessage: boolean;
+  poolGeneralInfo?: string | null;
+  poolShowGeneralInfo: boolean;
+  poolAdditionalInfo?: string | null;
+  poolCardColor: string;
   googleAccount: GoogleAccountSettings;
 };
 
 export type CondominiumSettingsPayload = Omit<
   CondominiumSettings,
-  "tenantId" | "tenantSlug" | "condominiumId" | "googleAccount"
+  "tenantId" | "tenantSlug" | "condominiumId" | "googleAccount" | "logoAvailable" | "logoFileName"
 >;
 
 export async function fetchCondominiumSettings(): Promise<CondominiumSettings> {
@@ -1024,4 +1050,185 @@ export async function disconnectOfficialGoogleAccount(): Promise<CondominiumSett
 
 export function getGoogleAccountAuthorizeUrl(): string {
   return `${API_URL}/api/settings/google-account/authorize`;
+}
+
+export type ResidentialUnit = {
+  id: string;
+  tenantId: string;
+  condominiumId: string;
+  code: string;
+  name: string;
+  block: string;
+  apartment: string;
+  active: boolean;
+};
+
+export type ResidentialUnitPayload = {
+  tenantId?: string | null;
+  condominiumId?: string | null;
+  code?: string | null;
+  name?: string | null;
+  block: string;
+  apartment: string;
+  active?: boolean;
+};
+
+export async function fetchResidentialUnits(): Promise<ResidentialUnit[]> {
+  const resp = await fetch(`${API_URL}/api/residential-units`, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function createResidentialUnit(payload: ResidentialUnitPayload): Promise<ResidentialUnit> {
+  const resp = await fetch(`${API_URL}/api/residential-units`, {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function updateResidentialUnit(id: string, payload: ResidentialUnitPayload): Promise<ResidentialUnit> {
+  const resp = await fetch(`${API_URL}/api/residential-units/${id}`, {
+    method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function deleteResidentialUnit(id: string): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/residential-units/${id}`, { method: "DELETE", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+}
+
+export type PoolCardSettings = {
+  condominiumName: string;
+  logoAvailable: boolean;
+  title: string;
+  subtitle: string;
+  openingHours?: string | null;
+  showOpeningHours: boolean;
+  closedDaysMessage?: string | null;
+  showClosedDays: boolean;
+  validityMonths: number;
+  validityMessage?: string | null;
+  showValidityMessage: boolean;
+  generalInfo?: string | null;
+  showGeneralInfo: boolean;
+  additionalInfo?: string | null;
+  color: string;
+};
+
+export type PoolCard = {
+  id: string;
+  residentRegistryEntryId: string;
+  residentName: string;
+  block?: string | null;
+  apartment?: string | null;
+  issueDate: string;
+  validityMonths: number;
+  validUntil: string;
+  underTen: boolean;
+  valid: boolean;
+  medicalReportAvailable: boolean;
+  medicalReportFileName?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+};
+
+export type PoolCardPayload = {
+  residentRegistryEntryId: string;
+  issueDate: string;
+  underTen: boolean;
+};
+
+export async function fetchPoolCards(search?: string): Promise<PoolCard[]> {
+  const params = new URLSearchParams();
+  if (search?.trim()) params.set("search", search.trim());
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const resp = await fetch(`${API_URL}/api/pool-cards${suffix}`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchPoolCardSettings(): Promise<PoolCardSettings> {
+  const resp = await fetch(`${API_URL}/api/pool-cards/settings`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function createPoolCard(payload: PoolCardPayload): Promise<PoolCard> {
+  const resp = await fetch(`${API_URL}/api/pool-cards`, {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function updatePoolCard(id: string, payload: PoolCardPayload): Promise<PoolCard> {
+  const resp = await fetch(`${API_URL}/api/pool-cards/${id}`, {
+    method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function deletePoolCard(id: string): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/pool-cards/${id}`, { method: "DELETE", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+}
+
+export async function uploadPoolCardMedicalReport(id: string, file: File): Promise<PoolCard> {
+  const body = new FormData();
+  body.append("file", file);
+  const resp = await fetch(`${API_URL}/api/pool-cards/${id}/medical-report`, { method: "PUT", credentials: "include", body });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export function poolCardMedicalReportUrl(id: string): string { return `${API_URL}/api/pool-cards/${id}/medical-report`; }
+export function poolCardPdfUrl(id: string): string { return `${API_URL}/api/pool-cards/${id}/pdf`; }
+export function residentPoolCardPdfUrl(id: string): string { return `${API_URL}/api/resident/pool-cards/${id}/pdf`; }
+export function condominiumLogoUrl(version?: string | number): string {
+  return `${API_URL}/api/branding/logo${version !== undefined ? `?v=${encodeURIComponent(String(version))}` : ""}`;
+}
+export function residentCondominiumLogoUrl(version?: string | number): string {
+  return `${API_URL}/api/resident/branding/logo${version !== undefined ? `?v=${encodeURIComponent(String(version))}` : ""}`;
+}
+
+export async function uploadCondominiumLogo(file: File): Promise<CondominiumSettings> {
+  const body = new FormData(); body.append("file", file);
+  const resp = await fetch(`${API_URL}/api/branding/logo`, { method: "PUT", credentials: "include", body });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+export async function deleteCondominiumLogo(): Promise<CondominiumSettings> {
+  const resp = await fetch(`${API_URL}/api/branding/logo`, { method: "DELETE", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export type PackIdPickupRequest = {
+  id: string;
+  block?: string | null;
+  apartment?: string | null;
+  residentFullName?: string | null;
+  packageCode?: string | null;
+  arrivedAt: string;
+  requestedAt: string;
+};
+
+export async function fetchPendingPackagePickups(): Promise<PackIdPickupRequest[]> {
+  const resp = await fetch(`${API_URL}/api/pack-ids/pickup-requests`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+export async function handOverPackage(id: string): Promise<PackIdRecentItem> {
+  const resp = await fetch(`${API_URL}/api/pack-ids/${id}/hand-over`, { method: "POST", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+export async function requestResidentPackagePickup(id: string): Promise<PackIdRecentItem> {
+  const resp = await fetch(`${API_URL}/api/resident/packages/${id}/request-pickup`, { method: "POST", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
 }
