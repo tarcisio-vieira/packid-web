@@ -79,10 +79,6 @@ import {
   fetchUnitRegistrySummary,
   fetchResidentialUnits,
   fetchVisitorVisits,
-  fetchPoolCard,
-  fetchPoolCardSettings,
-  condominiumLogoUrl,
-  poolCardPdfUrl,
   startApartmentOccupancy,
   endApartmentOccupancy,
   exportRegistryExcel,
@@ -98,8 +94,6 @@ import {
 import ServiceCompanyPanel from "./ServiceCompanyPanel";
 import SpacesScreen from "./SpacesScreen";
 import PoolCardsScreen from "./PoolCardsScreen";
-import PoolCardLandscapeViewer from "./PoolCardLandscapeViewer";
-import PoolCardStatusIcon, { poolCardStatusLabel } from "./PoolCardStatusIcon";
 import { confirmDialog } from "../utils/confirmDialog";
 import type {
   ApartmentOccupancy,
@@ -116,8 +110,6 @@ import type {
   SpaceAccess,
   User,
   ResidentialUnit,
-  PoolCard,
-  PoolCardSettings,
 } from "../api";
 
 const TYPES: Array<{ type: RegistryEntryType; label: string }> = [
@@ -388,8 +380,7 @@ function RegistryGroup({
   rows,
   icon,
   iconColor,
-  onOpenPoolCard,
-}: Readonly<{ title: string; rows: RegistryEntry[]; icon: ReactNode; iconColor: string; onOpenPoolCard?: (row: RegistryEntry) => void }>) {
+}: Readonly<{ title: string; rows: RegistryEntry[]; icon: ReactNode; iconColor: string }>) {
   return (
     <Accordion variant="outlined" disableGutters sx={{ borderRadius: "8px !important", overflow: "hidden" }}>
       <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
@@ -404,13 +395,7 @@ function RegistryGroup({
             {rows.map(row => <Stack key={row.id} direction="row" spacing={1.5} alignItems="center">
               <Avatar src={row.photoAvailable && row.photoOwnedByCurrentUser ? registryEntryPhotoUrl(row.id, row.updatedAt ?? row.createdAt) : undefined} sx={{ width: 36, height: 36 }}>{row.name?.charAt(0)?.toUpperCase()}</Avatar>
               <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Stack direction="row" spacing={.7} alignItems="center" flexWrap="wrap" useFlexGap>
-                  <Typography variant="body2" fontWeight={600}>{row.name}</Typography>
-                  {row.entryType === "RESIDENT" && row.poolCardAvailable && <PoolCardStatusIcon status={row.poolCardReviewStatus} valid={row.poolCardValid} validUntil={row.poolCardValidUntil} />}
-                  {row.entryType === "RESIDENT" && row.poolCardAvailable && row.poolCardId && onOpenPoolCard && (
-                    <Tooltip title="Abrir carteirinha de piscina"><IconButton size="small" sx={{ p: .25 }} onClick={e => { e.stopPropagation(); onOpenPoolCard(row); }}><PoolOutlinedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
-                  )}
-                </Stack>
+                <Typography variant="body2" fontWeight={600}>{row.name}</Typography>
                 <Typography variant="caption" sx={{ opacity: .7 }}>{[identifierLabel(row), detailsLabel(row)].filter(v => v !== "-").join(" • ") || "Sem detalhes"}</Typography>
               </Box>
             </Stack>)}
@@ -512,8 +497,6 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
   const [unitLoading, setUnitLoading] = useState(false);
   const [unitSummary, setUnitSummary] = useState<UnitRegistrySummary | null>(null);
-  const [unitPoolCard, setUnitPoolCard] = useState<PoolCard | null>(null);
-  const [unitPoolCardSettings, setUnitPoolCardSettings] = useState<PoolCardSettings | null>(null);
   const [occupancyDialogOpen, setOccupancyDialogOpen] = useState(false);
   const [occupancyAction, setOccupancyAction] = useState<"start" | "end">("start");
   const [occupancyDate, setOccupancyDate] = useState(localDateToday());
@@ -539,14 +522,6 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const [serviceForm, setServiceForm] = useState<ServiceForm>(emptyServiceForm());
   const [condominiumServiceDialogOpen, setCondominiumServiceDialogOpen] = useState(false);
   const [condominiumServiceHistory, setCondominiumServiceHistory] = useState<ServiceRecord[]>([]);
-
-  const openUnitPoolCard = async (row: RegistryEntry) => {
-    if (!row.poolCardId) return;
-    try {
-      const [card, config] = await Promise.all([fetchPoolCard(row.poolCardId), fetchPoolCardSettings()]);
-      setUnitPoolCard(card); setUnitPoolCardSettings(config);
-    } catch (e) { setError(userFriendlyError(e, "Não foi possível abrir a carteirinha.")); }
-  };
 
   const loadServiceCompanies = async () => {
     try {
@@ -1389,8 +1364,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
             borderColor: "divider",
           }}
         >
-          <Tooltip title="Atalhos: ← pesquisa da gestão · ↑ condôminos · ↓ prestadores de serviço" arrow placement="top">
-            <Tabs
+          <Tabs
           value={poolMode ? "POOL_CARDS" : leisureMode ? "LEISURE_AREA" : companyMode ? "SERVICE_COMPANY" : type}
           onChange={(_, value: RegistryNavigationValue) => {
             setSearch("");
@@ -1472,8 +1446,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
               }}
             />
           ))}
-            </Tabs>
-          </Tooltip>
+          </Tabs>
 
         </Box>
 
@@ -1667,18 +1640,12 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                     <Typography variant="subtitle1" fontWeight={700}>
                       Visualização do registro selecionado
                     </Typography>
-                    {selectedRow.entryType === "RESIDENT" && selectedRow.poolCardAvailable && (
-                      <>
-                        <PoolCardStatusIcon status={selectedRow.poolCardReviewStatus} valid={selectedRow.poolCardValid} validUntil={selectedRow.poolCardValidUntil} />
-                        {selectedRow.poolCardId && <Tooltip title="Abrir carteirinha de piscina"><IconButton size="small" onClick={() => void openUnitPoolCard(selectedRow)}><PoolOutlinedIcon sx={{ fontSize: 19 }} /></IconButton></Tooltip>}
-                      </>
-                    )}
                   </Stack>
                   <Box
                     sx={{
                       mt: 1,
                       display: "grid",
-                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" },
+                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
                       gap: 1.5,
                     }}
                   >
@@ -1693,8 +1660,6 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                       <>
                         <FieldCard label="Proprietário" value={selectedRow.unitOwner ? "Sim" : "Não"} />
                         <FieldCard label="Telefone" value={selectedRow.phone} />
-                        <FieldCard label="Carteirinha piscina" value={selectedRow.poolCardAvailable ? poolCardStatusLabel(selectedRow.poolCardReviewStatus, selectedRow.poolCardValid, selectedRow.poolCardValidUntil) : "Não cadastrada"} />
-                        <FieldCard label="Validade piscina" value={selectedRow.poolCardValidUntil ? new Date(`${selectedRow.poolCardValidUntil}T12:00:00`).toLocaleDateString("pt-BR") : "—"} />
                       </>
                     ) : (
                       <>
@@ -1942,15 +1907,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                     </Avatar>
                   </TableCell>
                   <TableCell>
-                    <Stack direction="row" spacing={0.6} alignItems="center">
-                      <Typography variant="body2" fontWeight={600}>{row.name}</Typography>
-                      {row.entryType === "RESIDENT" && row.poolCardAvailable && (
-                        <>
-                          <PoolCardStatusIcon status={row.poolCardReviewStatus} valid={row.poolCardValid} validUntil={row.poolCardValidUntil} size={17} />
-                          {row.poolCardId && <Tooltip title="Abrir carteirinha de piscina"><IconButton size="small" sx={{ p: 0.2 }} onClick={() => void openUnitPoolCard(row)} aria-label={`Abrir carteirinha de ${row.name}`}><PoolOutlinedIcon sx={{ fontSize: 17 }} /></IconButton></Tooltip>}
-                        </>
-                      )}
-                    </Stack>
+                    <Typography variant="body2" fontWeight={600}>{row.name}</Typography>
                     {row.ownerName && row.entryType !== "PET" && (
                       <Typography variant="caption" sx={{ opacity: 0.7 }}>
                         Responsável: {row.ownerName}
@@ -2664,7 +2621,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
               </Typography>
 
               <Stack spacing={1}>
-                <RegistryGroup title="Condôminos" rows={unitSummary.residents} icon={<PeopleAltOutlinedIcon />} iconColor="#1976d2" onOpenPoolCard={row => void openUnitPoolCard(row)} />
+                <RegistryGroup title="Condôminos" rows={unitSummary.residents} icon={<PeopleAltOutlinedIcon />} iconColor="#1976d2" />
                 <RegistryGroup title="Veículos" rows={unitSummary.vehicles} icon={<DirectionsCarOutlinedIcon />} iconColor="#3949ab" />
                 <RegistryGroup title="Pets" rows={unitSummary.pets} icon={<PetsOutlinedIcon />} iconColor="#d81b60" />
                 <RegistryGroup title="Bicicletas" rows={unitSummary.bicycles} icon={<PedalBikeOutlinedIcon />} iconColor="#0288d1" />
@@ -2679,17 +2636,6 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setUnitDialogOpen(false)}>Fechar</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={Boolean(unitPoolCard)} onClose={() => setUnitPoolCard(null)} fullWidth maxWidth="md" fullScreen={mobile}>
-        <DialogTitle>Carteirinha de Piscina</DialogTitle>
-        <DialogContent sx={{ overflow: "hidden", px: mobile ? 0.5 : 3, py: mobile ? 0.5 : 2 }}>
-          {unitPoolCard && unitPoolCardSettings && <PoolCardLandscapeViewer card={unitPoolCard} settings={unitPoolCardSettings} logoUrl={unitPoolCardSettings.logoAvailable ? condominiumLogoUrl(Date.now()) : undefined} />}
-        </DialogContent>
-        <DialogActions>
-          {unitPoolCard?.reviewStatus === "APPROVED" && unitPoolCard.valid && <Button component="a" href={poolCardPdfUrl(unitPoolCard.id)}>Exportar PDF</Button>}
-          <Button onClick={() => setUnitPoolCard(null)}>Fechar</Button>
         </DialogActions>
       </Dialog>
 

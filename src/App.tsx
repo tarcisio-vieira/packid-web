@@ -38,7 +38,9 @@ import {
   Drawer,
   List,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
+  Divider,
   Container,
   Paper,
   Snackbar,
@@ -48,6 +50,14 @@ import {
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
+import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
+import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
+import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
+import DomainRoundedIcon from "@mui/icons-material/DomainRounded";
+import PoolRoundedIcon from "@mui/icons-material/PoolRounded";
+import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 
 // ----- Tipos -----
 type ActiveView = "home" | "identifyPackage" | "registry" | "spaces" | "poolCards" | "settings";
@@ -1491,40 +1501,91 @@ function App() {
     >
       <AppBar position="static" color="default" elevation={1}>
         <Toolbar
+          disableGutters
           sx={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
+            display: "flex",
             alignItems: "center",
-            minHeight: { xs: 56, sm: 64 },
+            minHeight: { xs: "52px !important", sm: "56px !important" },
+            px: { xs: 1, sm: 2 },
+            gap: { xs: 0.5, sm: 1 },
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", minWidth: 0 }}>
+          <Box sx={{ display: "flex", alignItems: "center", minWidth: 0, flex: 1 }}>
             {user && (
               <IconButton
                 edge="start"
                 color="inherit"
                 aria-label="Abrir menu"
                 onClick={toggleDrawer(true)}
-                sx={{ mr: { xs: 0.25, sm: 0.75 } }}
+                size="small"
+                sx={{ mr: { xs: 0.35, sm: 0.75 }, flexShrink: 0 }}
               >
-                <MenuIcon />
+                <MenuIcon sx={{ fontSize: 21 }} />
               </IconButton>
             )}
 
+            <Stack
+              direction="row"
+              spacing={0.7}
+              alignItems="center"
+              sx={{ minWidth: 0, overflow: "hidden" }}
+            >
+              {user && logoVisible && (
+                <Box
+                  component="img"
+                  src={condominiumLogoUrl(logoVersion)}
+                  alt="Logo do condomínio"
+                  onLoad={() => setLogoVisible(true)}
+                  onError={() => setLogoVisible(false)}
+                  sx={{
+                    width: { xs: 27, sm: 30 },
+                    height: { xs: 27, sm: 30 },
+                    objectFit: "contain",
+                    borderRadius: 1,
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              <Typography
+                component="div"
+                title={user?.tenantName?.trim() || "Gestão do condomínio"}
+                sx={{
+                  fontSize: { xs: "0.84rem", sm: "1.02rem" },
+                  fontWeight: 650,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: { xs: "58vw", sm: "62vw" },
+                }}
+              >
+                {user?.tenantName?.trim() || "Gestão do condomínio"}
+              </Typography>
+            </Stack>
+          </Box>
+
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: { xs: 0.2, sm: 0.55 },
+              flexShrink: 0,
+            }}
+          >
             <Box
               sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 0.75,
-                minWidth: 0,
+                gap: 0.5,
+                mr: { xs: 0.15, sm: 0.35 },
               }}
             >
               <Box
                 sx={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 1.5,
-                  display: { xs: "none", sm: "inline-flex" },
+                  width: 25,
+                  height: 25,
+                  borderRadius: 1.15,
+                  display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
                   bgcolor: "text.primary",
@@ -1532,12 +1593,13 @@ function App() {
                   flexShrink: 0,
                 }}
               >
-                <ApartmentRoundedIcon sx={{ fontSize: 20 }} />
+                <ApartmentRoundedIcon sx={{ fontSize: 17 }} />
               </Box>
               <Typography
                 component="div"
                 sx={{
-                  fontSize: { xs: "0.95rem", sm: "1.05rem" },
+                  display: "block",
+                  fontSize: { xs: "0.72rem", sm: "0.82rem" },
                   fontWeight: 800,
                   letterSpacing: "0.12em",
                   lineHeight: 1,
@@ -1547,62 +1609,232 @@ function App() {
                 VSGI
               </Typography>
             </Box>
-          </Box>
 
-          <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ px: { xs: .5, sm: 2 }, minWidth: 0 }}>
-            {user && logoVisible && <Box component="img" src={condominiumLogoUrl(logoVersion)} alt="Logo do condomínio" onLoad={() => setLogoVisible(true)} onError={() => setLogoVisible(false)} sx={{ width: { xs: 28, sm: 34 }, height: { xs: 28, sm: 34 }, objectFit: "contain", borderRadius: 1, flexShrink: 0 }} />}
-            <Typography component="div" sx={{ fontSize: { xs: "0.9rem", sm: "1.15rem" }, fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>
-              {user?.tenantName?.trim() || "Gestão do condomínio"}
-            </Typography>
-          </Stack>
-
-          <Box sx={{ display: "flex", justifyContent: "flex-end", minWidth: 0 }}>
             {user && (
-              <Button color="inherit" onClick={handleLogout} sx={{ minWidth: "auto", px: { xs: 0.75, sm: 1.5 } }}>
-                {t("header.signOut")}
-              </Button>
+              <Tooltip title={t("header.signOut")} arrow>
+                <IconButton
+                  color="inherit"
+                  onClick={handleLogout}
+                  aria-label={t("header.signOut")}
+                  size="small"
+                  sx={{ width: 34, height: 34 }}
+                >
+                  <LogoutRoundedIcon sx={{ fontSize: 20 }} />
+                </IconButton>
+              </Tooltip>
             )}
           </Box>
         </Toolbar>
       </AppBar>
 
-      <Drawer anchor="left" open={drawerOpen} onClose={toggleDrawer(false)}>
+      <Drawer
+        anchor="left"
+        open={drawerOpen}
+        onClose={toggleDrawer(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              width: { xs: 286, sm: 300 },
+              maxWidth: "88vw",
+              boxSizing: "border-box",
+              borderRight: "1px solid",
+              borderColor: "divider",
+              boxShadow: "8px 0 28px rgba(0, 0, 0, 0.12)",
+              bgcolor: "background.paper",
+            },
+          },
+        }}
+      >
         <Box
-          sx={{ width: 260 }}
           component="nav"
           aria-label="Navegação principal"
-          onClick={toggleDrawer(false)}
-          onKeyDown={toggleDrawer(false)}
+          sx={{ height: "100%", display: "flex", flexDirection: "column" }}
         >
-          <Box sx={{ p: 2 }}>
-            <Typography variant="h6">{t("menu.main")}</Typography>
+          <Box sx={{ px: 2, pt: 1.75, pb: 1.5 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  variant="overline"
+                  sx={{
+                    display: "block",
+                    fontSize: "0.66rem",
+                    lineHeight: 1.2,
+                    fontWeight: 800,
+                    letterSpacing: "0.12em",
+                    color: "primary.main",
+                  }}
+                >
+                  VSGI CONDOMÍNIO
+                </Typography>
+                <Typography sx={{ mt: 0.25, fontSize: "1.18rem", fontWeight: 750, lineHeight: 1.3 }}>
+                  {t("menu.main")}
+                </Typography>
+              </Box>
+
+              <Tooltip title="Fechar menu" arrow>
+                <IconButton
+                  size="small"
+                  onClick={toggleDrawer(false)}
+                  aria-label="Fechar menu"
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: "action.hover",
+                  }}
+                >
+                  <CloseRoundedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+
+            <Typography
+              variant="caption"
+              title={user?.tenantName?.trim() || "Gestão do condomínio"}
+              sx={{
+                display: "block",
+                mt: 1,
+                color: "text.secondary",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {user?.tenantName?.trim() || "Gestão do condomínio"}
+            </Typography>
           </Box>
 
-          <List component="nav" aria-label="Opções do menu principal">
+          <Divider />
+
+          <List
+            component="nav"
+            aria-label="Opções do menu principal"
+            sx={{ px: 1.25, py: 1.25, flex: 1 }}
+          >
             {(user?.role || "").toUpperCase() !== "POOL_ATTENDANT" && <>
-            <ListItemButton onClick={() => setActiveView("home")}>
-              <ListItemText primary={t("menu.home")} />
-            </ListItemButton>
+              <ListItemButton
+                selected={activeView === "home"}
+                onClick={() => { setActiveView("home"); setDrawerOpen(false); }}
+                sx={{
+                  minHeight: 48,
+                  mb: 0.5,
+                  px: 1.25,
+                  borderRadius: 2,
+                  "&.Mui-selected": { bgcolor: "action.selected" },
+                  "&.Mui-selected:hover": { bgcolor: "action.selected" },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 40, color: activeView === "home" ? "primary.main" : "text.secondary" }}>
+                  <HomeRoundedIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary={t("menu.home")}
+                  primaryTypographyProps={{ fontWeight: activeView === "home" ? 700 : 500 }}
+                />
+                {activeView === "home" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
+              </ListItemButton>
 
-            <ListItemButton onClick={() => setActiveView("identifyPackage")}>
-              <ListItemText primary={t("menu.identifyPackage")} />
-            </ListItemButton>
+              <ListItemButton
+                selected={activeView === "identifyPackage"}
+                onClick={() => { setActiveView("identifyPackage"); setDrawerOpen(false); }}
+                sx={{
+                  minHeight: 48,
+                  mb: 0.5,
+                  px: 1.25,
+                  borderRadius: 2,
+                  "&.Mui-selected": { bgcolor: "action.selected" },
+                  "&.Mui-selected:hover": { bgcolor: "action.selected" },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 40, color: activeView === "identifyPackage" ? "primary.main" : "text.secondary" }}>
+                  <Inventory2RoundedIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary={t("menu.identifyPackage")}
+                  primaryTypographyProps={{ fontWeight: activeView === "identifyPackage" ? 700 : 500 }}
+                />
+                {activeView === "identifyPackage" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
+              </ListItemButton>
 
-            <ListItemButton onClick={() => setActiveView("registry")}>
-              <ListItemText primary={t("menu.registry")} />
-            </ListItemButton>
-
+              <ListItemButton
+                selected={activeView === "registry"}
+                onClick={() => { setActiveView("registry"); setDrawerOpen(false); }}
+                sx={{
+                  minHeight: 48,
+                  mb: 0.5,
+                  px: 1.25,
+                  borderRadius: 2,
+                  "&.Mui-selected": { bgcolor: "action.selected" },
+                  "&.Mui-selected:hover": { bgcolor: "action.selected" },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 40, color: activeView === "registry" ? "primary.main" : "text.secondary" }}>
+                  <DomainRoundedIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary={t("menu.registry")}
+                  primaryTypographyProps={{ fontWeight: activeView === "registry" ? 700 : 500 }}
+                />
+                {activeView === "registry" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
+              </ListItemButton>
             </>}
+
             {(user?.canViewPoolCards ?? ["ADMIN", "SECRETARY", "PORTER", "POOL_ATTENDANT"].includes((user?.role ?? "").toUpperCase())) && (
-              <ListItemButton onClick={() => setActiveView("poolCards")}><ListItemText primary="Carteirinhas de piscina" /></ListItemButton>
+              <ListItemButton
+                selected={activeView === "poolCards"}
+                onClick={() => { setActiveView("poolCards"); setDrawerOpen(false); }}
+                sx={{
+                  minHeight: 48,
+                  mb: 0.5,
+                  px: 1.25,
+                  borderRadius: 2,
+                  "&.Mui-selected": { bgcolor: "action.selected" },
+                  "&.Mui-selected:hover": { bgcolor: "action.selected" },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 40, color: activeView === "poolCards" ? "primary.main" : "text.secondary" }}>
+                  <PoolRoundedIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Carteirinhas de piscina"
+                  primaryTypographyProps={{ fontWeight: activeView === "poolCards" ? 700 : 500 }}
+                />
+                {activeView === "poolCards" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
+              </ListItemButton>
             )}
+
             {(user?.role || "").toUpperCase() !== "POOL_ATTENDANT" &&
               (user?.canManageSettings ?? ["ADMIN", "SECRETARY"].includes((user?.role ?? "").toUpperCase())) && (
-              <ListItemButton onClick={() => setActiveView("settings")}>
-                <ListItemText primary={t("menu.settings")} />
+              <ListItemButton
+                selected={activeView === "settings"}
+                onClick={() => { setActiveView("settings"); setDrawerOpen(false); }}
+                sx={{
+                  minHeight: 48,
+                  mt: 0.5,
+                  px: 1.25,
+                  borderRadius: 2,
+                  "&.Mui-selected": { bgcolor: "action.selected" },
+                  "&.Mui-selected:hover": { bgcolor: "action.selected" },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 40, color: activeView === "settings" ? "primary.main" : "text.secondary" }}>
+                  <SettingsRoundedIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary={t("menu.settings")}
+                  primaryTypographyProps={{ fontWeight: activeView === "settings" ? 700 : 500 }}
+                />
+                {activeView === "settings" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
               </ListItemButton>
             )}
           </List>
+
+          <Box sx={{ px: 2, py: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              Acesso de colaboradores
+            </Typography>
+          </Box>
         </Box>
       </Drawer>
 

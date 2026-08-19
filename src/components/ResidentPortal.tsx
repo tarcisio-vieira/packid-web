@@ -855,9 +855,9 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
         </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(poolCardOpen)} onClose={() => setPoolCardOpen(null)} fullWidth maxWidth="md" fullScreen={mobile}>
+      <Dialog open={Boolean(poolCardOpen)} onClose={() => setPoolCardOpen(null)} fullWidth maxWidth="lg" fullScreen={mobile}>
         <DialogTitle>Carteirinha de Piscina</DialogTitle>
-        <DialogContent sx={mobile ? { px: 0.5, py: 0.5, overflow: "hidden" } : undefined}>
+        <DialogContent sx={mobile ? { px: 0.5, py: 0.5, overflow: "hidden" } : { px: 3, py: 2, overflow: "hidden", display: "flex", justifyContent: "center" }}>
           {poolCardOpen && data?.poolCardSettings && (
             <PoolCardLandscapeViewer
               card={poolCardOpen}

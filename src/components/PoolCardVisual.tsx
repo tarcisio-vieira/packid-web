@@ -36,7 +36,7 @@ export default function PoolCardVisual({ card, settings, logoUrl }: Readonly<{ c
   const issue = card.issueDate ? new Date(`${card.issueDate}T12:00:00`).toLocaleDateString("pt-BR") : "";
   const valid = card.validUntil ? new Date(`${card.validUntil}T12:00:00`).toLocaleDateString("pt-BR") : "";
   return (
-    <Box sx={{ width: "100%", maxWidth: 900, aspectRatio: "1.58 / 1", mx: "auto", position: "relative", overflow: "hidden", border: `3px solid ${color}`, borderRadius: 4, bgcolor: "white", boxShadow: 2, p: "clamp(10px, 2.6vw, 24px)" }}>
+    <Box sx={{ width: "100%", maxWidth: 900, aspectRatio: "1.58 / 1", boxSizing: "border-box", mx: "auto", position: "relative", overflow: "hidden", border: `3px solid ${color}`, borderRadius: 4, bgcolor: "white", boxShadow: 2, p: "clamp(10px, 2.6vw, 24px)" }}>
       <Box sx={{ position: "absolute", left: -80, right: -30, bottom: -90, height: "31%", bgcolor: color, borderRadius: "55% 48% 0 0 / 45% 45% 0 0", transform: "rotate(3deg)", zIndex: 0 }} />
       <Box sx={{ position: "absolute", left: -70, right: 100, bottom: -52, height: "25%", bgcolor: color, opacity: .72, borderRadius: "55% 50% 0 0 / 50% 50% 0 0", transform: "rotate(8deg)", zIndex: 0 }} />
       <Box sx={{ position: "absolute", right: "2%", top: "2%", zIndex: 3 }}>
@@ -71,7 +71,7 @@ export default function PoolCardVisual({ card, settings, logoUrl }: Readonly<{ c
             {settings.showValidityMessage && <InfoRow icon={<AssignmentOutlinedIcon sx={{ color }} />} text={settings.validityMessage} />}
           </Stack>
           {settings.showGeneralInfo && settings.generalInfo && <Typography sx={{ borderTop: "1px dashed #888", mt: 1, pt: .6, fontSize: "clamp(7px, 1.15vw, 11px)", lineHeight: 1.2 }}>{settings.generalInfo}</Typography>}
-          {settings.additionalInfo && <Typography align="right" noWrap sx={{ mt: .5, fontSize: "clamp(7px, 1.15vw, 11px)" }}>{settings.additionalInfo}</Typography>}
+          {settings.additionalInfo && <Typography align="right" sx={{ mt: .5, fontSize: "clamp(7px, 1.15vw, 11px)", lineHeight: 1.2, overflowWrap: "anywhere" }}>{settings.additionalInfo}</Typography>}
         </Box>
       </Box>
       <PoolOutlinedIcon sx={{ position: "absolute", zIndex: 2, left: "6%", bottom: "2.5%", fontSize: "clamp(35px, 8vw, 75px)", color: "white" }} />

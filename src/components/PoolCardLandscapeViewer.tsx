@@ -20,8 +20,9 @@ export default function PoolCardLandscapeViewer({ card, settings, logoUrl }: Rea
         display: "grid",
         placeItems: "center",
         overflow: "hidden",
-        px: rotate ? 0 : 1,
-        py: rotate ? 0 : 1,
+        px: rotate ? 0 : 0.5,
+        py: rotate ? 0 : 0.5,
+        boxSizing: "border-box",
       }}
     >
       <Box
@@ -32,8 +33,9 @@ export default function PoolCardLandscapeViewer({ card, settings, logoUrl }: Rea
           transformOrigin: "center center",
           flexShrink: 0,
         } : {
-          width: "min(900px, calc(100vw - 32px))",
-          maxWidth: "100%",
+          width: "100%",
+          maxWidth: 900,
+          boxSizing: "border-box",
         }}
       >
         <PoolCardVisual card={card} settings={settings} logoUrl={logoUrl} />
