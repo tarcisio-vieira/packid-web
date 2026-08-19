@@ -963,23 +963,44 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
 
   useEffect(() => {
     let cancelled = false;
-    let timer: number | undefined;
+
     const loadExtras = async () => {
       if (!selectedRow || selectedRow.entryType !== "RESIDENT" || !selectedRow.block || !selectedRow.apartment) {
-        setSelectedResidentVehicles([]); setSelectedResidentPackages([]); setSelectedResidentVehiclesLoading(false); return;
+        setSelectedResidentVehicles([]);
+        setSelectedResidentPackages([]);
+        setSelectedResidentVehiclesLoading(false);
+        return;
       }
+
       setSelectedResidentVehiclesLoading(true);
       try {
-        const summary = await fetchUnitRegistrySummary(selectedRow.block, selectedRow.apartment, selectedRow.occupancyId);
-        if (!cancelled) { setSelectedResidentVehicles(summary.vehicles || []); setSelectedResidentPackages(summary.packIds || []); }
-      } catch (e) { if (!cancelled) setError(userFriendlyError(e, "Falha ao carregar os dados da unidade.")); }
-      finally { if (!cancelled) setSelectedResidentVehiclesLoading(false); }
+        const summary = await fetchUnitRegistrySummary(
+          selectedRow.block,
+          selectedRow.apartment,
+          selectedRow.occupancyId,
+        );
+        if (!cancelled) {
+          setSelectedResidentVehicles(summary.vehicles || []);
+          setSelectedResidentPackages(summary.packIds || []);
+        }
+      } catch (e) {
+        if (!cancelled) setError(userFriendlyError(e, "Falha ao carregar os dados da unidade."));
+      } finally {
+        if (!cancelled) setSelectedResidentVehiclesLoading(false);
+      }
     };
+
+    // Carrega ao selecionar/trocar a unidade. Depois disso, o resumo só é
+    // recarregado quando houver mudança de PackID: nova encomenda registrada
+    // ou entrega concluída pela portaria. Não há mais polling a cada 5 segundos.
     void loadExtras();
-    const onPackId = () => void loadExtras();
-    window.addEventListener("packid:registered", onPackId);
-    timer = window.setInterval(() => { if (document.visibilityState === "visible") void loadExtras(); }, 5000);
-    return () => { cancelled = true; window.removeEventListener("packid:registered", onPackId); if (timer) window.clearInterval(timer); };
+    const onPackIdChanged = () => void loadExtras();
+    window.addEventListener("packid:registered", onPackIdChanged);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("packid:registered", onPackIdChanged);
+    };
   }, [selectedRow]);
 
   const editingRow = editingId ? rows.find((row) => row.id === editingId) ?? null : null;
