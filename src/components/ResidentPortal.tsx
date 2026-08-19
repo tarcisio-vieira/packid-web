@@ -291,6 +291,7 @@ type ProfileForm = { phone: string; email: string; profession: string };
 export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ session: ResidentSession; onLoggedOut: () => void }>) {
   const theme = useTheme();
   const mobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const mobilePortrait = useMediaQuery("(orientation: portrait)");
   const [data, setData] = useState<ResidentPortalData | null>(null);
   const [localSession, setLocalSession] = useState(session);
   const [error, setError] = useState<string | null>(null);
@@ -757,10 +758,26 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
         </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(poolCardOpen)} onClose={() => setPoolCardOpen(null)} fullWidth maxWidth="md">
+      <Dialog open={Boolean(poolCardOpen)} onClose={() => setPoolCardOpen(null)} fullWidth maxWidth="md" fullScreen={mobile}>
         <DialogTitle>Carteirinha de Piscina</DialogTitle>
-        <DialogContent>{poolCardOpen && data?.poolCardSettings && <PoolCardVisual card={poolCardOpen} settings={data.poolCardSettings} logoUrl={data.poolCardSettings.logoAvailable ? residentCondominiumLogoUrl() : undefined} />}</DialogContent>
-        <DialogActions>{poolCardOpen && <Button component="a" href={residentPoolCardPdfUrl(poolCardOpen.id)} startIcon={<PictureAsPdfOutlinedIcon />}>Exportar PDF</Button>}<Button onClick={() => setPoolCardOpen(null)}>Fechar</Button></DialogActions>
+        <DialogContent sx={mobile ? { px: 1, py: 1, overflowX: "auto" } : undefined}>
+          {poolCardOpen && data?.poolCardSettings && (
+            <Stack spacing={1.25} sx={{ minWidth: mobile ? 660 : 0, pb: 1 }}>
+              {mobile && mobilePortrait && (
+                <Alert severity="info" sx={{ mx: 0.5 }}>
+                  Para visualizar melhor, gire o celular para o modo paisagem.
+                </Alert>
+              )}
+              <PoolCardVisual
+                card={poolCardOpen}
+                settings={data.poolCardSettings}
+                logoUrl={data.poolCardSettings.logoAvailable ? residentCondominiumLogoUrl() : undefined}
+                forceLandscape={mobile}
+              />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={mobile ? { px: 2, pb: "calc(16px + env(safe-area-inset-bottom))" } : undefined}>{poolCardOpen && <Button component="a" href={residentPoolCardPdfUrl(poolCardOpen.id)} startIcon={<PictureAsPdfOutlinedIcon />}>Exportar PDF</Button>}<Button onClick={() => setPoolCardOpen(null)}>Fechar</Button></DialogActions>
       </Dialog>
     </Box>
   );

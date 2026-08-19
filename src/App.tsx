@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import type { KeyboardEvent, RefObject } from "react";
 import { useTranslation } from "react-i18next";
+import Swal from "sweetalert2";
 import {
   fetchCurrentUser,
   fetchResidentSession,
@@ -82,6 +83,7 @@ type IdentifyPackageScreenProps = Readonly<{
   onPrintHistoryRow: (row: LabelHistoryRow) => void;
 
   packageCodeInputRef: RefObject<HTMLInputElement | null>;
+  apartmentInputRef: RefObject<HTMLInputElement | null>;
   embedded?: boolean;
 }>;
 
@@ -176,7 +178,7 @@ function extractPageBlockAndApartment(raw: string): {
   const valid =
     pageNumber >= 1 &&
     pageNumber <= 999 &&
-    /^[1-4]$/.test(block) &&
+    /^[1-9]$/.test(block) &&
     /^\d{3,4}$/.test(apartment) &&
     floor >= 1 &&
     floor <= 12;
@@ -306,7 +308,6 @@ function printSingleLabel(
   <div class="sheet">
     <div class="top">
       <div class="unit-box">
-        <div class="unit-label">UNIDADE</div>
         <div class="unit-value" style="font-size:${unitFontSize}px;">
           ${escapeHtml(unitHighlight)}
         </div>
@@ -437,15 +438,6 @@ function printSingleLabel(
     justify-content: center;
     padding: 0.8mm 1mm;
     overflow: hidden;
-  }
-
-  .unit-label {
-    font-size: 6.2pt;
-    font-weight: 700;
-    letter-spacing: 0.45mm;
-    line-height: 1;
-    margin: 0 0 0.5mm 0;
-    white-space: nowrap;
   }
 
   .unit-value {
@@ -878,10 +870,10 @@ function IdentifyPackageScreen({
   onHistoryToDateChange,
   onPrintHistoryRow,
   packageCodeInputRef,
+  apartmentInputRef,
   embedded = false,
 }: IdentifyPackageScreenProps) {
   const { t } = useTranslation();
-  const apartmentRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     packageCodeInputRef.current?.focus();
@@ -893,7 +885,7 @@ function IdentifyPackageScreen({
   const handlePackageCodeKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      apartmentRef.current?.focus();
+      apartmentInputRef.current?.focus();
     }
   };
 
@@ -948,7 +940,7 @@ function IdentifyPackageScreen({
             onChange={(e) =>
               onApartmentChange(e.target.value.replace(/\D/g, "").slice(0, 8))
             }
-            inputRef={apartmentRef}
+            inputRef={apartmentInputRef}
             onKeyDown={handleApartmentKeyDown}
             fullWidth
             autoComplete="off"
@@ -1008,6 +1000,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
   const [historyToDate, setHistoryToDate] = useState<string>("");
 
   const packageCodeInputRef = useRef<HTMLInputElement | null>(null);
+  const apartmentInputRef = useRef<HTMLInputElement | null>(null);
   const seqRef = useRef(0);
 
 
@@ -1135,7 +1128,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
     });
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const pc = packageCode.trim();
     const rawApartment = apartment.trim();
 
@@ -1145,9 +1138,20 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
       extractPageBlockAndApartment(rawApartment);
 
     if (!valid) {
-      setSaveError(
-        "Informe: página (001-999) + bloco (1-4) + apartamento (1º ao 12º andar). Ex.: 0992608 ou 10141203.",
-      );
+      const msg =
+        "Informe: página (001-999) + bloco + apartamento (1º ao 12º andar). Ex.: 10011201, 0992608 ou 10141203.";
+
+      // O erro deste fluxo é exibido somente no SweetAlert.
+      setSaveError(null);
+      await Swal.fire({
+        icon: "warning",
+        title: "Código inválido",
+        text: msg,
+        confirmButtonText: "OK",
+      });
+
+      apartmentInputRef.current?.focus();
+      apartmentInputRef.current?.select();
       return;
     }
 
@@ -1156,6 +1160,37 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
     setSaveSuccess(null);
 
     try {
+      // Primeiro registra. O backend só aceita se tenant + bloco + apartamento
+      // existirem como unidade ativa em residential_unit.
+      await registerPackIdFromLabel({
+        packageCode: pc,
+        apartment: apartmentToSave,
+        block,
+        bookPage: page,
+      });
+    } catch (e: unknown) {
+      console.error(e);
+      const msg = userFriendlyError(e, "Falha ao registrar o pacote.");
+      const unitNotFound = /unidade não encontrada|não foi encontrado/i.test(msg);
+
+      // Não duplica a mensagem em Alert/Snackbar: somente SweetAlert.
+      setSaveError(null);
+      await Swal.fire({
+        icon: "error",
+        title: unitNotFound ? "Unidade não encontrada" : "Não foi possível registrar",
+        text: msg,
+        confirmButtonText: "OK",
+      });
+
+      apartmentInputRef.current?.focus();
+      apartmentInputRef.current?.select();
+      setSaving(false);
+      return;
+    }
+
+    let printSucceeded = true;
+    try {
+      // A etiqueta só é enviada para impressão depois que o backend confirmou a unidade.
       printSingleLabel(
         pc,
         `${block}${apartmentToSave}`,
@@ -1166,34 +1201,32 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
       );
     } catch (e: unknown) {
       console.error(e);
-      setSaveError(
-        userFriendlyError(e, "Falha ao gerar a impressão."),
+      printSucceeded = false;
+      const msg = userFriendlyError(
+        e,
+        "A encomenda foi registrada, mas não foi possível gerar a impressão.",
       );
-      setSaving(false);
-      return;
+      setSaveError(null);
+      await Swal.fire({
+        icon: "warning",
+        title: "Encomenda registrada",
+        text: msg,
+        confirmButtonText: "OK",
+      });
+      apartmentInputRef.current?.focus();
+      apartmentInputRef.current?.select();
     }
 
-    registerPackIdFromLabel({
-      packageCode: pc,
-      apartment: apartmentToSave,
-      block,
-      bookPage: page,
-    })
-      .then(() => {
-        setPackageCode("");
-        setApartment("");
-        setSaveSuccess("Encomenda registrada com sucesso e etiqueta enviada para impressão.");
-        window.dispatchEvent(new Event("packid:registered"));
-      })
-      .catch((e: unknown) => {
-        const msg =
-          userFriendlyError(e, "Falha ao registrar o pacote.");
-        setSaveError(msg);
-      })
-      .finally(() => {
-        refreshHistory(historyFromDate, historyToDate).catch(() => {});
-        setSaving(false);
-      });
+    setPackageCode("");
+    setApartment("");
+    if (printSucceeded) {
+      setSaveSuccess(
+        "Encomenda registrada com sucesso e etiqueta enviada para impressão.",
+      );
+    }
+    window.dispatchEvent(new Event("packid:registered"));
+    refreshHistory(historyFromDate, historyToDate).catch(() => {});
+    setSaving(false);
   };
 
   const handlePrintHistoryRow = (row: LabelHistoryRow) => {
@@ -1237,6 +1270,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
         onHistoryToDateChange={handleHistoryToDateChange}
         onPrintHistoryRow={handlePrintHistoryRow}
         packageCodeInputRef={packageCodeInputRef}
+        apartmentInputRef={apartmentInputRef}
         embedded={embedded}
       />
 

@@ -75,7 +75,7 @@ export default function CollaboratorLoginPage({
               sx={{ fontWeight: 700 }}
             />
             <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 345 }}>
-              Acesso exclusivo da secretaria e da portaria com a conta Google autorizada pelo condomínio.
+              Entre com a conta Google autorizada pelo condomínio.
             </Typography>
           </Stack>
 
@@ -105,21 +105,6 @@ export default function CollaboratorLoginPage({
           >
             Entrar com Google
           </Button>
-
-          <Stack direction="row" spacing={1.2} sx={{ mt: 2.5 }}>
-            <Box sx={{ flex: 1, p: 1.5, borderRadius: 2.5, bgcolor: "action.hover" }}>
-              <Typography variant="caption" fontWeight={800}>Secretaria</Typography>
-              <Typography variant="caption" color="text.secondary" display="block">
-                Gestão, cadastros e configurações.
-              </Typography>
-            </Box>
-            <Box sx={{ flex: 1, p: 1.5, borderRadius: 2.5, bgcolor: "action.hover" }}>
-              <Typography variant="caption" fontWeight={800}>Portaria</Typography>
-              <Typography variant="caption" color="text.secondary" display="block">
-                Operação e consultas autorizadas.
-              </Typography>
-            </Box>
-          </Stack>
 
           <Divider sx={{ my: 3 }} />
           <Button
