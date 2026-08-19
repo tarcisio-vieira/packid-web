@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Autocomplete,
   Avatar,
@@ -33,7 +36,9 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -54,11 +59,11 @@ import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import DeckOutlinedIcon from "@mui/icons-material/DeckOutlined";
 import PoolOutlinedIcon from "@mui/icons-material/PoolOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import AutorenewRoundedIcon from "@mui/icons-material/AutorenewRounded";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import PersonOffOutlinedIcon from "@mui/icons-material/PersonOffOutlined";
-import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import GridOnOutlinedIcon from "@mui/icons-material/GridOnOutlined";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import {
   createDeliveryRecord,
   createRegistryEntry,
@@ -74,6 +79,10 @@ import {
   fetchUnitRegistrySummary,
   fetchResidentialUnits,
   fetchVisitorVisits,
+  fetchPoolCard,
+  fetchPoolCardSettings,
+  condominiumLogoUrl,
+  poolCardPdfUrl,
   startApartmentOccupancy,
   endApartmentOccupancy,
   exportRegistryExcel,
@@ -89,6 +98,8 @@ import {
 import ServiceCompanyPanel from "./ServiceCompanyPanel";
 import SpacesScreen from "./SpacesScreen";
 import PoolCardsScreen from "./PoolCardsScreen";
+import PoolCardLandscapeViewer from "./PoolCardLandscapeViewer";
+import PoolCardStatusIcon, { poolCardStatusLabel } from "./PoolCardStatusIcon";
 import { confirmDialog } from "../utils/confirmDialog";
 import type {
   ApartmentOccupancy,
@@ -105,6 +116,8 @@ import type {
   SpaceAccess,
   User,
   ResidentialUnit,
+  PoolCard,
+  PoolCardSettings,
 } from "../api";
 
 const TYPES: Array<{ type: RegistryEntryType; label: string }> = [
@@ -375,350 +388,80 @@ function RegistryGroup({
   rows,
   icon,
   iconColor,
-}: Readonly<{ title: string; rows: RegistryEntry[]; icon: ReactNode; iconColor: string }>) {
+  onOpenPoolCard,
+}: Readonly<{ title: string; rows: RegistryEntry[]; icon: ReactNode; iconColor: string; onOpenPoolCard?: (row: RegistryEntry) => void }>) {
   return (
-    <Card variant="outlined">
-      <CardContent>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+    <Accordion variant="outlined" disableGutters sx={{ borderRadius: "8px !important", overflow: "hidden" }}>
+      <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+        <Stack direction="row" spacing={1} alignItems="center">
           <Box sx={{ color: iconColor, display: "flex", alignItems: "center" }}>{icon}</Box>
-          <Typography variant="subtitle1" fontWeight={700}>
-            {title} ({rows.length})
-          </Typography>
+          <Typography variant="subtitle1" fontWeight={700}>{title} ({rows.length})</Typography>
         </Stack>
-        {rows.length === 0 ? (
-          <Typography variant="body2" sx={{ opacity: 0.65 }}>
-            Nenhum registro.
-          </Typography>
-        ) : (
+      </AccordionSummary>
+      <AccordionDetails sx={{ pt: 0 }}>
+        {rows.length === 0 ? <Typography variant="body2" sx={{ opacity: .65 }}>Nenhum registro.</Typography> : (
           <Stack spacing={1} divider={<Divider flexItem />}>
-            {rows.map((row) => (
-              <Stack key={row.id} direction="row" spacing={1.5} alignItems="center">
-                <Avatar
-                  src={
-                    row.photoAvailable && row.photoOwnedByCurrentUser
-                      ? registryEntryPhotoUrl(row.id, row.updatedAt ?? row.createdAt)
-                      : undefined
-                  }
-                  sx={{ width: 36, height: 36 }}
-                >
-                  {row.name?.charAt(0)?.toUpperCase()}
-                </Avatar>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="body2" fontWeight={600}>
-                    {row.name}
-                  </Typography>
-                  <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                    {[identifierLabel(row), detailsLabel(row)].filter((v) => v !== "-").join(" • ") || "Sem detalhes"}
-                  </Typography>
-                </Box>
-              </Stack>
-            ))}
+            {rows.map(row => <Stack key={row.id} direction="row" spacing={1.5} alignItems="center">
+              <Avatar src={row.photoAvailable && row.photoOwnedByCurrentUser ? registryEntryPhotoUrl(row.id, row.updatedAt ?? row.createdAt) : undefined} sx={{ width: 36, height: 36 }}>{row.name?.charAt(0)?.toUpperCase()}</Avatar>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Stack direction="row" spacing={.7} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <Typography variant="body2" fontWeight={600}>{row.name}</Typography>
+                  {row.entryType === "RESIDENT" && row.poolCardAvailable && <PoolCardStatusIcon status={row.poolCardReviewStatus} valid={row.poolCardValid} validUntil={row.poolCardValidUntil} />}
+                  {row.entryType === "RESIDENT" && row.poolCardAvailable && row.poolCardId && onOpenPoolCard && (
+                    <Tooltip title="Abrir carteirinha de piscina"><IconButton size="small" sx={{ p: .25 }} onClick={e => { e.stopPropagation(); onOpenPoolCard(row); }}><PoolOutlinedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+                  )}
+                </Stack>
+                <Typography variant="caption" sx={{ opacity: .7 }}>{[identifierLabel(row), detailsLabel(row)].filter(v => v !== "-").join(" • ") || "Sem detalhes"}</Typography>
+              </Box>
+            </Stack>)}
           </Stack>
         )}
-      </CardContent>
-    </Card>
+      </AccordionDetails>
+    </Accordion>
   );
 }
 
-function PaginationFooter({
-  count,
-  page,
-  rowsPerPage,
-  onPageChange,
-  onRowsPerPageChange,
-}: Readonly<{
-  count: number;
-  page: number;
-  rowsPerPage: number;
-  onPageChange: (page: number) => void;
-  onRowsPerPageChange: (rowsPerPage: number) => void;
-}>) {
-  return (
-    <TablePagination
-      component="div"
-      count={count}
-      page={page}
-      onPageChange={(_, nextPage) => onPageChange(nextPage)}
-      rowsPerPage={rowsPerPage}
-      onRowsPerPageChange={(event) => onRowsPerPageChange(Number(event.target.value))}
-      rowsPerPageOptions={[5, 10, 50]}
-      labelRowsPerPage="Linhas por página:"
-      labelDisplayedRows={({ from, to, count: total }) => `${from}-${to} de ${total}`}
-    />
-  );
+function PaginationFooter({ count, page, rowsPerPage, onPageChange, onRowsPerPageChange }: Readonly<{ count: number; page: number; rowsPerPage: number; onPageChange: (page: number) => void; onRowsPerPageChange: (rowsPerPage: number) => void }>) {
+  return <TablePagination component="div" count={count} page={page} onPageChange={(_, nextPage) => onPageChange(nextPage)} rowsPerPage={rowsPerPage} onRowsPerPageChange={event => onRowsPerPageChange(Number(event.target.value))} rowsPerPageOptions={[5,10,50]} labelRowsPerPage="Linhas por página:" labelDisplayedRows={({from,to,count:total}) => `${from}-${to} de ${total}`} />;
+}
+
+function HistoryAccordion({ title, count, icon, children }: Readonly<{ title: string; count: number; icon: ReactNode; children: ReactNode }>) {
+  return <Accordion variant="outlined" disableGutters sx={{ borderRadius: "8px !important", overflow: "hidden" }}>
+    <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}><Stack direction="row" spacing={1} alignItems="center">{icon}<Typography variant="subtitle1" fontWeight={700}>{title} ({count})</Typography></Stack></AccordionSummary>
+    <AccordionDetails sx={{ pt: 0 }}>{children}</AccordionDetails>
+  </Accordion>;
 }
 
 function VisitHistory({ rows }: Readonly<{ rows: VisitorVisit[] }>) {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-
-  useEffect(() => setPage(0), [rows]);
-  const pagedRows = rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-          <MeetingRoomOutlinedIcon sx={{ color: "#7b1fa2" }} />
-          <Typography variant="subtitle1" fontWeight={700}>Visitas ({rows.length})</Typography>
-        </Stack>
-        <TableContainer sx={{ maxHeight: 360 }}>
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell>Data / hora</TableCell>
-                <TableCell>Visitante</TableCell>
-                <TableCell>Documento</TableCell>
-                <TableCell>Unidade</TableCell>
-                <TableCell>Observação</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} align="center">Nenhuma visita registrada.</TableCell>
-                </TableRow>
-              )}
-              {pagedRows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{formatDateTime(row.visitedAt)}</TableCell>
-                  <TableCell>{row.visitorName || "-"}</TableCell>
-                  <TableCell>{row.visitorDocument || "-"}</TableCell>
-                  <TableCell>{formatUnit(row.block, row.apartment)}</TableCell>
-                  <TableCell>{row.notes || "-"}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        {rows.length > 0 && (
-          <PaginationFooter
-            count={rows.length}
-            page={page}
-            rowsPerPage={rowsPerPage}
-            onPageChange={setPage}
-            onRowsPerPageChange={(value) => { setRowsPerPage(value); setPage(0); }}
-          />
-        )}
-      </CardContent>
-    </Card>
-  );
+  const [page, setPage] = useState(0); const [rowsPerPage, setRowsPerPage] = useState(10); useEffect(() => setPage(0), [rows]); const pagedRows = rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  return <HistoryAccordion title="Visitas" count={rows.length} icon={<MeetingRoomOutlinedIcon sx={{ color: "#7b1fa2" }}/> }><TableContainer sx={{ maxHeight:360 }}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Data / hora</TableCell><TableCell>Visitante</TableCell><TableCell>Documento</TableCell><TableCell>Unidade</TableCell><TableCell>Observação</TableCell></TableRow></TableHead><TableBody>{!rows.length && <TableRow><TableCell colSpan={5} align="center">Nenhuma visita registrada.</TableCell></TableRow>}{pagedRows.map(row=><TableRow key={row.id}><TableCell>{formatDateTime(row.visitedAt)}</TableCell><TableCell>{row.visitorName||"-"}</TableCell><TableCell>{row.visitorDocument||"-"}</TableCell><TableCell>{formatUnit(row.block,row.apartment)}</TableCell><TableCell>{row.notes||"-"}</TableCell></TableRow>)}</TableBody></Table></TableContainer>{rows.length>0&&<PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage} onPageChange={setPage} onRowsPerPageChange={v=>{setRowsPerPage(v);setPage(0);}}/>}</HistoryAccordion>;
 }
 
 function PackIdHistory({ rows }: Readonly<{ rows: PackIdRecentItem[] }>) {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-
-  useEffect(() => setPage(0), [rows]);
-  const pagedRows = rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-          <Inventory2OutlinedIcon sx={{ color: "#00897b" }} />
-          <Typography variant="subtitle1" fontWeight={700}>Encomendas ({rows.length})</Typography>
-        </Stack>
-        <TableContainer sx={{ maxHeight: 390 }}>
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell>Data / hora</TableCell>
-                <TableCell>Página</TableCell>
-                <TableCell>Código da encomenda</TableCell>
-                <TableCell>Registrado por</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} align="center">Nenhuma encomenda registrada para esta unidade.</TableCell>
-                </TableRow>
-              )}
-              {pagedRows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{formatDateTime(row.arrivedAt)}</TableCell>
-                  <TableCell>{row.bookPage || "-"}</TableCell>
-                  <TableCell>{row.labelPackageCode || row.packageCode || "-"}</TableCell>
-                  <TableCell>{row.createdBy || "-"}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        {rows.length > 0 && (
-          <PaginationFooter
-            count={rows.length}
-            page={page}
-            rowsPerPage={rowsPerPage}
-            onPageChange={setPage}
-            onRowsPerPageChange={(value) => { setRowsPerPage(value); setPage(0); }}
-          />
-        )}
-      </CardContent>
-    </Card>
-  );
+  const [page,setPage]=useState(0); const [rowsPerPage,setRowsPerPage]=useState(10); useEffect(()=>setPage(0),[rows]); const pagedRows=rows.slice(page*rowsPerPage,page*rowsPerPage+rowsPerPage);
+  return <HistoryAccordion title="Encomendas" count={rows.length} icon={<Inventory2OutlinedIcon sx={{color:"#00897b"}}/>}><TableContainer sx={{maxHeight:390}}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Data / hora</TableCell><TableCell>Página</TableCell><TableCell>Código da encomenda</TableCell><TableCell>Registrado por</TableCell></TableRow></TableHead><TableBody>{!rows.length&&<TableRow><TableCell colSpan={4} align="center">Nenhuma encomenda registrada para esta unidade.</TableCell></TableRow>}{pagedRows.map(row=><TableRow key={row.id}><TableCell>{formatDateTime(row.arrivedAt)}</TableCell><TableCell>{row.bookPage||"-"}</TableCell><TableCell>{row.labelPackageCode||row.packageCode||"-"}</TableCell><TableCell>{row.createdBy||"-"}</TableCell></TableRow>)}</TableBody></Table></TableContainer>{rows.length>0&&<PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage} onPageChange={setPage} onRowsPerPageChange={v=>{setRowsPerPage(v);setPage(0);}}/>}</HistoryAccordion>;
 }
 
 function DeliveryHistory({ rows }: Readonly<{ rows: DeliveryRecord[] }>) {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-
-  useEffect(() => setPage(0), [rows]);
-  const pagedRows = rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-          <LocalShippingOutlinedIcon sx={{ color: "#2e7d32" }} />
-          <Typography variant="subtitle1" fontWeight={700}>Entregas ({rows.length})</Typography>
-        </Stack>
-        <TableContainer sx={{ maxHeight: 360 }}>
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell>Data / hora</TableCell>
-                <TableCell>Entregador</TableCell>
-                <TableCell>Empresa</TableCell>
-                <TableCell>Unidade</TableCell>
-                <TableCell>Entrada</TableCell>
-                <TableCell>Observação</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} align="center">Nenhuma entrega registrada.</TableCell>
-                </TableRow>
-              )}
-              {pagedRows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{formatDateTime(row.deliveredAt)}</TableCell>
-                  <TableCell>{row.deliveryPersonName || "-"}</TableCell>
-                  <TableCell>{row.company || "-"}</TableCell>
-                  <TableCell>{formatUnit(row.block, row.apartment)}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={row.authorizedToEnter ? "Autorizada" : "Portaria"}
-                      variant={row.authorizedToEnter ? "filled" : "outlined"}
-                    />
-                  </TableCell>
-                  <TableCell>{row.notes || "-"}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        {rows.length > 0 && (
-          <PaginationFooter
-            count={rows.length}
-            page={page}
-            rowsPerPage={rowsPerPage}
-            onPageChange={setPage}
-            onRowsPerPageChange={(value) => { setRowsPerPage(value); setPage(0); }}
-          />
-        )}
-      </CardContent>
-    </Card>
-  );
+  const [page,setPage]=useState(0); const [rowsPerPage,setRowsPerPage]=useState(10); useEffect(()=>setPage(0),[rows]); const pagedRows=rows.slice(page*rowsPerPage,page*rowsPerPage+rowsPerPage);
+  return <HistoryAccordion title="Entregas" count={rows.length} icon={<LocalShippingOutlinedIcon sx={{color:"#2e7d32"}}/>}><TableContainer sx={{maxHeight:360}}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Data / hora</TableCell><TableCell>Entregador</TableCell><TableCell>Empresa</TableCell><TableCell>Unidade</TableCell><TableCell>Entrada</TableCell><TableCell>Observação</TableCell></TableRow></TableHead><TableBody>{!rows.length&&<TableRow><TableCell colSpan={6} align="center">Nenhuma entrega registrada.</TableCell></TableRow>}{pagedRows.map(row=><TableRow key={row.id}><TableCell>{formatDateTime(row.deliveredAt)}</TableCell><TableCell>{row.deliveryPersonName||"-"}</TableCell><TableCell>{row.company||"-"}</TableCell><TableCell>{formatUnit(row.block,row.apartment)}</TableCell><TableCell><Chip size="small" label={row.authorizedToEnter?"Autorizada":"Portaria"} variant={row.authorizedToEnter?"filled":"outlined"}/></TableCell><TableCell>{row.notes||"-"}</TableCell></TableRow>)}</TableBody></Table></TableContainer>{rows.length>0&&<PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage} onPageChange={setPage} onRowsPerPageChange={v=>{setRowsPerPage(v);setPage(0);}}/>}</HistoryAccordion>;
 }
-
 
 function ServiceHistory({ rows, title = "Serviços realizados" }: Readonly<{ rows: ServiceRecord[]; title?: string }>) {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  useEffect(() => setPage(0), [rows]);
-  const pagedRows = rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-          <EngineeringOutlinedIcon sx={{ color: "#ed6c02" }} />
-          <Typography variant="subtitle1" fontWeight={700}>{title} ({rows.length})</Typography>
-        </Stack>
-        <TableContainer sx={{ maxHeight: 380 }}>
-          <Table size="small" stickyHeader>
-            <TableHead><TableRow>
-              <TableCell>Data / hora</TableCell><TableCell>Prestador</TableCell><TableCell>Empresa</TableCell>
-              <TableCell>Unidade</TableCell><TableCell>Serviço</TableCell><TableCell>Observação</TableCell>
-            </TableRow></TableHead>
-            <TableBody>
-              {rows.length === 0 && <TableRow><TableCell colSpan={6} align="center">Nenhum serviço registrado.</TableCell></TableRow>}
-              {pagedRows.map(row => <TableRow key={row.id}>
-                <TableCell>{formatDateTime(row.performedAt)}</TableCell>
-                <TableCell>{row.serviceProviderName || "-"}</TableCell>
-                <TableCell>{row.serviceCompanyName || "-"}</TableCell>
-                <TableCell>{row.serviceScope === "CONDOMINIUM" ? "Condomínio" : formatUnit(row.block, row.apartment)}</TableCell>
-                <TableCell>{row.serviceDescription || "-"}</TableCell>
-                <TableCell>{row.notes || "-"}</TableCell>
-              </TableRow>)}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        {rows.length > 0 && <PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage}
-          onPageChange={setPage} onRowsPerPageChange={value => { setRowsPerPage(value); setPage(0); }} />}
-      </CardContent>
-    </Card>
-  );
+  const [page,setPage]=useState(0); const [rowsPerPage,setRowsPerPage]=useState(10); useEffect(()=>setPage(0),[rows]); const pagedRows=rows.slice(page*rowsPerPage,page*rowsPerPage+rowsPerPage);
+  return <HistoryAccordion title={title} count={rows.length} icon={<EngineeringOutlinedIcon sx={{color:"#ed6c02"}}/>}><TableContainer sx={{maxHeight:380}}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Data / hora</TableCell><TableCell>Prestador</TableCell><TableCell>Empresa</TableCell><TableCell>Unidade</TableCell><TableCell>Serviço</TableCell><TableCell>Observação</TableCell></TableRow></TableHead><TableBody>{!rows.length&&<TableRow><TableCell colSpan={6} align="center">Nenhum serviço registrado.</TableCell></TableRow>}{pagedRows.map(row=><TableRow key={row.id}><TableCell>{formatDateTime(row.performedAt)}</TableCell><TableCell>{row.serviceProviderName||"-"}</TableCell><TableCell>{row.serviceCompanyName||"-"}</TableCell><TableCell>{row.serviceScope==="CONDOMINIUM"?"Condomínio":formatUnit(row.block,row.apartment)}</TableCell><TableCell>{row.serviceDescription||"-"}</TableCell><TableCell>{row.notes||"-"}</TableCell></TableRow>)}</TableBody></Table></TableContainer>{rows.length>0&&<PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage} onPageChange={setPage} onRowsPerPageChange={v=>{setRowsPerPage(v);setPage(0);}}/>}</HistoryAccordion>;
 }
 
-
-function spaceName(type: SpaceAccess["spaceType"]): string {
-  if (type === "GYM") return "Academia";
-  if (type === "GAMES_ROOM") return "Sala de Jogos";
-  if (type === "SAUNA") return "Sauna";
-  return "Brinquedoteca";
-}
-
-function spaceStatusLabel(status: SpaceAccess["status"]): string {
-  if (status === "REQUESTED_PICKUP") return "Aguardando liberação";
-  if (status === "IN_USE") return "Chave em uso";
-  if (status === "REQUESTED_RETURN") return "Aguardando devolução";
-  if (status === "COMPLETED") return "Finalizado";
-  return "Cancelado";
-}
-
+function spaceName(type: SpaceAccess["spaceType"]): string { if(type==="GYM")return"Academia"; if(type==="GAMES_ROOM")return"Sala de Jogos"; if(type==="SAUNA")return"Sauna"; return"Brinquedoteca"; }
+function spaceStatusLabel(status: SpaceAccess["status"]): string { if(status==="REQUESTED_PICKUP")return"Aguardando liberação"; if(status==="IN_USE")return"Chave em uso"; if(status==="REQUESTED_RETURN")return"Aguardando devolução"; if(status==="COMPLETED")return"Finalizado"; return"Cancelado"; }
 function SpaceAccessHistory({ rows }: Readonly<{ rows: SpaceAccess[] }>) {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  useEffect(() => setPage(0), [rows]);
-  const pagedRows = rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-          <MeetingRoomOutlinedIcon sx={{ color: "#00897b" }} />
-          <Typography variant="subtitle1" fontWeight={700}>Histórico da área de lazer ({rows.length})</Typography>
-        </Stack>
-        <TableContainer sx={{ maxHeight: 380 }}>
-          <Table size="small" stickyHeader>
-            <TableHead><TableRow>
-              <TableCell>Área</TableCell><TableCell>Solicitado</TableCell>
-              <TableCell>Liberado</TableCell><TableCell>Solicitou devolução</TableCell><TableCell>Encerrado</TableCell><TableCell>Status</TableCell>
-            </TableRow></TableHead>
-            <TableBody>
-              {rows.length === 0 && <TableRow><TableCell colSpan={6} align="center">Nenhuma solicitação de área de lazer nesta ocupação.</TableCell></TableRow>}
-              {pagedRows.map((row) => <TableRow key={row.id}>
-                <TableCell>{spaceName(row.spaceType)}</TableCell>
-                <TableCell>{formatDateTime(row.requestedAt)}</TableCell>
-                <TableCell>{row.releasedAt ? formatDateTime(row.releasedAt) : "-"}</TableCell>
-                <TableCell>{row.returnRequestedAt ? formatDateTime(row.returnRequestedAt) : "-"}</TableCell>
-                <TableCell>{row.completedAt ? formatDateTime(row.completedAt) : "-"}</TableCell>
-                <TableCell><Chip size="small" label={spaceStatusLabel(row.status)} /></TableCell>
-              </TableRow>)}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        {rows.length > 0 && <PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage}
-          onPageChange={setPage} onRowsPerPageChange={value => { setRowsPerPage(value); setPage(0); }} />}
-      </CardContent>
-    </Card>
-  );
+  const [page,setPage]=useState(0); const [rowsPerPage,setRowsPerPage]=useState(10); useEffect(()=>setPage(0),[rows]); const pagedRows=rows.slice(page*rowsPerPage,page*rowsPerPage+rowsPerPage);
+  return <HistoryAccordion title="Área de lazer" count={rows.length} icon={<MeetingRoomOutlinedIcon sx={{color:"#00897b"}}/>}><TableContainer sx={{maxHeight:380}}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Área</TableCell><TableCell>Solicitado</TableCell><TableCell>Liberado</TableCell><TableCell>Solicitou devolução</TableCell><TableCell>Encerrado</TableCell><TableCell>Status</TableCell></TableRow></TableHead><TableBody>{!rows.length&&<TableRow><TableCell colSpan={6} align="center">Nenhuma solicitação de área de lazer nesta ocupação.</TableCell></TableRow>}{pagedRows.map(row=><TableRow key={row.id}><TableCell>{spaceName(row.spaceType)}</TableCell><TableCell>{formatDateTime(row.requestedAt)}</TableCell><TableCell>{row.releasedAt?formatDateTime(row.releasedAt):"-"}</TableCell><TableCell>{row.returnRequestedAt?formatDateTime(row.returnRequestedAt):"-"}</TableCell><TableCell>{row.completedAt?formatDateTime(row.completedAt):"-"}</TableCell><TableCell><Chip size="small" label={spaceStatusLabel(row.status)}/></TableCell></TableRow>)}</TableBody></Table></TableContainer>{rows.length>0&&<PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage} onPageChange={setPage} onRowsPerPageChange={v=>{setRowsPerPage(v);setPage(0);}}/>}</HistoryAccordion>;
 }
 
 export default function RegistryScreen({ embedded = false, currentUser, initialNavigation }: Readonly<{ embedded?: boolean; currentUser?: User | null; initialNavigation?: RegistryNavigationValue }>) {
+  const theme = useTheme();
+  const mobile = useMediaQuery(theme.breakpoints.down("sm"));
   const initialRegistryType: RegistryEntryType = initialNavigation && !["SERVICE_COMPANY", "LEISURE_AREA", "POOL_CARDS"].includes(initialNavigation)
     ? initialNavigation as RegistryEntryType
     : "RESIDENT";
@@ -769,6 +512,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
   const [unitLoading, setUnitLoading] = useState(false);
   const [unitSummary, setUnitSummary] = useState<UnitRegistrySummary | null>(null);
+  const [unitPoolCard, setUnitPoolCard] = useState<PoolCard | null>(null);
+  const [unitPoolCardSettings, setUnitPoolCardSettings] = useState<PoolCardSettings | null>(null);
   const [occupancyDialogOpen, setOccupancyDialogOpen] = useState(false);
   const [occupancyAction, setOccupancyAction] = useState<"start" | "end">("start");
   const [occupancyDate, setOccupancyDate] = useState(localDateToday());
@@ -794,6 +539,14 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const [serviceForm, setServiceForm] = useState<ServiceForm>(emptyServiceForm());
   const [condominiumServiceDialogOpen, setCondominiumServiceDialogOpen] = useState(false);
   const [condominiumServiceHistory, setCondominiumServiceHistory] = useState<ServiceRecord[]>([]);
+
+  const openUnitPoolCard = async (row: RegistryEntry) => {
+    if (!row.poolCardId) return;
+    try {
+      const [card, config] = await Promise.all([fetchPoolCard(row.poolCardId), fetchPoolCardSettings()]);
+      setUnitPoolCard(card); setUnitPoolCardSettings(config);
+    } catch (e) { setError(userFriendlyError(e, "Não foi possível abrir a carteirinha.")); }
+  };
 
   const loadServiceCompanies = async () => {
     try {
@@ -1752,14 +1505,13 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                   Novo cadastro
                 </Button>
                 {canExportExcel && (
-                  <Button
-                    variant="outlined"
-                    startIcon={<FileDownloadOutlinedIcon />}
-                    onClick={() => void exportCurrentTab()}
-                    disabled={exporting}
-                  >
-                    {exporting ? "Exportando..." : "Exportar Excel"}
-                  </Button>
+                  <Tooltip title={exporting ? "Exportando..." : "Exportar Excel"} arrow>
+                    <span>
+                      <IconButton color="primary" onClick={() => void exportCurrentTab()} disabled={exporting} aria-label="Exportar Excel">
+                        <GridOnOutlinedIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                 )}
               </Stack>
             </Stack>
@@ -1791,14 +1543,13 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
               </Button>
             )}
             {canExportExcel && (
-              <Button
-                variant="outlined"
-                startIcon={<FileDownloadOutlinedIcon />}
-                onClick={() => void exportCurrentTab()}
-                disabled={exporting}
-              >
-                {exporting ? "Exportando..." : "Exportar Excel"}
-              </Button>
+              <Tooltip title={exporting ? "Exportando..." : "Exportar Excel"} arrow>
+                <span>
+                  <IconButton color="primary" onClick={() => void exportCurrentTab()} disabled={exporting} aria-label="Exportar Excel">
+                    <GridOnOutlinedIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
             )}
           </Stack>
         </Stack>
@@ -1912,9 +1663,17 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                   {selectedRow.name?.charAt(0)?.toUpperCase()}
                 </Avatar>
                 <Box sx={{ flex: 1 }}>
-                  <Typography variant="subtitle1" fontWeight={700}>
-                    Visualização do registro selecionado
-                  </Typography>
+                  <Stack direction="row" spacing={0.7} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      Visualização do registro selecionado
+                    </Typography>
+                    {selectedRow.entryType === "RESIDENT" && selectedRow.poolCardAvailable && (
+                      <>
+                        <PoolCardStatusIcon status={selectedRow.poolCardReviewStatus} valid={selectedRow.poolCardValid} validUntil={selectedRow.poolCardValidUntil} />
+                        {selectedRow.poolCardId && <Tooltip title="Abrir carteirinha de piscina"><IconButton size="small" onClick={() => void openUnitPoolCard(selectedRow)}><PoolOutlinedIcon sx={{ fontSize: 19 }} /></IconButton></Tooltip>}
+                      </>
+                    )}
+                  </Stack>
                   <Box
                     sx={{
                       mt: 1,
@@ -1934,7 +1693,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                       <>
                         <FieldCard label="Proprietário" value={selectedRow.unitOwner ? "Sim" : "Não"} />
                         <FieldCard label="Telefone" value={selectedRow.phone} />
-                        <FieldCard label="Carteirinha piscina" value={selectedRow.poolCardAvailable ? (selectedRow.poolCardValid ? "✓ Válida" : "○ Fora da validade") : "Não cadastrada"} />
+                        <FieldCard label="Carteirinha piscina" value={selectedRow.poolCardAvailable ? poolCardStatusLabel(selectedRow.poolCardReviewStatus, selectedRow.poolCardValid, selectedRow.poolCardValidUntil) : "Não cadastrada"} />
                         <FieldCard label="Validade piscina" value={selectedRow.poolCardValidUntil ? new Date(`${selectedRow.poolCardValidUntil}T12:00:00`).toLocaleDateString("pt-BR") : "—"} />
                       </>
                     ) : (
@@ -2186,9 +1945,10 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                     <Stack direction="row" spacing={0.6} alignItems="center">
                       <Typography variant="body2" fontWeight={600}>{row.name}</Typography>
                       {row.entryType === "RESIDENT" && row.poolCardAvailable && (
-                        <Tooltip title={row.poolCardValid ? `Carteirinha de piscina válida${row.poolCardValidUntil ? ` até ${new Date(`${row.poolCardValidUntil}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}` : "Carteirinha de piscina fora da validade"}>
-                          {row.poolCardValid ? <CheckCircleOutlineIcon sx={{ color: "text.disabled", fontSize: 17 }} /> : <ErrorOutlineIcon sx={{ color: "text.disabled", fontSize: 17 }} />}
-                        </Tooltip>
+                        <>
+                          <PoolCardStatusIcon status={row.poolCardReviewStatus} valid={row.poolCardValid} validUntil={row.poolCardValidUntil} size={17} />
+                          {row.poolCardId && <Tooltip title="Abrir carteirinha de piscina"><IconButton size="small" sx={{ p: 0.2 }} onClick={() => void openUnitPoolCard(row)} aria-label={`Abrir carteirinha de ${row.name}`}><PoolOutlinedIcon sx={{ fontSize: 17 }} /></IconButton></Tooltip>}
+                        </>
                       )}
                     </Stack>
                     {row.ownerName && row.entryType !== "PET" && (
@@ -2903,22 +2663,33 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                 Os cadastros abaixo pertencem à ocupação selecionada. Encomendas, visitas, entregas e serviços realizados são preservados e exibidos pelo período dessa ocupação.
               </Typography>
 
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
-                <RegistryGroup title="Condôminos" rows={unitSummary.residents} icon={<PeopleAltOutlinedIcon />} iconColor="#1976d2" />
+              <Stack spacing={1}>
+                <RegistryGroup title="Condôminos" rows={unitSummary.residents} icon={<PeopleAltOutlinedIcon />} iconColor="#1976d2" onOpenPoolCard={row => void openUnitPoolCard(row)} />
                 <RegistryGroup title="Veículos" rows={unitSummary.vehicles} icon={<DirectionsCarOutlinedIcon />} iconColor="#3949ab" />
                 <RegistryGroup title="Pets" rows={unitSummary.pets} icon={<PetsOutlinedIcon />} iconColor="#d81b60" />
                 <RegistryGroup title="Bicicletas" rows={unitSummary.bicycles} icon={<PedalBikeOutlinedIcon />} iconColor="#0288d1" />
-              </Box>
-              <SpaceAccessHistory rows={unitSummary.spaceAccesses ?? []} />
+              </Stack>
               <PackIdHistory rows={unitSummary.packIds ?? []} />
-              <VisitHistory rows={unitSummary.visits} />
+              <ServiceHistory rows={unitSummary.serviceRecords ?? []} title="Serviços realizados" />
               <DeliveryHistory rows={unitSummary.deliveries} />
-              <ServiceHistory rows={unitSummary.serviceRecords ?? []} title="Serviços realizados na unidade" />
+              <VisitHistory rows={unitSummary.visits} />
+              <SpaceAccessHistory rows={unitSummary.spaceAccesses ?? []} />
             </Stack>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setUnitDialogOpen(false)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(unitPoolCard)} onClose={() => setUnitPoolCard(null)} fullWidth maxWidth="md" fullScreen={mobile}>
+        <DialogTitle>Carteirinha de Piscina</DialogTitle>
+        <DialogContent sx={{ overflow: "hidden", px: mobile ? 0.5 : 3, py: mobile ? 0.5 : 2 }}>
+          {unitPoolCard && unitPoolCardSettings && <PoolCardLandscapeViewer card={unitPoolCard} settings={unitPoolCardSettings} logoUrl={unitPoolCardSettings.logoAvailable ? condominiumLogoUrl(Date.now()) : undefined} />}
+        </DialogContent>
+        <DialogActions>
+          {unitPoolCard?.reviewStatus === "APPROVED" && unitPoolCard.valid && <Button component="a" href={poolCardPdfUrl(unitPoolCard.id)}>Exportar PDF</Button>}
+          <Button onClick={() => setUnitPoolCard(null)}>Fechar</Button>
         </DialogActions>
       </Dialog>
 

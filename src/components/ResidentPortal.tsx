@@ -47,6 +47,7 @@ import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import PoolOutlinedIcon from "@mui/icons-material/PoolOutlined";
 import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import {
   fetchResidentPortal,
   fetchResidentSpaceAvailability,
@@ -59,6 +60,7 @@ import {
   requestResidentPackagePickup,
   residentCondominiumLogoUrl,
   residentPoolCardPdfUrl,
+  uploadResidentPoolCardMedicalReport,
   userFriendlyError,
   type RegistryEntry,
   type VisitorVisit,
@@ -71,7 +73,8 @@ import {
   type SpaceType,
   type PoolCard,
 } from "../api";
-import PoolCardVisual from "./PoolCardVisual";
+import PoolCardLandscapeViewer from "./PoolCardLandscapeViewer";
+import PoolCardStatusIcon, { poolCardStatusLabel } from "./PoolCardStatusIcon";
 import { spaceAccessStatusLabel, spaceLabel } from "./SpacesScreen";
 
 function formatDateTime(value?: string | null): string {
@@ -246,7 +249,14 @@ function RegistryAccordion({
   rows,
   icon,
   onEdit,
-}: Readonly<{ title: string; rows: RegistryEntry[]; icon: ReactNode; onEdit?: (row: RegistryEntry) => void }>) {
+  onPoolCard,
+}: Readonly<{
+  title: string;
+  rows: RegistryEntry[];
+  icon: ReactNode;
+  onEdit?: (row: RegistryEntry) => void;
+  onPoolCard?: (row: RegistryEntry) => void;
+}>) {
   return (
     <PagedAccordion
       title={title}
@@ -273,6 +283,18 @@ function RegistryAccordion({
               {row.identifier || row.breed || row.model || row.document || "Cadastro da unidade"}
             </Typography>
           </Box>
+          {row.entryType === "RESIDENT" && row.poolCardId && (
+            <>
+              <PoolCardStatusIcon status={row.poolCardReviewStatus} valid={row.poolCardValid} validUntil={row.poolCardValidUntil} size={18} />
+              {onPoolCard && (
+                <Tooltip title="Abrir carteirinha de piscina">
+                  <IconButton size="small" onClick={() => onPoolCard(row)} aria-label={`Abrir carteirinha de ${row.name}`}>
+                    <PoolOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </>
+          )}
           {onEdit && (
             <Tooltip title="Editar meus dados">
               <IconButton size="small" onClick={() => onEdit(row)} aria-label={`Editar ${row.name}`}>
@@ -286,12 +308,11 @@ function RegistryAccordion({
   );
 }
 
-type ProfileForm = { phone: string; email: string; profession: string };
+type ProfileForm = { phone: string; email: string; profession: string; document: string };
 
 export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ session: ResidentSession; onLoggedOut: () => void }>) {
   const theme = useTheme();
   const mobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const mobilePortrait = useMediaQuery("(orientation: portrait)");
   const [data, setData] = useState<ResidentPortalData | null>(null);
   const [localSession, setLocalSession] = useState(session);
   const [error, setError] = useState<string | null>(null);
@@ -304,11 +325,12 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
   const [confirmPassword, setConfirmPassword] = useState("");
   const [accountBusy, setAccountBusy] = useState(false);
   const [profileRow, setProfileRow] = useState<RegistryEntry | null>(null);
-  const [profileForm, setProfileForm] = useState<ProfileForm>({ phone: "", email: "", profession: "" });
+  const [profileForm, setProfileForm] = useState<ProfileForm>({ phone: "", email: "", profession: "", document: "" });
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [profileBusy, setProfileBusy] = useState(false);
   const [pickupBusy, setPickupBusy] = useState<string | null>(null);
   const [poolCardOpen, setPoolCardOpen] = useState<PoolCard | null>(null);
+  const [medicalReportBusy, setMedicalReportBusy] = useState<string | null>(null);
   const [logoVisible, setLogoVisible] = useState(true);
   const profilePhotoInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -351,7 +373,7 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
       if (document.visibilityState === "visible") void refreshSpaces();
     };
 
-    const timer = globalThis.setInterval(() => void refreshSpaces(), 5000);
+    const timer = globalThis.setInterval(() => void refreshSpaces(), 30000);
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       cancelled = true;
@@ -460,7 +482,7 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
 
   const openProfile = (row: RegistryEntry) => {
     setProfileRow(row);
-    setProfileForm({ phone: row.phone ?? "", email: row.email ?? "", profession: row.profession ?? "" });
+    setProfileForm({ phone: row.phone ?? "", email: row.email ?? "", profession: row.profession ?? "", document: row.document ?? "" });
     setProfilePhoto(null);
   };
 
@@ -485,16 +507,48 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
         phone: profileForm.phone.trim(),
         email: profileForm.email.trim(),
         profession: profileForm.profession.trim(),
+        document: profileForm.document.trim(),
       });
       if (profilePhoto) await uploadResidentProfilePhoto(profileRow.id, profilePhoto);
       setProfileRow(null);
       setProfilePhoto(null);
-      setSuccess("Seus dados de contato foram atualizados.");
+      setSuccess("Seus dados foram atualizados.");
       await load();
     } catch (err) {
       setError(userFriendlyError(err, "Não foi possível atualizar os dados do condômino."));
     } finally {
       setProfileBusy(false);
+    }
+  };
+
+  const openResidentPoolCard = (row: RegistryEntry) => {
+    if (!row.poolCardId || !data) return;
+    const card = data.poolCards.find(item => item.id === row.poolCardId || item.residentRegistryEntryId === row.id);
+    if (card) setPoolCardOpen(card);
+  };
+
+  const uploadMedicalReport = async (residentEntryId: string, file?: File) => {
+    if (!file) return;
+    const allowed = ["application/pdf", "image/jpeg", "image/png"];
+    if (!allowed.includes(file.type)) {
+      setError("O laudo deve ser PDF, JPG ou PNG.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("O laudo deve ter no máximo 5 MB.");
+      return;
+    }
+    setMedicalReportBusy(residentEntryId);
+    setError(null);
+    setSuccess(null);
+    try {
+      await uploadResidentPoolCardMedicalReport(residentEntryId, file);
+      setSuccess("Laudo enviado. A carteirinha ficou aguardando validação da administração.");
+      await load();
+    } catch (err) {
+      setError(userFriendlyError(err, "Não foi possível enviar o laudo médico."));
+    } finally {
+      setMedicalReportBusy(null);
     }
   };
 
@@ -561,18 +615,60 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
               </Box>
             </Box>
 
-            {data.poolCards?.length > 0 && <Box component="section" sx={{ mb: 2.5 }}>
+            <Box component="section" sx={{ mb: 2.5 }}>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.25 }}>
                 <PoolOutlinedIcon color="primary" />
-                <Box><Typography fontWeight={900} sx={{ fontSize: { xs: 17, sm: 20 } }}>Carteirinhas de Piscina</Typography><Typography variant="body2" color="text.secondary">Visualize ou exporte sua carteirinha para PDF.</Typography></Box>
+                <Box>
+                  <Typography fontWeight={900} sx={{ fontSize: { xs: 17, sm: 20 } }}>Carteirinhas de Piscina</Typography>
+                  <Typography variant="body2" color="text.secondary">Envie o laudo médico e acompanhe a validação da carteirinha.</Typography>
+                </Box>
               </Stack>
-              <Stack spacing={1}>{data.poolCards.map(card => <Card variant="outlined" key={card.id} sx={{ borderRadius: 2.5 }}><CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-                  <Box><Typography fontWeight={800}>{card.residentName}</Typography><Typography variant="caption" color="text.secondary">Validade: {new Date(`${card.validUntil}T12:00:00`).toLocaleDateString("pt-BR")} · {card.valid ? "Válida" : "Fora da validade"}</Typography></Box>
-                  <Stack direction="row"><Button size="small" startIcon={<PoolOutlinedIcon />} onClick={() => setPoolCardOpen(card)}>Mostrar</Button><Tooltip title="Exportar PDF"><IconButton component="a" href={residentPoolCardPdfUrl(card.id)}><PictureAsPdfOutlinedIcon /></IconButton></Tooltip></Stack>
-                </Stack>
-              </CardContent></Card>)}</Stack>
-            </Box>}
+              <Stack spacing={1}>
+                {data.residents.map(resident => {
+                  const card = data.poolCards.find(item => item.residentRegistryEntryId === resident.id);
+                  return (
+                    <Card variant="outlined" key={resident.id} sx={{ borderRadius: 2.5 }}>
+                      <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+                        <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "stretch", sm: "center" }} justifyContent="space-between" spacing={1.25}>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Stack direction="row" spacing={0.75} alignItems="center">
+                              <Typography fontWeight={800} noWrap>{resident.name}</Typography>
+                              {card && <PoolCardStatusIcon status={card.reviewStatus} valid={card.valid} validUntil={card.validUntil} />}
+                            </Stack>
+                            {card ? (
+                              <>
+                                <Typography variant="caption" color="text.secondary" display="block">{poolCardStatusLabel(card.reviewStatus, card.valid, card.validUntil)}</Typography>
+                                <Typography variant="caption" color="text.secondary" display="block">Validade: {new Date(`${card.validUntil}T12:00:00`).toLocaleDateString("pt-BR")}</Typography>
+                                {card.reviewNotes && <Typography variant="caption" color={card.reviewStatus === "REJECTED" ? "error.main" : "text.secondary"} display="block">Observação: {card.reviewNotes}</Typography>}
+                              </>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">Nenhum laudo enviado.</Typography>
+                            )}
+                          </Box>
+                          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap">
+                            <Button
+                              component="label"
+                              size="small"
+                              variant="outlined"
+                              startIcon={<UploadFileOutlinedIcon />}
+                              disabled={medicalReportBusy === resident.id}
+                              sx={{ textTransform: "none" }}
+                            >
+                              {medicalReportBusy === resident.id ? "Enviando..." : card?.medicalReportAvailable ? "Trocar laudo" : "Enviar laudo"}
+                              <input hidden type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadMedicalReport(resident.id, file); }} />
+                            </Button>
+                            {card && <Button size="small" startIcon={<PoolOutlinedIcon />} onClick={() => setPoolCardOpen(card)}>Mostrar</Button>}
+                            {card?.reviewStatus === "APPROVED" && card.valid && (
+                              <Tooltip title="Exportar PDF"><IconButton component="a" href={residentPoolCardPdfUrl(card.id)} aria-label="Exportar carteirinha em PDF"><PictureAsPdfOutlinedIcon /></IconButton></Tooltip>
+                            )}
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </Stack>
+            </Box>
 
             <Box component="section" sx={{ mb: 2.5 }}>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.25 }}>
@@ -583,7 +679,7 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                 </Box>
               </Stack>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,minmax(0,1fr))" }, gap: 1 }}>
-                <RegistryAccordion title="Condôminos" rows={data.residents} icon={<PeopleAltOutlinedIcon color="primary" />} onEdit={openProfile} />
+                <RegistryAccordion title="Condôminos" rows={data.residents} icon={<PeopleAltOutlinedIcon color="primary" />} onEdit={openProfile} onPoolCard={openResidentPoolCard} />
                 <RegistryAccordion title="Veículos" rows={data.vehicles} icon={<DirectionsCarOutlinedIcon color="primary" />} />
                 <RegistryAccordion title="Pets" rows={data.pets} icon={<PetsOutlinedIcon color="primary" />} />
                 <RegistryAccordion title="Bicicletas" rows={data.bicycles} icon={<PedalBikeOutlinedIcon color="primary" />} />
@@ -619,23 +715,24 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                   )}
                 />
 
-                <PagedAccordion<VisitorVisit>
-                  title="Visitantes"
-                  rows={data.visits}
-                  icon={<PeopleAltOutlinedIcon color="primary" />}
-                  emptyText="Nenhuma visita registrada no período desta ocupação."
+                <PagedAccordion<ServiceRecord>
+                  title="Serviços realizados"
+                  rows={data.serviceRecords}
+                  icon={<BuildOutlinedIcon color="primary" />}
+                  emptyText="Nenhum serviço registrado no período desta ocupação."
                   renderRow={(row) => (
                     <Box key={row.id} sx={{ p: 1.15, borderRadius: 2, bgcolor: "action.hover" }}>
-                      <Typography variant="body2" fontWeight={800}>{row.visitorName || "Visitante"}</Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">{formatDateTime(row.visitedAt)}</Typography>
-                      {row.visitorDocument && <Typography variant="caption" color="text.secondary" display="block">Documento: {row.visitorDocument}</Typography>}
+                      <Typography variant="body2" fontWeight={800}>{row.serviceProviderName || "Prestador de serviço"}</Typography>
+                      {row.serviceCompanyName && <Typography variant="caption" color="text.secondary" display="block">{row.serviceCompanyName}</Typography>}
+                      <Typography variant="caption" color="text.secondary" display="block">{formatDateTime(row.performedAt)}</Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">Serviço: {row.serviceDescription}</Typography>
                       {row.notes && <Typography variant="caption" color="text.secondary" display="block">{row.notes}</Typography>}
                     </Box>
                   )}
                 />
 
                 <PagedAccordion<DeliveryRecord>
-                  title="Entregadores"
+                  title="Entregas"
                   rows={data.deliveries}
                   icon={<LocalShippingOutlinedIcon color="primary" />}
                   emptyText="Nenhuma entrega registrada no período desta ocupação."
@@ -654,24 +751,23 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                   )}
                 />
 
-                <PagedAccordion<ServiceRecord>
-                  title="Prestadores de serviço"
-                  rows={data.serviceRecords}
-                  icon={<BuildOutlinedIcon color="primary" />}
-                  emptyText="Nenhum serviço registrado no período desta ocupação."
+                <PagedAccordion<VisitorVisit>
+                  title="Visitas"
+                  rows={data.visits}
+                  icon={<PeopleAltOutlinedIcon color="primary" />}
+                  emptyText="Nenhuma visita registrada no período desta ocupação."
                   renderRow={(row) => (
                     <Box key={row.id} sx={{ p: 1.15, borderRadius: 2, bgcolor: "action.hover" }}>
-                      <Typography variant="body2" fontWeight={800}>{row.serviceProviderName || "Prestador de serviço"}</Typography>
-                      {row.serviceCompanyName && <Typography variant="caption" color="text.secondary" display="block">{row.serviceCompanyName}</Typography>}
-                      <Typography variant="caption" color="text.secondary" display="block">{formatDateTime(row.performedAt)}</Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">Serviço: {row.serviceDescription}</Typography>
+                      <Typography variant="body2" fontWeight={800}>{row.visitorName || "Visitante"}</Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">{formatDateTime(row.visitedAt)}</Typography>
+                      {row.visitorDocument && <Typography variant="caption" color="text.secondary" display="block">Documento: {row.visitorDocument}</Typography>}
                       {row.notes && <Typography variant="caption" color="text.secondary" display="block">{row.notes}</Typography>}
                     </Box>
                   )}
                 />
 
                 <PagedAccordion<SpaceAccess>
-                  title="Áreas de lazer"
+                  title="Área de lazer"
                   rows={data.spaceAccesses}
                   icon={<AccessTimeRoundedIcon color="primary" />}
                   emptyText="Nenhuma solicitação de área de lazer."
@@ -745,7 +841,8 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                   {profilePhoto && <Typography variant="caption" display="block" color="success.main" noWrap>{profilePhoto.name}</Typography>}
                 </Box>
               </Stack>
-              <Alert severity="info">Nome, documento, proprietário, PNE, bloco e apartamento são alterados pela administração.</Alert>
+              <Alert severity="info">Nome, proprietário, PNE, bloco e apartamento continuam sob controle da administração. Você pode atualizar seus dados pessoais abaixo.</Alert>
+              <TextField label="Documento" value={profileForm.document} onChange={(e) => setProfileForm(v => ({ ...v, document: e.target.value }))} fullWidth />
               <TextField label="Telefone" value={profileForm.phone} onChange={(e) => setProfileForm(v => ({ ...v, phone: e.target.value }))} fullWidth />
               <TextField label="E-mail" type="email" value={profileForm.email} onChange={(e) => setProfileForm(v => ({ ...v, email: e.target.value }))} fullWidth />
               <TextField label="Profissão" value={profileForm.profession} onChange={(e) => setProfileForm(v => ({ ...v, profession: e.target.value }))} fullWidth />
@@ -760,24 +857,19 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
 
       <Dialog open={Boolean(poolCardOpen)} onClose={() => setPoolCardOpen(null)} fullWidth maxWidth="md" fullScreen={mobile}>
         <DialogTitle>Carteirinha de Piscina</DialogTitle>
-        <DialogContent sx={mobile ? { px: 1, py: 1, overflowX: "auto" } : undefined}>
+        <DialogContent sx={mobile ? { px: 0.5, py: 0.5, overflow: "hidden" } : undefined}>
           {poolCardOpen && data?.poolCardSettings && (
-            <Stack spacing={1.25} sx={{ minWidth: mobile ? 660 : 0, pb: 1 }}>
-              {mobile && mobilePortrait && (
-                <Alert severity="info" sx={{ mx: 0.5 }}>
-                  Para visualizar melhor, gire o celular para o modo paisagem.
-                </Alert>
-              )}
-              <PoolCardVisual
-                card={poolCardOpen}
-                settings={data.poolCardSettings}
-                logoUrl={data.poolCardSettings.logoAvailable ? residentCondominiumLogoUrl() : undefined}
-                forceLandscape={mobile}
-              />
-            </Stack>
+            <PoolCardLandscapeViewer
+              card={poolCardOpen}
+              settings={data.poolCardSettings}
+              logoUrl={data.poolCardSettings.logoAvailable ? residentCondominiumLogoUrl() : undefined}
+            />
           )}
         </DialogContent>
-        <DialogActions sx={mobile ? { px: 2, pb: "calc(16px + env(safe-area-inset-bottom))" } : undefined}>{poolCardOpen && <Button component="a" href={residentPoolCardPdfUrl(poolCardOpen.id)} startIcon={<PictureAsPdfOutlinedIcon />}>Exportar PDF</Button>}<Button onClick={() => setPoolCardOpen(null)}>Fechar</Button></DialogActions>
+        <DialogActions sx={mobile ? { px: 2, pb: "calc(16px + env(safe-area-inset-bottom))" } : undefined}>
+          {poolCardOpen?.reviewStatus === "APPROVED" && poolCardOpen.valid && <Button component="a" href={residentPoolCardPdfUrl(poolCardOpen.id)} startIcon={<PictureAsPdfOutlinedIcon />}>Exportar PDF</Button>}
+          <Button onClick={() => setPoolCardOpen(null)}>Fechar</Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

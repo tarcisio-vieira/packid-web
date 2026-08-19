@@ -219,6 +219,10 @@ export type RegistryEntry = {
   documentPhotoAvailable?: boolean;
   documentPhotoOwnedByCurrentUser?: boolean;
   documentPhotoFileName?: string | null;
+  poolCardId?: string | null;
+  poolCardReviewStatus?: PoolCardReviewStatus | null;
+  poolCardValidatedAt?: string | null;
+  poolCardValidatedBy?: string | null;
   poolCardAvailable?: boolean;
   poolCardValid?: boolean;
   poolCardValidUntil?: string | null;
@@ -699,6 +703,20 @@ export async function fetchSpaceAccess(options: {
   return resp.json();
 }
 
+export type SpaceAccessPage = { content: SpaceAccess[]; totalElements: number; totalPages: number; page: number; size: number };
+
+export async function fetchSpaceAccessPage(options: {
+  spaceType?: SpaceType | ""; from?: string; to?: string; page?: number; size?: number;
+} = {}): Promise<SpaceAccessPage> {
+  const params = new URLSearchParams({ page: String(options.page ?? 0), size: String(options.size ?? 10) });
+  if (options.spaceType) params.set("spaceType", options.spaceType);
+  if (options.from) params.set("from", options.from);
+  if (options.to) params.set("to", options.to);
+  const resp = await fetch(`${API_URL}/api/space-access/page?${params.toString()}`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
 export async function releaseSpaceAccess(id: string): Promise<SpaceAccess> {
   const resp = await fetch(`${API_URL}/api/space-access/${id}/release`, {
     method: "POST", credentials: "include",
@@ -708,11 +726,25 @@ export async function releaseSpaceAccess(id: string): Promise<SpaceAccess> {
 }
 
 export async function completeSpaceAccess(id: string): Promise<SpaceAccess> {
-  const resp = await fetch(`${API_URL}/api/space-access/${id}/complete`, {
-    method: "POST", credentials: "include",
-  });
+  const resp = await fetch(`${API_URL}/api/space-access/${id}/complete`, { method: "POST", credentials: "include" });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
+}
+
+export async function regularizeSpaceAccess(id: string): Promise<SpaceAccess> {
+  const resp = await fetch(`${API_URL}/api/space-access/${id}/regularize`, { method: "POST", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function regularizeOpenSpaceAccess(spaceType?: SpaceType | ""): Promise<number> {
+  const params = new URLSearchParams();
+  if (spaceType) params.set("spaceType", spaceType);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const resp = await fetch(`${API_URL}/api/space-access/regularize-open${suffix}`, { method: "POST", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  const data = await resp.json() as { affected: number };
+  return data.affected;
 }
 
 export type AppUserRole = "ADMIN" | "SECRETARY" | "PORTER" | "POOL_ATTENDANT";
@@ -856,7 +888,7 @@ export async function fetchResidentSpaces(): Promise<SpaceAccess[]> {
   return resp.json();
 }
 
-export async function updateResidentProfile(id: string, payload: { phone?: string; email?: string; profession?: string }): Promise<RegistryEntry> {
+export async function updateResidentProfile(id: string, payload: { phone?: string; email?: string; profession?: string; document?: string }): Promise<RegistryEntry> {
   const resp = await fetch(`${API_URL}/api/resident/profile/${id}`, {
     method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -871,6 +903,13 @@ export async function uploadResidentProfilePhoto(id: string, file: File): Promis
   const resp = await fetch(`${API_URL}/api/resident/profile/${id}/photo`, {
     method: "PUT", credentials: "include", body,
   });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function uploadResidentPoolCardMedicalReport(residentEntryId: string, file: File): Promise<PoolCard> {
+  const body = new FormData(); body.append("file", file);
+  const resp = await fetch(`${API_URL}/api/resident/pool-cards/residents/${residentEntryId}/medical-report`, { method: "PUT", credentials: "include", body });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
 }
@@ -1142,6 +1181,9 @@ export type PoolCardSettings = {
   color: string;
 };
 
+export type PoolCardReviewStatus = "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+export type PoolCardExpiryFilter = "" | "EXPIRED" | "WEEK" | "MONTH";
+
 export type PoolCard = {
   id: string;
   residentRegistryEntryId: string;
@@ -1155,6 +1197,11 @@ export type PoolCard = {
   valid: boolean;
   medicalReportAvailable: boolean;
   medicalReportFileName?: string | null;
+  reviewStatus: PoolCardReviewStatus;
+  medicalReportSubmittedAt?: string | null;
+  validatedAt?: string | null;
+  validatedBy?: string | null;
+  reviewNotes?: string | null;
   createdAt: string;
   updatedAt?: string | null;
 };
@@ -1184,12 +1231,14 @@ export async function fetchPoolCards(options?: {
   search?: string;
   page?: number;
   size?: number;
+  expiryFilter?: PoolCardExpiryFilter;
 }): Promise<PoolCardPage> {
   const params = new URLSearchParams({
     page: String(options?.page ?? 0),
     size: String(options?.size ?? 10),
   });
   if (options?.search?.trim()) params.set("search", options.search.trim());
+  if (options?.expiryFilter) params.set("expiryFilter", options.expiryFilter);
   const resp = await fetch(`${API_URL}/api/pool-cards/page?${params.toString()}`, { credentials: "include", cache: "no-store" });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
@@ -1205,6 +1254,30 @@ export async function fetchPoolCardResidentOptions(search?: string, limit = 20):
 
 export async function fetchPoolCardSettings(): Promise<PoolCardSettings> {
   const resp = await fetch(`${API_URL}/api/pool-cards/settings`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchPoolCard(id: string): Promise<PoolCard> {
+  const resp = await fetch(`${API_URL}/api/pool-cards/${id}`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchPendingPoolCardReviews(limit = 20): Promise<PoolCard[]> {
+  const resp = await fetch(`${API_URL}/api/pool-cards/pending-review?limit=${encodeURIComponent(String(limit))}`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function approvePoolCard(id: string, notes?: string): Promise<PoolCard> {
+  const resp = await fetch(`${API_URL}/api/pool-cards/${id}/approve`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: notes || null }) });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function rejectPoolCard(id: string, notes?: string): Promise<PoolCard> {
+  const resp = await fetch(`${API_URL}/api/pool-cards/${id}/reject`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: notes || null }) });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
 }

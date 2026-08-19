@@ -1,0 +1,28 @@
+import { Tooltip } from "@mui/material";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import HourglassEmptyOutlinedIcon from "@mui/icons-material/HourglassEmptyOutlined";
+import type { PoolCardReviewStatus } from "../api";
+
+export function poolCardStatusLabel(status?: PoolCardReviewStatus | null, valid?: boolean, validUntil?: string | null): string {
+  if (status === "PENDING_REVIEW") return "Laudo aguardando validação";
+  if (status === "REJECTED") return "Laudo não aprovado";
+  if (status === "APPROVED" && !valid) return validUntil ? "Carteirinha vencida" : "Carteirinha sem validade";
+  if (status === "APPROVED") return "Validada e conferida";
+  return "Carteirinha sem validação";
+}
+
+export default function PoolCardStatusIcon({ status, valid, validUntil, size = 19 }: Readonly<{
+  status?: PoolCardReviewStatus | null;
+  valid?: boolean;
+  validUntil?: string | null;
+  size?: number;
+}>) {
+  const title = poolCardStatusLabel(status, valid, validUntil);
+  const icon = status === "PENDING_REVIEW"
+    ? <HourglassEmptyOutlinedIcon sx={{ fontSize: size, color: "warning.main" }} />
+    : status === "APPROVED" && valid
+      ? <CheckCircleOutlineIcon sx={{ fontSize: size, color: "success.main" }} />
+      : <ErrorOutlineIcon sx={{ fontSize: size, color: "error.main" }} />;
+  return <Tooltip title={title} arrow><span style={{ display: "inline-flex" }}>{icon}</span></Tooltip>;
+}

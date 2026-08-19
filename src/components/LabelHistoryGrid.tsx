@@ -12,7 +12,6 @@ import {
   Typography,
   Box,
   Stack,
-  Button,
   TextField,
   IconButton,
   Tooltip,
@@ -21,6 +20,7 @@ import {
 import PrintIcon from "@mui/icons-material/Print";
 import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
 import SearchIcon from "@mui/icons-material/Search";
+import PhoneAndroidOutlinedIcon from "@mui/icons-material/PhoneAndroidOutlined";
 
 export type LabelHistoryRow = {
   id: string;
@@ -31,6 +31,7 @@ export type LabelHistoryRow = {
   residentFullName?: string;
   packageCode: string;
   observations?: string;
+  residentAcknowledgedAt?: string | null;
   status?: "saving" | "saved" | "error";
   errorMessage?: string;
 };
@@ -191,15 +192,24 @@ export default function LabelHistoryGrid({
                         Bloco {r.block || "-"} · Apto {r.apartment || "-"}
                       </Typography>
                     </Box>
-                    <Tooltip title={t("history.printSingleLabel")}>
-                      <IconButton
-                        aria-label={t("history.printSingleLabel")}
-                        onClick={() => onPrintRow(r)}
-                        size="small"
-                      >
-                        <LocalOfferOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    <Stack direction="row" spacing={0.15} alignItems="center">
+                      {r.residentAcknowledgedAt && (
+                        <Tooltip title="Retirada solicitada pelo morador via aplicativo" arrow>
+                          <span style={{ display: "inline-flex" }}>
+                            <PhoneAndroidOutlinedIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+                          </span>
+                        </Tooltip>
+                      )}
+                      <Tooltip title={t("history.printSingleLabel")}>
+                        <IconButton
+                          aria-label={t("history.printSingleLabel")}
+                          onClick={() => onPrintRow(r)}
+                          size="small"
+                        >
+                          <LocalOfferOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
                   </Stack>
                 </Box>
               );
@@ -339,14 +349,18 @@ export default function LabelHistoryGrid({
           InputLabelProps={{ shrink: true }}
         />
 
-        <Button
-          variant="outlined"
-          startIcon={<PrintIcon />}
-          onClick={handlePrintTable}
-          disabled={!filteredRows.length}
-        >
-          {t("history.printTable")}
-        </Button>
+        <Tooltip title={t("history.printTable")} arrow>
+          <span>
+            <IconButton
+              color="primary"
+              onClick={handlePrintTable}
+              disabled={!filteredRows.length}
+              aria-label={t("history.printTable")}
+            >
+              <PrintIcon />
+            </IconButton>
+          </span>
+        </Tooltip>
       </Box>
 
       {!filteredRows.length ? (
@@ -417,17 +431,26 @@ export default function LabelHistoryGrid({
                     </TableCell>
 
                     <TableCell align="center">
-                      <Tooltip title={t("history.printSingleLabel")}>
-                        <span>
-                          <IconButton
-                            aria-label={t("history.printSingleLabel")}
-                            onClick={() => onPrintRow(r)}
-                            size="small"
-                          >
-                            <LocalOfferOutlinedIcon />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
+                      <Stack direction="row" spacing={0.2} justifyContent="center" alignItems="center">
+                        {r.residentAcknowledgedAt && (
+                          <Tooltip title="Retirada solicitada pelo morador via aplicativo" arrow>
+                            <span style={{ display: "inline-flex" }}>
+                              <PhoneAndroidOutlinedIcon sx={{ fontSize: 19, color: "text.secondary" }} />
+                            </span>
+                          </Tooltip>
+                        )}
+                        <Tooltip title={t("history.printSingleLabel")}>
+                          <span>
+                            <IconButton
+                              aria-label={t("history.printSingleLabel")}
+                              onClick={() => onPrintRow(r)}
+                              size="small"
+                            >
+                              <LocalOfferOutlinedIcon />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 );
