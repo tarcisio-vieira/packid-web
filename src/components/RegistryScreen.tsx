@@ -446,7 +446,6 @@ function SpaceAccessHistory({ rows }: Readonly<{ rows: SpaceAccess[] }>) {
 
 export default function RegistryScreen({ embedded = false, currentUser, initialNavigation }: Readonly<{ embedded?: boolean; currentUser?: User | null; initialNavigation?: RegistryNavigationValue }>) {
   const theme = useTheme();
-  const mobile = useMediaQuery(theme.breakpoints.down("sm"));
   const initialRegistryType: RegistryEntryType = initialNavigation && !["SERVICE_COMPANY", "LEISURE_AREA", "POOL_CARDS"].includes(initialNavigation)
     ? initialNavigation as RegistryEntryType
     : "RESIDENT";
