@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControlLabel, IconButton, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead,
@@ -37,6 +37,9 @@ export default function ServiceCompanyPanel({ newRequestSeq = 0, hideHeader = fa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  // Guarda a sequência recebida no momento em que o painel monta. Assim, ao sair da aba
+  // Empresas e voltar, um clique antigo em "Novo cadastro" não reabre o formulário.
+  const handledNewRequestSeq = useRef(newRequestSeq);
 
   const load = async () => {
     setLoading(true); setError(null);
@@ -65,7 +68,8 @@ export default function ServiceCompanyPanel({ newRequestSeq = 0, hideHeader = fa
   const paged = visible.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   useEffect(() => {
-    if (newRequestSeq <= 0) return;
+    if (newRequestSeq <= handledNewRequestSeq.current) return;
+    handledNewRequestSeq.current = newRequestSeq;
     setEditingId(null);
     setForm(emptyCompany());
     setDialogOpen(true);

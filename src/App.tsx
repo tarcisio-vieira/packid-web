@@ -1556,14 +1556,15 @@ function App() {
               <ListItemText primary={t("menu.registry")} />
             </ListItemButton>
 
-            {(user?.canManageSettings ?? ["ADMIN", "SECRETARY"].includes((user?.role ?? "").toUpperCase())) && (
-              <ListItemButton onClick={() => setActiveView("settings")}>
-                <ListItemText primary={t("menu.settings")} />
-              </ListItemButton>
-            )}
             </>}
             {(user?.canViewPoolCards ?? ["ADMIN", "SECRETARY", "PORTER", "POOL_ATTENDANT"].includes((user?.role ?? "").toUpperCase())) && (
               <ListItemButton onClick={() => setActiveView("poolCards")}><ListItemText primary="Carteirinhas de piscina" /></ListItemButton>
+            )}
+            {(user?.role || "").toUpperCase() !== "POOL_ATTENDANT" &&
+              (user?.canManageSettings ?? ["ADMIN", "SECRETARY"].includes((user?.role ?? "").toUpperCase())) && (
+              <ListItemButton onClick={() => setActiveView("settings")}>
+                <ListItemText primary={t("menu.settings")} />
+              </ListItemButton>
             )}
           </List>
         </Box>

@@ -945,6 +945,11 @@ export async function exportSpaceAccessExcel(): Promise<void> {
   await downloadExcel(resp, "area-lazer.xlsx");
 }
 
+export async function exportPoolCardsExcel(): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/exports/pool-cards`, { credentials: "include" });
+  await downloadExcel(resp, "carteirinhas-piscina.xlsx");
+}
+
 export type GoogleAccountSettings = {
   connected: boolean;
   email?: string | null;
@@ -1186,6 +1191,7 @@ export async function uploadPoolCardMedicalReport(id: string, file: File): Promi
 }
 
 export function poolCardMedicalReportUrl(id: string): string { return `${API_URL}/api/pool-cards/${id}/medical-report`; }
+export function poolCardMedicalReportDriveUrl(id: string): string { return `${API_URL}/api/pool-cards/${id}/medical-report/drive`; }
 export function poolCardPdfUrl(id: string): string { return `${API_URL}/api/pool-cards/${id}/pdf`; }
 export function residentPoolCardPdfUrl(id: string): string { return `${API_URL}/api/resident/pool-cards/${id}/pdf`; }
 export function condominiumLogoUrl(version?: string | number): string {

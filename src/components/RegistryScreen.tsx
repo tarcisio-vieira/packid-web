@@ -2014,7 +2014,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                   <Box sx={{ minWidth: 0 }}>
                     <Divider sx={{ mb: 1.5 }} />
                     <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-                      Encomendas da unidade ({selectedResidentPackages.length})
+                      Encomendas da unidade (Últimas 3)
                     </Typography>
                     {selectedResidentPackages.length === 0 ? (
                       <Typography variant="body2" sx={{ opacity: .7 }}>Nenhuma encomenda registrada nesta ocupação.</Typography>
@@ -2023,16 +2023,26 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                         <Table size="small">
                           <TableHead>
                             <TableRow>
-                              <TableCell>Código</TableCell>
-                              <TableCell>Registrada em</TableCell>
+                              <TableCell sx={{ width: 190, maxWidth: 190 }}>Código</TableCell>
+                              <TableCell sx={{ width: 72 }}>Página</TableCell>
+                              <TableCell sx={{ whiteSpace: "nowrap" }}>Registrada em</TableCell>
                               <TableCell align="center">App</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {selectedResidentPackages.slice(0, 20).map((pack) => (
+                            {selectedResidentPackages.slice(0, 3).map((pack) => {
+                              const code = pack.labelPackageCode || pack.packageCode || "-";
+                              return (
                               <TableRow key={pack.id}>
-                                <TableCell>{pack.labelPackageCode || pack.packageCode || "-"}</TableCell>
-                                <TableCell>{formatDateTime(pack.arrivedAt)}</TableCell>
+                                <TableCell sx={{ width: 190, maxWidth: 190 }}>
+                                  <Tooltip title={code === "-" ? "" : code} arrow>
+                                    <Box component="span" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 190 }}>
+                                      {code}
+                                    </Box>
+                                  </Tooltip>
+                                </TableCell>
+                                <TableCell>{pack.bookPage || "—"}</TableCell>
+                                <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDateTime(pack.arrivedAt)}</TableCell>
                                 <TableCell align="center">
                                   {pack.residentAcknowledgedAt ? (
                                     <Tooltip title="Retirada solicitada pelo aplicativo — o registro eletrônico dispensa assinatura no caderno.">
@@ -2041,7 +2051,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                                   ) : "—"}
                                 </TableCell>
                               </TableRow>
-                            ))}
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </TableContainer>
@@ -2338,6 +2349,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
               onChange={(e) => setField("name", e.target.value)}
               required
               fullWidth
+              sx={type === "VISITOR" ? { gridColumn: { sm: "1 / -1" } } : undefined}
             />
 
             {(type === "RESIDENT" || type === "DELIVERY_PERSON" || type === "VISITOR" || type === "SERVICE_PROVIDER") && (
@@ -2442,7 +2454,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
               </>
             )}
             {isCompanyLinkedPerson && (
-              <Box>
+              <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
                 <Autocomplete
                   options={serviceCompanies.filter((company) => company.active || company.id === form.serviceCompanyId)}
                   value={serviceCompanies.find((company) => company.id === form.serviceCompanyId) ?? null}
