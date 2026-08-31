@@ -734,8 +734,30 @@ export async function releaseSpaceAccess(id: string): Promise<SpaceAccess> {
   return resp.json();
 }
 
-export async function completeSpaceAccess(id: string): Promise<SpaceAccess> {
-  const resp = await fetch(`${API_URL}/api/space-access/${id}/complete`, { method: "POST", credentials: "include" });
+export async function manualReleaseSpaceAccess(payload: {
+  residentRegistryEntryId: string;
+  spaceType: SpaceType;
+  releasedAt?: string | null;
+}): Promise<SpaceAccess> {
+  const resp = await fetch(`${API_URL}/api/space-access/manual-release`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function completeSpaceAccess(id: string, completedAt?: string | null): Promise<SpaceAccess> {
+  const resp = await fetch(`${API_URL}/api/space-access/${id}/complete`, {
+    method: "POST",
+    credentials: "include",
+    ...(completedAt ? {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completedAt }),
+    } : {}),
+  });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
 }

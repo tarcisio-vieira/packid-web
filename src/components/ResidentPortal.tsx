@@ -647,21 +647,6 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
         ) : (
           <>
             <Box component="section" sx={{ mb: 2.5 }}>
-              <Stack direction="row" alignItems="flex-start" spacing={1} sx={{ mb: 1.25 }}>
-                <KeyIcon color="primary" sx={{ mt: 0.2 }} />
-                <Box>
-                  <Typography fontWeight={900} sx={{ fontSize: { xs: 17, sm: 20 } }}>Chaves das áreas de lazer</Typography>
-                  <Typography variant="body2" color="text.secondary">Solicite ou devolva a chave com poucos toques.</Typography>
-                </Box>
-              </Stack>
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" }, gap: { xs: 1, sm: 1.5 } }}>
-                {(["GYM", "GAMES_ROOM", "PLAYROOM", "SAUNA"] as SpaceType[]).map(type => (
-                  <SpaceButton key={type} type={type} rows={activeRows} busy={busySpace === type} onClick={() => void toggleSpace(type)} />
-                ))}
-              </Box>
-            </Box>
-
-            <Box component="section" sx={{ mb: 2.5 }}>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.25 }}>
                 <HomeOutlinedIcon color="primary" />
                 <Box>
@@ -786,6 +771,21 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                   )}
                 />
               </Stack>
+            </Box>
+
+            <Box component="section" sx={{ mt: 2.5, mb: 0 }}>
+              <Stack direction="row" alignItems="flex-start" spacing={1} sx={{ mb: 1.25 }}>
+                <KeyIcon color="primary" sx={{ mt: 0.2 }} />
+                <Box>
+                  <Typography fontWeight={900} sx={{ fontSize: { xs: 17, sm: 20 } }}>Chaves das áreas de lazer</Typography>
+                  <Typography variant="body2" color="text.secondary">Solicite ou devolva a chave com poucos toques.</Typography>
+                </Box>
+              </Stack>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" }, gap: { xs: 1, sm: 1.5 } }}>
+                {(["GYM", "GAMES_ROOM", "PLAYROOM", "SAUNA"] as SpaceType[]).map(type => (
+                  <SpaceButton key={type} type={type} rows={activeRows} busy={busySpace === type} onClick={() => void toggleSpace(type)} />
+                ))}
+              </Box>
             </Box>
           </>
         )}
