@@ -47,6 +47,7 @@ import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import PoolOutlinedIcon from "@mui/icons-material/PoolOutlined";
 import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import {
   fetchResidentPortal,
   fetchResidentSpaceAvailability,
@@ -704,8 +705,8 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                   renderRow={(row) => (
                     <Box key={row.id} sx={{ p: 1.15, borderRadius: 2, bgcolor: "action.hover" }}>
                       <Stack direction="row" justifyContent="space-between" spacing={1}>
-                        <Box sx={{ minWidth: 0 }}><Stack direction="row" alignItems="center" spacing={.5}><Typography variant="body2" fontWeight={800} sx={{ overflowWrap: "anywhere" }}>{row.labelPackageCode || row.packageCode}</Typography>{row.residentAcknowledgedAt && <Tooltip title="Solicitação de retirada registrada pelo aplicativo. Não é necessário assinar o caderno de entrega."><CheckCircleOutlineIcon sx={{ color: "text.disabled", fontSize: 17 }} /></Tooltip>}</Stack>
-                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.35 }}>{formatDateTime(row.arrivedAt)}</Typography>{row.createdBy && <Typography variant="caption" color="text.secondary">Recebido por {row.createdBy}</Typography>}</Box>
+                        <Box sx={{ minWidth: 0 }}><Stack direction="row" alignItems="center" spacing={.5}>{row.packageType === "LETTER" && <Tooltip title="Carta" arrow><MailOutlineRoundedIcon sx={{ color: "text.secondary", fontSize: 17, flexShrink: 0 }} /></Tooltip>}<Typography variant="body2" fontWeight={800} sx={{ overflowWrap: "anywhere" }}>{row.labelPackageCode || row.packageCode}</Typography>{row.residentAcknowledgedAt && <Tooltip title="Solicitação de retirada registrada pelo aplicativo. Não é necessário assinar o caderno de entrega."><CheckCircleOutlineIcon sx={{ color: "text.disabled", fontSize: 17 }} /></Tooltip>}</Stack>
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.35 }}>{formatDateTime(row.arrivedAt)}</Typography></Box>
                         {row.bookPage && <Chip size="small" variant="outlined" label={`Pág. ${row.bookPage}`} sx={{ height: 22, flex: "0 0 auto" }} />}
                       </Stack>
                       <Box sx={{ mt: .75 }}>

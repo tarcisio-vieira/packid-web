@@ -13,6 +13,9 @@ import GridOnOutlinedIcon from "@mui/icons-material/GridOnOutlined";
 import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
 import EventOutlinedIcon from "@mui/icons-material/EventOutlined";
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
+import PoolOutlinedIcon from "@mui/icons-material/PoolOutlined";
+import ApartmentOutlinedIcon from "@mui/icons-material/ApartmentOutlined";
+import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import {
   condominiumLogoUrl, createPoolCard, deletePoolCard, exportPoolCardsExcel, fetchPoolCards,
   fetchPoolCardResidentOptions, fetchPoolCardSettings, poolCardPdfUrl,
@@ -26,7 +29,9 @@ const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Pa
 function formatDate(value: string): string { return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR"); }
 
 export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser: User }>) {
-  const canManage = Boolean(currentUser.canManagePoolCards) || ["ADMIN", "SECRETARY"].includes((currentUser.role || "").toUpperCase());
+  const role = (currentUser.role || "").toUpperCase();
+  const canManage = Boolean(currentUser.canManagePoolCards) || ["ADMIN", "SECRETARY"].includes(role);
+  const isPoolAttendant = role === "POOL_ATTENDANT";
   const theme = useTheme();
   const mobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [cards, setCards] = useState<PoolCard[]>([]);
@@ -97,9 +102,8 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
       if (!editing) setPage(0);
       await loadCards(target);
       setViewing(saved);
-    } catch (e) {
-      setError(userFriendlyError(e, "Não foi possível salvar a carteirinha."));
-    } finally { setSaving(false); }
+    } catch (e) { setError(userFriendlyError(e, "Não foi possível salvar a carteirinha.")); }
+    finally { setSaving(false); }
   };
   const remove = async (card: PoolCard) => {
     if (!await confirmDialog({ title: "Excluir carteirinha?", text: `Tem certeza que deseja excluir a carteirinha de ${card.residentName}?`, confirmButtonText: "Excluir" })) return;
@@ -115,20 +119,54 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
     { value: "MONTH", title: "A vencer em até 1 mês", icon: <CalendarMonthOutlinedIcon /> },
   ];
 
-  return <Box sx={{ mt: 2 }}>
-    <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} spacing={1.5}>
-      <Box><Typography variant="subtitle1" fontWeight={700}>Carteirinhas de piscina</Typography><Typography variant="body2" sx={{ opacity: .7 }}>Consulte a validade e gerencie as carteirinhas dos condôminos.</Typography></Box>
-      <Stack direction="row" spacing={.5} alignItems="center" flexWrap="wrap" useFlexGap>
-        {filterButtons.map(f => <Tooltip key={f.value} title={f.title} arrow><IconButton color={expiryFilter === f.value ? "primary" : "default"} onClick={() => { setExpiryFilter(v => v === f.value ? "" : f.value); setPage(0); }} aria-label={f.title}>{f.icon}</IconButton></Tooltip>)}
-        {canManage && <Tooltip title="Exportar Excel" arrow><span><IconButton color="primary" onClick={() => void exportExcel()} disabled={exporting} aria-label="Exportar Excel"><GridOnOutlinedIcon /></IconButton></span></Tooltip>}
-        {canManage && <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>Novo cadastro</Button>}
+  const mobileList = <Stack spacing={1.15} sx={{ mt: 1.5, pb: 1 }}>
+    {cards.map(card => <Paper key={card.id} elevation={0} variant="outlined" sx={{ p: 1.4, borderRadius: 3 }}>
+      <Stack direction="row" spacing={1.2} alignItems="flex-start">
+        <Box sx={{ width: 44, height: 44, borderRadius: 2.2, bgcolor: card.valid ? "success.main" : "action.disabledBackground", color: card.valid ? "success.contrastText" : "text.secondary", display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <BadgeOutlinedIcon />
+        </Box>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography fontWeight={800} sx={{ lineHeight: 1.2 }}>{card.residentName}</Typography>
+          <Stack direction="row" spacing={.5} alignItems="center" sx={{ mt: .45 }}>
+            <ApartmentOutlinedIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+            <Typography variant="body2" color="text.secondary">Bloco {card.block || "—"} · Apto {card.apartment || "—"}</Typography>
+          </Stack>
+          <Stack direction="row" spacing={.7} alignItems="center" sx={{ mt: .7, flexWrap: "wrap" }} useFlexGap>
+            <Chip size="small" color={card.valid ? "success" : "default"} label={card.valid ? "VÁLIDA" : "VENCIDA"} sx={{ fontWeight: 800 }} />
+            <Typography variant="caption" color="text.secondary">Validade: {formatDate(card.validUntil)}</Typography>
+          </Stack>
+        </Box>
       </Stack>
-    </Stack>
-    {expiryFilter && <Chip size="small" sx={{ mt: 1 }} label={filterButtons.find(i => i.value === expiryFilter)?.title} onDelete={() => { setExpiryFilter(""); setPage(0); }} />}
-    {error && <Alert severity="error" sx={{ mt: 1.5 }} onClose={() => setError("")}>{error}</Alert>}
-    <TextField fullWidth size="small" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="Pesquisar condômino, bloco ou apartamento" sx={{ mt: 2, maxWidth: 720 }} />
+      <Stack direction="row" spacing={.75} sx={{ mt: 1.25 }}>
+        <Button fullWidth variant="contained" size="medium" startIcon={<VisibilityOutlinedIcon />} onClick={() => setViewing(card)}>Ver carteirinha</Button>
+        {canManage && <Tooltip title="Editar"><IconButton color="primary" onClick={() => openEdit(card)}><EditOutlinedIcon /></IconButton></Tooltip>}
+        {canManage && <Tooltip title="Excluir"><IconButton color="error" onClick={() => void remove(card)}><DeleteOutlineIcon /></IconButton></Tooltip>}
+      </Stack>
+    </Paper>)}
+    {!cards.length && <Paper variant="outlined" sx={{ p: 3, textAlign: "center", borderRadius: 3 }}><PoolOutlinedIcon sx={{ fontSize: 36, opacity: .4 }} /><Typography sx={{ mt: 1 }}>Nenhuma carteirinha encontrada.</Typography></Paper>}
+  </Stack>;
 
-    {loading ? <Box sx={{ py: 6, textAlign: "center" }}><CircularProgress /></Box> : <Paper variant="outlined" sx={{ mt: 2, overflow: "hidden" }}>
+  return <Box sx={{ mt: mobile ? 0 : 2, mx: mobile ? -1 : 0 }}>
+    <Box sx={mobile ? { position: "sticky", top: 0, zIndex: 3, bgcolor: "background.default", px: 1.25, pt: 1, pb: 1, borderBottom: "1px solid", borderColor: "divider" } : undefined}>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} spacing={1.2}>
+        <Box>
+          <Stack direction="row" spacing={.8} alignItems="center"><PoolOutlinedIcon color="primary" /><Typography variant={mobile ? "h6" : "subtitle1"} fontWeight={800}>Carteirinhas de piscina</Typography></Stack>
+          <Typography variant="body2" sx={{ opacity: .7 }}>{mobile && isPoolAttendant ? "Consulta rápida para acesso à piscina." : "Consulte a validade e gerencie as carteirinhas dos condôminos."}</Typography>
+        </Box>
+        <Stack direction="row" spacing={.5} alignItems="center" flexWrap="wrap" useFlexGap>
+          {filterButtons.map(f => <Tooltip key={f.value} title={f.title} arrow><IconButton size={mobile ? "small" : "medium"} color={expiryFilter === f.value ? "primary" : "default"} onClick={() => { setExpiryFilter(v => v === f.value ? "" : f.value); setPage(0); }} aria-label={f.title}>{f.icon}</IconButton></Tooltip>)}
+          {canManage && !mobile && <Tooltip title="Exportar Excel" arrow><span><IconButton color="primary" onClick={() => void exportExcel()} disabled={exporting} aria-label="Exportar Excel"><GridOnOutlinedIcon /></IconButton></span></Tooltip>}
+          {canManage && <Button size={mobile ? "small" : "medium"} variant="contained" startIcon={<AddIcon />} onClick={openNew}>Novo cadastro</Button>}
+        </Stack>
+      </Stack>
+      {expiryFilter && <Chip size="small" sx={{ mt: 1 }} label={filterButtons.find(i => i.value === expiryFilter)?.title} onDelete={() => { setExpiryFilter(""); setPage(0); }} />}
+      {error && <Alert severity="error" sx={{ mt: 1.2 }} onClose={() => setError("")}>{error}</Alert>}
+      <TextField fullWidth size="small" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="Pesquisar nome, bloco ou apartamento" sx={{ mt: 1.2, maxWidth: 720, bgcolor: "background.paper" }} />
+    </Box>
+
+    {loading ? <Box sx={{ py: 6, textAlign: "center" }}><CircularProgress /></Box> : mobile ? <Box sx={{ px: 1 }}>{mobileList}
+      {totalElements > 0 && <Paper variant="outlined" sx={{ borderRadius: 2.5, overflow: "hidden", mb: 1 }}><TablePagination component="div" count={totalElements} page={page} onPageChange={(_, p) => setPage(p)} rowsPerPage={rowsPerPage} onRowsPerPageChange={e => { setRowsPerPage(Number(e.target.value)); setPage(0); }} rowsPerPageOptions={[10, 20]} labelRowsPerPage="Por página:" labelDisplayedRows={({from,to,count}) => `${from}-${to} de ${count}`} /></Paper>}
+    </Box> : <Paper variant="outlined" sx={{ mt: 2, overflow: "hidden" }}>
       <TableContainer><Table size="small" sx={{ minWidth: 940 }}><TableHead><TableRow>
         <TableCell>Condômino</TableCell><TableCell>Bloco</TableCell><TableCell>Apto</TableCell><TableCell>Validade</TableCell><TableCell align="center">Situação</TableCell><TableCell align="right">Ações</TableCell>
       </TableRow></TableHead><TableBody>
@@ -147,16 +185,20 @@ export default function PoolCardsScreen({ currentUser }: Readonly<{ currentUser:
       <TablePagination component="div" count={totalElements} page={page} onPageChange={(_, p) => setPage(p)} rowsPerPage={rowsPerPage} onRowsPerPageChange={e => { setRowsPerPage(Number(e.target.value)); setPage(0); }} rowsPerPageOptions={[5,10,50]} labelRowsPerPage="Linhas por página:" labelDisplayedRows={({from,to,count}) => `${from}-${to} de ${count}`} />
     </Paper>}
 
-    <Dialog open={formOpen} onClose={() => !saving && setFormOpen(false)} fullWidth maxWidth="sm"><DialogTitle>{editing ? "Editar carteirinha" : "Nova carteirinha de piscina"}</DialogTitle><DialogContent><Stack spacing={2} sx={{ mt: 1 }}>
+    <Dialog open={formOpen} onClose={() => !saving && setFormOpen(false)} fullWidth maxWidth="sm" fullScreen={mobile && canManage}><DialogTitle>{editing ? "Editar carteirinha" : "Nova carteirinha de piscina"}</DialogTitle><DialogContent><Stack spacing={2} sx={{ mt: 1 }}>
       <Autocomplete options={residentOptions} value={resident} loading={residentsLoading} filterOptions={o => o} onChange={(_,v) => setResident(v)} onInputChange={(_,v,r) => { if (r === "input" || r === "clear") setResidentQuery(v); }} getOptionLabel={i => `${i.name} — Bloco ${i.block || "?"} / Apto ${i.apartment || "?"}`} isOptionEqualToValue={(a,b) => a.id === b.id} renderInput={params => <TextField {...params} label="Condômino" required placeholder="Digite nome, bloco ou apartamento" InputProps={{...params.InputProps, endAdornment:<>{residentsLoading ? <CircularProgress size={18}/> : null}{params.InputProps.endAdornment}</>}} />} />
       <TextField type="date" label="Data de emissão" value={issueDate} onChange={e=>setIssueDate(e.target.value)} InputLabelProps={{shrink:true}} required />
       <Autocomplete options={[{label:"Sim",value:true},{label:"Não",value:false}]} value={underTen?{label:"Sim",value:true}:{label:"Não",value:false}} onChange={(_,v)=>setUnderTen(Boolean(v?.value))} isOptionEqualToValue={(a,b)=>a.value===b.value} renderInput={params=><TextField {...params} label="Menor de 10 anos"/>}/>
       {settings && <Chip label={`Validade configurada: ${settings.validityMonths} meses`} variant="outlined" />}
     </Stack></DialogContent><DialogActions><Button onClick={()=>setFormOpen(false)} disabled={saving}>Cancelar</Button><Button variant="contained" onClick={()=>void save()} disabled={saving || !resident || !issueDate}>{saving?"Salvando...":"Salvar"}</Button></DialogActions></Dialog>
 
-    <Dialog open={Boolean(viewing)} onClose={() => setViewing(null)} fullWidth maxWidth="lg" fullScreen={mobile} PaperProps={{ sx: { overflow: "hidden" } }}><DialogTitle sx={{ py: 1.25 }}>Carteirinha de Piscina</DialogTitle><DialogContent sx={{ p: mobile ? 0 : 2, overflow: "hidden", display: "flex", justifyContent: "center" }}>{viewing && settings && <PoolCardLandscapeViewer card={viewing} settings={settings} logoUrl={logo} />}</DialogContent><DialogActions sx={{ py: 1, px: 2 }}>
-      {viewing?.valid && <Button startIcon={<PictureAsPdfOutlinedIcon />} component="a" href={poolCardPdfUrl(viewing.id)}>Exportar PDF</Button>}
-      <Button onClick={() => setViewing(null)}>Fechar</Button>
-    </DialogActions></Dialog>
+    <Dialog open={Boolean(viewing)} onClose={() => setViewing(null)} fullWidth maxWidth="lg" fullScreen={mobile} PaperProps={{ sx: { overflow: "hidden", bgcolor: mobile ? "#111" : undefined } }}>
+      <DialogTitle sx={{ py: 1.1, bgcolor: mobile ? "#111" : undefined, color: mobile ? "common.white" : undefined }}>Carteirinha de Piscina</DialogTitle>
+      <DialogContent sx={{ p: mobile ? 0 : 2, overflow: "hidden", display: "flex", justifyContent: "center", alignItems: "center", bgcolor: mobile ? "#111" : undefined }}>{viewing && settings && <PoolCardLandscapeViewer card={viewing} settings={settings} logoUrl={logo} />}</DialogContent>
+      <DialogActions sx={{ py: 1, px: 2, bgcolor: mobile ? "#111" : undefined }}>
+        {viewing?.valid && !isPoolAttendant && <Button startIcon={<PictureAsPdfOutlinedIcon />} component="a" href={poolCardPdfUrl(viewing.id)}>Exportar PDF</Button>}
+        <Button variant={mobile ? "contained" : "text"} fullWidth={mobile} onClick={() => setViewing(null)}>Fechar</Button>
+      </DialogActions>
+    </Dialog>
   </Box>;
 }

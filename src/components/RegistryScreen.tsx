@@ -57,11 +57,13 @@ import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import DeckOutlinedIcon from "@mui/icons-material/DeckOutlined";
 import PoolOutlinedIcon from "@mui/icons-material/PoolOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import PhoneAndroidOutlinedIcon from "@mui/icons-material/PhoneAndroidOutlined";
 import AutorenewRoundedIcon from "@mui/icons-material/AutorenewRounded";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import PersonOffOutlinedIcon from "@mui/icons-material/PersonOffOutlined";
 import GridOnOutlinedIcon from "@mui/icons-material/GridOnOutlined";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import {
   createDeliveryRecord,
   createRegistryEntry,
@@ -422,7 +424,7 @@ function VisitHistory({ rows }: Readonly<{ rows: VisitorVisit[] }>) {
 
 function PackIdHistory({ rows }: Readonly<{ rows: PackIdRecentItem[] }>) {
   const [page,setPage]=useState(0); const [rowsPerPage,setRowsPerPage]=useState(10); useEffect(()=>setPage(0),[rows]); const pagedRows=rows.slice(page*rowsPerPage,page*rowsPerPage+rowsPerPage);
-  return <HistoryAccordion title="Encomendas" count={rows.length} icon={<Inventory2OutlinedIcon sx={{color:"#00897b"}}/>}><TableContainer sx={{maxHeight:390}}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Data / hora</TableCell><TableCell>Página</TableCell><TableCell>Código da encomenda</TableCell><TableCell>Registrado por</TableCell></TableRow></TableHead><TableBody>{!rows.length&&<TableRow><TableCell colSpan={4} align="center">Nenhuma encomenda registrada para esta unidade.</TableCell></TableRow>}{pagedRows.map(row=><TableRow key={row.id}><TableCell>{formatDateTime(row.arrivedAt)}</TableCell><TableCell>{row.bookPage||"-"}</TableCell><TableCell>{row.labelPackageCode||row.packageCode||"-"}</TableCell><TableCell>{row.createdBy||"-"}</TableCell></TableRow>)}</TableBody></Table></TableContainer>{rows.length>0&&<PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage} onPageChange={setPage} onRowsPerPageChange={v=>{setRowsPerPage(v);setPage(0);}}/>}</HistoryAccordion>;
+  return <HistoryAccordion title="Encomendas" count={rows.length} icon={<Inventory2OutlinedIcon sx={{color:"#00897b"}}/>}><TableContainer sx={{maxHeight:390}}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Data / hora</TableCell><TableCell>Página</TableCell><TableCell>Código da encomenda</TableCell><TableCell align="center">App</TableCell><TableCell align="center">Carta</TableCell></TableRow></TableHead><TableBody>{!rows.length&&<TableRow><TableCell colSpan={5} align="center">Nenhuma encomenda registrada para esta unidade.</TableCell></TableRow>}{pagedRows.map(row=><TableRow key={row.id}><TableCell>{formatDateTime(row.arrivedAt)}</TableCell><TableCell>{row.bookPage||"-"}</TableCell><TableCell>{row.labelPackageCode||row.packageCode||"-"}</TableCell><TableCell align="center">{row.residentAcknowledgedAt && <Tooltip title="Solicitação de retirada registrada pelo aplicativo" arrow><span style={{display:"inline-flex"}}><PhoneAndroidOutlinedIcon sx={{fontSize:18,color:"text.secondary"}}/></span></Tooltip>}</TableCell><TableCell align="center">{row.packageType === "LETTER" && <Tooltip title="Carta" arrow><span style={{display:"inline-flex"}}><MailOutlineRoundedIcon sx={{fontSize:17,color:"text.secondary"}}/></span></Tooltip>}</TableCell></TableRow>)}</TableBody></Table></TableContainer>{rows.length>0&&<PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage} onPageChange={setPage} onRowsPerPageChange={v=>{setRowsPerPage(v);setPage(0);}}/>}</HistoryAccordion>;
 }
 
 function DeliveryHistory({ rows }: Readonly<{ rows: DeliveryRecord[] }>) {
@@ -1755,7 +1757,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                   <Box sx={{ minWidth: 0 }}>
                     <Divider sx={{ mb: 1.5 }} />
                     <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-                      Encomendas da unidade (Últimas 3)
+                      Encomendas da unidade (Últimas 5)
                     </Typography>
                     {selectedResidentPackages.length === 0 ? (
                       <Typography variant="body2" sx={{ opacity: .7 }}>Nenhuma encomenda registrada nesta ocupação.</Typography>
@@ -1768,16 +1770,17 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                               <TableCell sx={{ width: 72 }}>Página</TableCell>
                               <TableCell sx={{ whiteSpace: "nowrap" }}>Registrada em</TableCell>
                               <TableCell align="center">App</TableCell>
+                              <TableCell align="center">Carta</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {selectedResidentPackages.slice(0, 3).map((pack) => {
+                            {selectedResidentPackages.slice(0, 5).map((pack) => {
                               const code = pack.labelPackageCode || pack.packageCode || "-";
                               return (
                               <TableRow key={pack.id}>
                                 <TableCell sx={{ width: 190, maxWidth: 190 }}>
                                   <Tooltip title={code === "-" ? "" : code} arrow>
-                                    <Box component="span" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 190 }}>
+                                    <Box component="span" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, maxWidth: 190 }}>
                                       {code}
                                     </Box>
                                   </Tooltip>
@@ -1788,6 +1791,13 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                                   {pack.residentAcknowledgedAt ? (
                                     <Tooltip title="Retirada solicitada pelo aplicativo — o registro eletrônico dispensa assinatura no caderno.">
                                       <CheckCircleOutlineIcon sx={{ color: "text.disabled", fontSize: 19 }} />
+                                    </Tooltip>
+                                  ) : "—"}
+                                </TableCell>
+                                <TableCell align="center">
+                                  {pack.packageType === "LETTER" ? (
+                                    <Tooltip title="Carta" arrow>
+                                      <MailOutlineRoundedIcon sx={{ fontSize: 17, color: "text.secondary" }} />
                                     </Tooltip>
                                   ) : "—"}
                                 </TableCell>

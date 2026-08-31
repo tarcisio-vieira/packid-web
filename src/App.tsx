@@ -9,6 +9,7 @@ import {
   getLogoutUrl,
   registerPackIdFromLabel,
   fetchRecentPackIds,
+  cancelPackId,
   fetchPackIdLabelPrintSettings,
   userFriendlyError,
   condominiumLogoUrl,
@@ -46,6 +47,8 @@ import {
   Stack,
   TextField,
   Tooltip,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
@@ -76,14 +79,18 @@ function detectAccessRoute(): AccessRoute {
 type IdentifyPackageScreenProps = Readonly<{
   packageCode: string;
   apartment: string;
+  isLetter: boolean;
   onPackageCodeChange: (value: string) => void;
   onApartmentChange: (value: string) => void;
+  onLetterChange: (value: boolean) => void;
   onRequestPrint: () => void;
 
   saving: boolean;
   saveError: string | null;
 
   historyRows: LabelHistoryRow[];
+  historySearch: string;
+  onHistorySearchChange: (value: string) => void;
 
   historyFromDate: string;
   historyToDate: string;
@@ -91,6 +98,8 @@ type IdentifyPackageScreenProps = Readonly<{
   onHistoryToDateChange: (value: string) => void;
 
   onPrintHistoryRow: (row: LabelHistoryRow) => void;
+  onCancelHistoryRow: (row: LabelHistoryRow) => void;
+  cancellingHistoryId?: string | null;
 
   packageCodeInputRef: RefObject<HTMLInputElement | null>;
   apartmentInputRef: RefObject<HTMLInputElement | null>;
@@ -868,17 +877,23 @@ function HomeScreen({ currentUser }: Readonly<{ currentUser?: User | null }>) {
 function IdentifyPackageScreen({
   packageCode,
   apartment,
+  isLetter,
   onPackageCodeChange,
   onApartmentChange,
+  onLetterChange,
   onRequestPrint,
   saving,
   saveError,
   historyRows,
+  historySearch,
+  onHistorySearchChange,
   historyFromDate,
   historyToDate,
   onHistoryFromDateChange,
   onHistoryToDateChange,
   onPrintHistoryRow,
+  onCancelHistoryRow,
+  cancellingHistoryId,
   packageCodeInputRef,
   apartmentInputRef,
   embedded = false,
@@ -964,7 +979,30 @@ function IdentifyPackageScreen({
             </Alert>
           )}
 
-          <Box display="flex" justifyContent="flex-end" mt={1}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 1.5,
+              mt: 1,
+              flexWrap: "wrap",
+            }}
+          >
+            <Tooltip title="Marque somente quando o recebimento for uma carta. O fluxo de registro e impressão continua o mesmo." arrow placement="right">
+              <FormControlLabel
+                sx={{ ml: 0, mr: 0, flexShrink: 0 }}
+                control={
+                  <Checkbox
+                    checked={isLetter}
+                    onChange={(event) => onLetterChange(event.target.checked)}
+                    size="small"
+                  />
+                }
+                label={<Typography variant="body2" fontWeight={600}>Carta</Typography>}
+              />
+            </Tooltip>
+
             <Button
               variant="contained"
               color="primary"
@@ -981,11 +1019,15 @@ function IdentifyPackageScreen({
         <LabelHistoryGrid
           rows={historyRows}
           maxRows={embedded ? 5 : 10}
+          search={historySearch}
+          onSearchChange={onHistorySearchChange}
           fromDate={historyFromDate}
           toDate={historyToDate}
           onFromDateChange={onHistoryFromDateChange}
           onToDateChange={onHistoryToDateChange}
           onPrintRow={onPrintHistoryRow}
+          onCancelRow={onCancelHistoryRow}
+          cancellingId={cancellingHistoryId}
           compact={embedded}
         />
       </Box>
@@ -999,12 +1041,15 @@ function IdentifyPackageScreen({
 function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: boolean }> = {}) {
   const [packageCode, setPackageCode] = useState<string>("");
   const [apartment, setApartment] = useState<string>("");
+  const [isLetter, setIsLetter] = useState(false);
   const [labelCopies, setLabelCopies] = useState<1 | 2>(2);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [historyRows, setHistoryRows] = useState<LabelHistoryRow[]>([]);
+  const [historySearch, setHistorySearch] = useState<string>("");
+  const [cancellingHistoryId, setCancellingHistoryId] = useState<string | null>(null);
 
   const [historyFromDate, setHistoryFromDate] = useState<string>("");
   const [historyToDate, setHistoryToDate] = useState<string>("");
@@ -1073,13 +1118,23 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
   };
 
   const refreshHistory = useCallback(
-    async (fromDate: string, toDate: string) => {
+    async (fromDate: string, toDate: string, searchValue: string) => {
       const mySeq = ++seqRef.current;
+      const trimmedSearch = searchValue.trim();
+      const numericSearch = trimmedSearch.replace(/\D/g, "");
+      const looksLikeUnit = /^[0-9\s./-]+$/.test(trimmedSearch)
+        && (numericSearch.length === 4 || numericSearch.length === 5);
+
+      const unitBlock = looksLikeUnit ? numericSearch.slice(0, 1) : undefined;
+      const unitApartment = looksLikeUnit ? numericSearch.slice(1) : undefined;
 
       const items = await fetchRecentPackIds(
-        50,
+        looksLikeUnit ? 500 : 200,
         toInstantStart(fromDate),
         toInstantEndExclusive(toDate),
+        unitBlock,
+        unitApartment,
+        looksLikeUnit ? undefined : trimmedSearch || undefined,
       );
 
       if (mySeq !== seqRef.current) return;
@@ -1098,8 +1153,10 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
           apartment: it.apartment,
           residentFullName: it.residentFullName ?? "",
           packageCode: it.labelPackageCode ?? it.packageCode,
+          packageType: it.packageType,
           observations: it.observations ?? "",
           residentAcknowledgedAt: it.residentAcknowledgedAt ?? null,
+          handedOverAt: it.handedOverAt ?? null,
           status: "saved",
         })),
       );
@@ -1108,35 +1165,26 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
   );
 
   useEffect(() => {
-    refreshHistory(historyFromDate, historyToDate).catch((e) => {
-      console.error(e);
-      setSaveError(
-        userFriendlyError(e, "Erro ao carregar histórico."),
-      );
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const timer = window.setTimeout(() => {
+      refreshHistory(historyFromDate, historyToDate, historySearch).catch((e) => {
+        console.error(e);
+        setSaveError(userFriendlyError(e, "Erro ao carregar histórico."));
+      });
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [historyFromDate, historySearch, historyToDate, refreshHistory]);
 
   const handleHistoryFromDateChange = (value: string) => {
     setHistoryFromDate(value);
-
-    refreshHistory(value, historyToDate).catch((e) => {
-      console.error(e);
-      setSaveError(
-        userFriendlyError(e, "Erro ao carregar histórico."),
-      );
-    });
   };
 
   const handleHistoryToDateChange = (value: string) => {
     setHistoryToDate(value);
+  };
 
-    refreshHistory(historyFromDate, value).catch((e) => {
-      console.error(e);
-      setSaveError(
-        userFriendlyError(e, "Erro ao carregar histórico."),
-      );
-    });
+  const handleHistorySearchChange = (value: string) => {
+    setHistorySearch(value);
   };
 
   const handlePrint = async () => {
@@ -1178,6 +1226,7 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
         apartment: apartmentToSave,
         block,
         bookPage: page,
+        letter: isLetter,
       });
     } catch (e: unknown) {
       console.error(e);
@@ -1230,13 +1279,14 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
 
     setPackageCode("");
     setApartment("");
+    setIsLetter(false);
     if (printSucceeded) {
       setSaveSuccess(
         "Encomenda registrada com sucesso e etiqueta enviada para impressão.",
       );
     }
     window.dispatchEvent(new Event("packid:registered"));
-    refreshHistory(historyFromDate, historyToDate).catch(() => {});
+    refreshHistory(historyFromDate, historyToDate, historySearch).catch(() => {});
     setSaving(false);
   };
 
@@ -1264,22 +1314,63 @@ function IdentifyPackageContainer({ embedded = false }: Readonly<{ embedded?: bo
     }
   };
 
+  const handleCancelHistoryRow = async (row: LabelHistoryRow) => {
+    if (cancellingHistoryId) return;
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Cancelar este recebimento?",
+      html: `A encomenda <strong>${escapeHtml(row.packageCode)}</strong> será removida dos históricos. Os condôminos que receberam o aviso por e-mail receberão uma correção para desconsiderar a mensagem anterior.`,
+      showCancelButton: true,
+      confirmButtonText: "Sim, cancelar registro",
+      cancelButtonText: "Voltar",
+      confirmButtonColor: "#d32f2f",
+      focusCancel: true,
+    });
+    if (!result.isConfirmed) return;
+
+    setCancellingHistoryId(row.id);
+    setSaveError(null);
+    try {
+      await cancelPackId(row.id);
+      setHistoryRows(current => current.filter(item => item.id !== row.id));
+      window.dispatchEvent(new Event("packid:registered"));
+      await Swal.fire({
+        icon: "success",
+        title: "Registro cancelado",
+        text: "A encomenda foi removida dos históricos e a correção por e-mail foi programada para os destinatários do aviso original.",
+        confirmButtonText: "OK",
+      });
+      void refreshHistory(historyFromDate, historyToDate, historySearch);
+    } catch (e) {
+      const message = userFriendlyError(e, "Não foi possível cancelar o registro da encomenda.");
+      await Swal.fire({ icon: "error", title: "Não foi possível cancelar", text: message, confirmButtonText: "OK" });
+    } finally {
+      setCancellingHistoryId(null);
+    }
+  };
+
   return (
     <>
       <IdentifyPackageScreen
         packageCode={packageCode}
         apartment={apartment}
+        isLetter={isLetter}
         onPackageCodeChange={setPackageCode}
         onApartmentChange={setApartment}
+        onLetterChange={setIsLetter}
         onRequestPrint={handlePrint}
         saving={saving}
         saveError={saveError}
         historyRows={historyRows}
+        historySearch={historySearch}
+        onHistorySearchChange={handleHistorySearchChange}
         historyFromDate={historyFromDate}
         historyToDate={historyToDate}
         onHistoryFromDateChange={handleHistoryFromDateChange}
         onHistoryToDateChange={handleHistoryToDateChange}
         onPrintHistoryRow={handlePrintHistoryRow}
+        onCancelHistoryRow={handleCancelHistoryRow}
+        cancellingHistoryId={cancellingHistoryId}
         packageCodeInputRef={packageCodeInputRef}
         apartmentInputRef={apartmentInputRef}
         embedded={embedded}

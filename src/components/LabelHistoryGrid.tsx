@@ -14,6 +14,7 @@ import {
   Stack,
   TextField,
   IconButton,
+  InputAdornment,
   Tooltip,
 } from "@mui/material";
 
@@ -21,6 +22,9 @@ import PrintIcon from "@mui/icons-material/Print";
 import LocalOfferOutlinedIcon from "@mui/icons-material/LocalOfferOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import PhoneAndroidOutlinedIcon from "@mui/icons-material/PhoneAndroidOutlined";
+import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
+import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
+import ClearRoundedIcon from "@mui/icons-material/ClearRounded";
 
 export type LabelHistoryRow = {
   id: string;
@@ -30,8 +34,10 @@ export type LabelHistoryRow = {
   apartment: string;
   residentFullName?: string;
   packageCode: string;
+  packageType?: "PACKAGE" | "PARCEL" | "LETTER" | "OTHER";
   observations?: string;
   residentAcknowledgedAt?: string | null;
+  handedOverAt?: string | null;
   status?: "saving" | "saved" | "error";
   errorMessage?: string;
 };
@@ -39,6 +45,8 @@ export type LabelHistoryRow = {
 type Props = Readonly<{
   rows: LabelHistoryRow[];
   maxRows?: number;
+  search: string;
+  onSearchChange: (value: string) => void;
 
   fromDate: string;
   toDate: string;
@@ -46,6 +54,8 @@ type Props = Readonly<{
   onToDateChange: (value: string) => void;
 
   onPrintRow: (row: LabelHistoryRow) => void;
+  onCancelRow: (row: LabelHistoryRow) => void;
+  cancellingId?: string | null;
   compact?: boolean;
 }>;
 
@@ -84,23 +94,30 @@ function escapeHtml(str: string): string {
 export default function LabelHistoryGrid({
   rows,
   maxRows = 10,
+  search,
+  onSearchChange,
   fromDate,
   toDate,
   onFromDateChange,
   onToDateChange,
   onPrintRow,
+  onCancelRow,
+  cancellingId = null,
   compact = false,
 }: Props) {
   const { t } = useTranslation();
 
   const locale = "pt-BR";
-  const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const filteredRows = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase(locale);
+    const rawQuery = search.trim();
+    const query = rawQuery.toLocaleLowerCase(locale);
     const compactQuery = query.replace(/[^0-9a-z]/gi, "");
+    const numericQuery = rawQuery.replace(/\D/g, "");
+    const looksLikeUnit = /^[0-9\s./-]+$/.test(rawQuery)
+      && (numericQuery.length === 4 || numericQuery.length === 5);
 
     const filtered = query
       ? rows.filter((row) => {
@@ -108,11 +125,15 @@ export default function LabelHistoryGrid({
           const block = String(row.block ?? "").trim();
           const apartment = String(row.apartment ?? "").trim();
 
-          // Permite pesquisar a unidade tanto no formato completo
-          // página + bloco + apartamento (ex.: 09911203) quanto
-          // somente bloco + apartamento (ex.: 11203).
           const pageBlockApartment = `${page}${block}${apartment}`;
           const blockApartment = `${block}${apartment}`;
+
+          // Para 2608, 2/608 etc., trata a busca como unidade e não como
+          // trecho do código da encomenda. Isso evita falsos positivos como
+          // um rastreio contendo "2608" no meio do código.
+          if (looksLikeUnit) {
+            return blockApartment.replace(/\D/g, "") === numericQuery;
+          }
 
           const candidates = [
             row.packageCode,
@@ -163,10 +184,24 @@ export default function LabelHistoryGrid({
           label={t("history.filters.search")}
           placeholder="Código, página+bloco+apto ou bloco+apto"
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+          onChange={(e) => { onSearchChange(e.target.value); setPage(0); }}
           fullWidth
           InputProps={{
             startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.55 }} />,
+            endAdornment: search ? (
+              <InputAdornment position="end">
+                <Tooltip title="Limpar pesquisa" arrow>
+                  <IconButton
+                    size="small"
+                    aria-label="Limpar pesquisa"
+                    onClick={() => { onSearchChange(""); setPage(0); }}
+                    edge="end"
+                  >
+                    <ClearRoundedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </InputAdornment>
+            ) : undefined,
           }}
         />
 
@@ -182,9 +217,11 @@ export default function LabelHistoryGrid({
                 <Box key={r.id} sx={{ py: 1 }}>
                   <Stack direction="row" spacing={1} alignItems="flex-start">
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="body2" fontWeight={700} sx={{ overflowWrap: "anywhere" }}>
-                        {r.packageCode}
-                      </Typography>
+                      <Stack direction="row" spacing={0.55} alignItems="center">
+                        <Typography variant="body2" fontWeight={700} sx={{ overflowWrap: "anywhere" }}>
+                          {r.packageCode}
+                        </Typography>
+                      </Stack>
                       <Typography variant="caption" display="block" sx={{ opacity: 0.75 }}>
                         {date} {time} · Pág. {r.bookPage || "-"}
                       </Typography>
@@ -208,6 +245,26 @@ export default function LabelHistoryGrid({
                         >
                           <LocalOfferOutlinedIcon fontSize="small" />
                         </IconButton>
+                      </Tooltip>
+                      {r.packageType === "LETTER" && (
+                        <Tooltip title="Carta" arrow>
+                          <span style={{ display: "inline-flex" }}>
+                            <MailOutlineRoundedIcon sx={{ fontSize: 17, color: "text.secondary" }} />
+                          </span>
+                        </Tooltip>
+                      )}
+                      <Tooltip title={r.handedOverAt ? "Encomenda já entregue não pode ser cancelada" : "Cancelar registro incorreto"}>
+                        <span>
+                          <IconButton
+                            aria-label="Cancelar registro incorreto"
+                            onClick={() => onCancelRow(r)}
+                            size="small"
+                            color="error"
+                            disabled={cancellingId === r.id || Boolean(r.handedOverAt)}
+                          >
+                            <CancelOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                     </Stack>
                   </Stack>
@@ -324,10 +381,24 @@ export default function LabelHistoryGrid({
           label={t("history.filters.search")}
           placeholder={t("history.filters.searchPlaceholder")}
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+          onChange={(e) => { onSearchChange(e.target.value); setPage(0); }}
           sx={{ minWidth: { xs: "100%", sm: 330 } }}
           InputProps={{
             startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.55 }} />,
+            endAdornment: search ? (
+              <InputAdornment position="end">
+                <Tooltip title="Limpar pesquisa" arrow>
+                  <IconButton
+                    size="small"
+                    aria-label="Limpar pesquisa"
+                    onClick={() => { onSearchChange(""); setPage(0); }}
+                    edge="end"
+                  >
+                    <ClearRoundedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </InputAdornment>
+            ) : undefined,
           }}
         />
 
@@ -390,6 +461,12 @@ export default function LabelHistoryGrid({
                 </TableCell>
                 <TableCell>{t("history.columns.packageCode")}</TableCell>
                 <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
+                  App
+                </TableCell>
+                <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
+                  Carta
+                </TableCell>
+                <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
                   {t("history.columns.actions")}
                 </TableCell>
               </TableRow>
@@ -431,14 +508,27 @@ export default function LabelHistoryGrid({
                     </TableCell>
 
                     <TableCell align="center">
+                      {r.residentAcknowledgedAt && (
+                        <Tooltip title="Retirada solicitada pelo morador via aplicativo" arrow>
+                          <span style={{ display: "inline-flex" }}>
+                            <PhoneAndroidOutlinedIcon sx={{ fontSize: 19, color: "text.secondary" }} />
+                          </span>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+
+                    <TableCell align="center">
+                      {r.packageType === "LETTER" && (
+                        <Tooltip title="Carta" arrow>
+                          <span style={{ display: "inline-flex" }}>
+                            <MailOutlineRoundedIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+                          </span>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+
+                    <TableCell align="center">
                       <Stack direction="row" spacing={0.2} justifyContent="center" alignItems="center">
-                        {r.residentAcknowledgedAt && (
-                          <Tooltip title="Retirada solicitada pelo morador via aplicativo" arrow>
-                            <span style={{ display: "inline-flex" }}>
-                              <PhoneAndroidOutlinedIcon sx={{ fontSize: 19, color: "text.secondary" }} />
-                            </span>
-                          </Tooltip>
-                        )}
                         <Tooltip title={t("history.printSingleLabel")}>
                           <span>
                             <IconButton
@@ -447,6 +537,19 @@ export default function LabelHistoryGrid({
                               size="small"
                             >
                               <LocalOfferOutlinedIcon />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title={r.handedOverAt ? "Encomenda já entregue não pode ser cancelada" : "Cancelar registro incorreto"}>
+                          <span>
+                            <IconButton
+                              aria-label="Cancelar registro incorreto"
+                              onClick={() => onCancelRow(r)}
+                              size="small"
+                              color="error"
+                              disabled={cancellingId === r.id || Boolean(r.handedOverAt)}
+                            >
+                              <CancelOutlinedIcon />
                             </IconButton>
                           </span>
                         </Tooltip>

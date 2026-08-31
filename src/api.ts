@@ -49,6 +49,7 @@ export type PackIdFromLabelRequest = {
   apartment: string;
   block: string;
   bookPage: string;
+  letter?: boolean;
 };
 
 export async function registerPackIdFromLabel(
@@ -71,6 +72,7 @@ export type PackIdLabelCreateRequest = {
   apartment: string;
   block: string;
   bookPage: string;
+  letter?: boolean;
 };
 
 async function readErrorMessage(resp: Response): Promise<string> {
@@ -142,6 +144,7 @@ export type PackIdRecentItem = {
   residentFullName?: string;
   packageCode: string; // pode continuar vindo (interno)
   labelPackageCode?: string; // NOVO: o que foi digitado no front
+  packageType?: "PACKAGE" | "PARCEL" | "LETTER" | "OTHER";
   observations?: string;
   arrivedAt: string; // ISO
   residentAcknowledgedAt?: string | null;
@@ -152,11 +155,17 @@ export type PackIdRecentItem = {
 export async function fetchRecentPackIds(
   limit = 50,
   from?: string,
-  to?: string
+  to?: string,
+  block?: string,
+  apartment?: string,
+  search?: string
 ): Promise<PackIdRecentItem[]> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (from) params.set("from", from);
   if (to) params.set("to", to);
+  if (block) params.set("block", block);
+  if (apartment) params.set("apartment", apartment);
+  if (search?.trim()) params.set("search", search.trim());
 
   const resp = await fetch(
     `${API_URL}/api/pack-ids/recent?${params.toString()}`,
@@ -1317,6 +1326,17 @@ export async function handOverPackage(id: string): Promise<PackIdRecentItem> {
   const resp = await fetch(`${API_URL}/api/pack-ids/${id}/hand-over`, { method: "POST", credentials: "include" });
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
+}
+export async function clearPendingPackagePickups(): Promise<number> {
+  const resp = await fetch(`${API_URL}/api/pack-ids/pickup-requests/clear`, { method: "POST", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  const data = await resp.json();
+  return Number(data?.cleared ?? 0);
+}
+
+export async function cancelPackId(id: string): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/pack-ids/${id}/cancel`, { method: "POST", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
 }
 export async function requestResidentPackagePickup(id: string): Promise<PackIdRecentItem> {
   const resp = await fetch(`${API_URL}/api/resident/packages/${id}/request-pickup`, { method: "POST", credentials: "include" });

@@ -40,7 +40,7 @@ export default function PoolCardVisual({ card, settings, logoUrl }: Readonly<{ c
       <Box sx={{ position: "absolute", left: -80, right: -30, bottom: -90, height: "31%", bgcolor: color, borderRadius: "55% 48% 0 0 / 45% 45% 0 0", transform: "rotate(3deg)", zIndex: 0 }} />
       <Box sx={{ position: "absolute", left: -70, right: 100, bottom: -52, height: "25%", bgcolor: color, opacity: .72, borderRadius: "55% 50% 0 0 / 50% 50% 0 0", transform: "rotate(8deg)", zIndex: 0 }} />
       <Box sx={{ position: "absolute", right: "2%", top: "2%", zIndex: 3 }}>
-        <PoolCardStatusIcon status={card.reviewStatus} valid={card.valid} validUntil={card.validUntil} size={22} />
+        <PoolCardStatusIcon valid={card.valid} validUntil={card.validUntil} size={22} />
       </Box>
 
       <Box sx={{ position: "relative", zIndex: 1, display: "grid", gridTemplateColumns: "56% 44%", height: "82%" }}>
