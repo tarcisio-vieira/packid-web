@@ -631,6 +631,8 @@ export type ServiceRecord = {
   block?: string | null;
   apartment?: string | null;
   performedAt: string;
+  completedAt?: string | null;
+  status: "STARTED" | "FINISHED";
   serviceDescription: string;
   notes?: string | null;
   createdBy?: string | null;
@@ -654,6 +656,21 @@ export async function createServiceRecord(payload: ServiceRecordPayload): Promis
   return resp.json();
 }
 
+export async function fetchActiveServiceRecords(): Promise<ServiceRecord[]> {
+  const resp = await fetch(`${API_URL}/api/service-records/active`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function finishServiceRecord(id: string, completedAt?: string | null): Promise<ServiceRecord> {
+  const resp = await fetch(`${API_URL}/api/service-records/${id}/finish`, {
+    method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ completedAt: completedAt || null }),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
 export async function fetchServiceRecords(providerId?: string, scope?: "UNIT" | "CONDOMINIUM"): Promise<ServiceRecord[]> {
   const params = new URLSearchParams();
   if (providerId) params.set("providerId", providerId);
@@ -665,7 +682,7 @@ export async function fetchServiceRecords(providerId?: string, scope?: "UNIT" | 
 }
 
 
-export type SpaceType = "PLAYROOM" | "GAMES_ROOM" | "GYM" | "SAUNA";
+export type SpaceType = "PLAYROOM" | "GAMES_ROOM" | "GYM" | "SAUNA" | "MALE_BATHROOM" | "FEMALE_BATHROOM";
 export type SpaceAccessStatus =
   | "REQUESTED_PICKUP"
   | "IN_USE"

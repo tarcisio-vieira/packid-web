@@ -12,6 +12,7 @@ import PrintIcon from "@mui/icons-material/Print";
 import GridOnOutlinedIcon from "@mui/icons-material/GridOnOutlined";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import SpaOutlinedIcon from "@mui/icons-material/SpaOutlined";
+import WcOutlinedIcon from "@mui/icons-material/WcOutlined";
 import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
 import TaskAltOutlinedIcon from "@mui/icons-material/TaskAltOutlined";
 import {
@@ -25,12 +26,15 @@ export function spaceLabel(type: SpaceType): string {
   if (type === "GYM") return "Academia";
   if (type === "GAMES_ROOM") return "Sala de Jogos";
   if (type === "SAUNA") return "Sauna";
+  if (type === "MALE_BATHROOM") return "Banheiro Masculino";
+  if (type === "FEMALE_BATHROOM") return "Banheiro Feminino";
   return "Brinquedoteca";
 }
 export function spaceIcon(type: SpaceType) {
   if (type === "GYM") return <FitnessCenterIcon />;
   if (type === "GAMES_ROOM") return <SportsEsportsIcon />;
   if (type === "SAUNA") return <SpaOutlinedIcon />;
+  if (type === "MALE_BATHROOM" || type === "FEMALE_BATHROOM") return <WcOutlinedIcon />;
   return <ToysIcon />;
 }
 export function spaceAccessStatusLabel(status: SpaceAccess["status"]): string {
@@ -259,7 +263,7 @@ export default function SpacesScreen({ embedded = false, canExport = false }: Re
     <Card variant="outlined"><CardContent>
       <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 2 }}>
         <TextField select label="Área" value={spaceType} onChange={e => { setSpaceType(e.target.value as SpaceType | ""); setPage(0); }} sx={{ minWidth: 220 }}>
-          <MenuItem value="">Todos</MenuItem><MenuItem value="PLAYROOM">Brinquedoteca</MenuItem><MenuItem value="GAMES_ROOM">Sala de Jogos</MenuItem><MenuItem value="GYM">Academia</MenuItem><MenuItem value="SAUNA">Sauna</MenuItem>
+          <MenuItem value="">Todos</MenuItem><MenuItem value="PLAYROOM">Brinquedoteca</MenuItem><MenuItem value="GAMES_ROOM">Sala de Jogos</MenuItem><MenuItem value="GYM">Academia</MenuItem><MenuItem value="SAUNA">Sauna</MenuItem><MenuItem value="MALE_BATHROOM">Banheiro Masculino</MenuItem><MenuItem value="FEMALE_BATHROOM">Banheiro Feminino</MenuItem>
         </TextField>
         <TextField label="De" type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(0); }} InputLabelProps={{ shrink: true }}/>
         <TextField label="Até" type="date" value={to} onChange={e => { setTo(e.target.value); setPage(0); }} InputLabelProps={{ shrink: true }}/>
@@ -297,7 +301,7 @@ export default function SpacesScreen({ embedded = false, canExport = false }: Re
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <Stack spacing={2} sx={{ mt: .75 }}>
           <TextField select label="Área de lazer" value={manualSpaceType} onChange={e => setManualSpaceType(e.target.value as SpaceType)} fullWidth>
-            <MenuItem value="GYM">Academia</MenuItem><MenuItem value="GAMES_ROOM">Sala de Jogos</MenuItem><MenuItem value="PLAYROOM">Brinquedoteca</MenuItem><MenuItem value="SAUNA">Sauna</MenuItem>
+            <MenuItem value="GYM">Academia</MenuItem><MenuItem value="GAMES_ROOM">Sala de Jogos</MenuItem><MenuItem value="PLAYROOM">Brinquedoteca</MenuItem><MenuItem value="SAUNA">Sauna</MenuItem><MenuItem value="MALE_BATHROOM">Banheiro Masculino</MenuItem><MenuItem value="FEMALE_BATHROOM">Banheiro Feminino</MenuItem>
           </TextField>
           <Autocomplete
             options={residentOptions}

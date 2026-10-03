@@ -57,6 +57,7 @@ import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import DeckOutlinedIcon from "@mui/icons-material/DeckOutlined";
 import PoolOutlinedIcon from "@mui/icons-material/PoolOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import PhoneAndroidOutlinedIcon from "@mui/icons-material/PhoneAndroidOutlined";
 import AutorenewRoundedIcon from "@mui/icons-material/AutorenewRounded";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
@@ -73,12 +74,14 @@ import {
   deleteRegistryEntry,
   deleteRegistryEntryPhoto,
   fetchDeliveryRecords,
+  fetchActiveServiceRecords,
   fetchRegistryEntriesPage,
   fetchServiceCompanies,
   fetchServiceRecords,
   fetchUnitRegistrySummary,
   fetchResidentialUnits,
   fetchVisitorVisits,
+  finishServiceRecord,
   startApartmentOccupancy,
   endApartmentOccupancy,
   exportRegistryExcel,
@@ -139,7 +142,7 @@ const NAVIGATION_ITEMS: Array<{ value: RegistryNavigationValue; label: string; c
 
 const REGISTRY_SECTION_DESCRIPTIONS: Record<RegistryEntryType, string> = {
   RESIDENT: "Cadastre condôminos, identifique proprietários e consulte os moradores vinculados a cada unidade.",
-  SERVICE_PROVIDER: "Cadastre prestadores de serviço, vincule-os às empresas e registre os serviços realizados no condomínio.",
+  SERVICE_PROVIDER: "Cadastre prestadores, inicie e finalize os serviços e acompanhe quem está dentro do condomínio em tempo real.",
   DELIVERY_PERSON: "Cadastre entregadores e transportadoras para agilizar o registro de entregas e autorizações de entrada.",
   VISITOR: "Cadastre visitantes e registre as visitas realizadas às unidades do condomínio.",
   BICYCLE: "Cadastre as bicicletas dos moradores e mantenha cada uma vinculada à sua unidade.",
@@ -434,10 +437,10 @@ function DeliveryHistory({ rows }: Readonly<{ rows: DeliveryRecord[] }>) {
 
 function ServiceHistory({ rows, title = "Serviços realizados" }: Readonly<{ rows: ServiceRecord[]; title?: string }>) {
   const [page,setPage]=useState(0); const [rowsPerPage,setRowsPerPage]=useState(10); useEffect(()=>setPage(0),[rows]); const pagedRows=rows.slice(page*rowsPerPage,page*rowsPerPage+rowsPerPage);
-  return <HistoryAccordion title={title} count={rows.length} icon={<EngineeringOutlinedIcon sx={{color:"#ed6c02"}}/>}><TableContainer sx={{maxHeight:380}}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Data / hora</TableCell><TableCell>Prestador</TableCell><TableCell>Empresa</TableCell><TableCell>Unidade</TableCell><TableCell>Serviço</TableCell><TableCell>Observação</TableCell></TableRow></TableHead><TableBody>{!rows.length&&<TableRow><TableCell colSpan={6} align="center">Nenhum serviço registrado.</TableCell></TableRow>}{pagedRows.map(row=><TableRow key={row.id}><TableCell>{formatDateTime(row.performedAt)}</TableCell><TableCell>{row.serviceProviderName||"-"}</TableCell><TableCell>{row.serviceCompanyName||"-"}</TableCell><TableCell>{row.serviceScope==="CONDOMINIUM"?"Condomínio":formatUnit(row.block,row.apartment)}</TableCell><TableCell>{row.serviceDescription||"-"}</TableCell><TableCell>{row.notes||"-"}</TableCell></TableRow>)}</TableBody></Table></TableContainer>{rows.length>0&&<PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage} onPageChange={setPage} onRowsPerPageChange={v=>{setRowsPerPage(v);setPage(0);}}/>}</HistoryAccordion>;
+  return <HistoryAccordion title={title} count={rows.length} icon={<EngineeringOutlinedIcon sx={{color:"#ed6c02"}}/>}><TableContainer sx={{maxHeight:380}}><Table size="small" stickyHeader><TableHead><TableRow><TableCell>Início</TableCell><TableCell>Fim</TableCell><TableCell>Status</TableCell><TableCell>Responsável / prestador</TableCell><TableCell>Empresa</TableCell><TableCell>Unidade</TableCell><TableCell>Serviço</TableCell><TableCell>Observação</TableCell></TableRow></TableHead><TableBody>{!rows.length&&<TableRow><TableCell colSpan={8} align="center">Nenhum serviço registrado.</TableCell></TableRow>}{pagedRows.map(row=><TableRow key={row.id}><TableCell>{formatDateTime(row.performedAt)}</TableCell><TableCell>{formatDateTime(row.completedAt)}</TableCell><TableCell><Chip size="small" color={row.status==="STARTED"?"warning":"success"} label={row.status==="STARTED"?"Serviço iniciado":"Serviço finalizado"}/></TableCell><TableCell>{row.serviceProviderName||"-"}</TableCell><TableCell>{row.serviceCompanyName||"-"}</TableCell><TableCell>{row.serviceScope==="CONDOMINIUM"?"Condomínio":formatUnit(row.block,row.apartment)}</TableCell><TableCell>{row.serviceDescription||"-"}</TableCell><TableCell>{row.notes||"-"}</TableCell></TableRow>)}</TableBody></Table></TableContainer>{rows.length>0&&<PaginationFooter count={rows.length} page={page} rowsPerPage={rowsPerPage} onPageChange={setPage} onRowsPerPageChange={v=>{setRowsPerPage(v);setPage(0);}}/>}</HistoryAccordion>;
 }
 
-function spaceName(type: SpaceAccess["spaceType"]): string { if(type==="GYM")return"Academia"; if(type==="GAMES_ROOM")return"Sala de Jogos"; if(type==="SAUNA")return"Sauna"; return"Brinquedoteca"; }
+function spaceName(type: SpaceAccess["spaceType"]): string { if(type==="GYM")return"Academia"; if(type==="GAMES_ROOM")return"Sala de Jogos"; if(type==="SAUNA")return"Sauna"; if(type==="MALE_BATHROOM")return"Banheiro Masculino"; if(type==="FEMALE_BATHROOM")return"Banheiro Feminino"; return"Brinquedoteca"; }
 function spaceStatusLabel(status: SpaceAccess["status"]): string { if(status==="REQUESTED_PICKUP")return"Aguardando liberação"; if(status==="IN_USE")return"Chave em uso"; if(status==="REQUESTED_RETURN")return"Aguardando devolução"; if(status==="COMPLETED")return"Finalizado"; return"Cancelado"; }
 function SpaceAccessHistory({ rows }: Readonly<{ rows: SpaceAccess[] }>) {
   const [page,setPage]=useState(0); const [rowsPerPage,setRowsPerPage]=useState(10); useEffect(()=>setPage(0),[rows]); const pagedRows=rows.slice(page*rowsPerPage,page*rowsPerPage+rowsPerPage);
@@ -520,6 +523,21 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const [serviceForm, setServiceForm] = useState<ServiceForm>(emptyServiceForm());
   const [condominiumServiceDialogOpen, setCondominiumServiceDialogOpen] = useState(false);
   const [condominiumServiceHistory, setCondominiumServiceHistory] = useState<ServiceRecord[]>([]);
+  const [allServiceHistoryDialogOpen, setAllServiceHistoryDialogOpen] = useState(false);
+  const [allServiceHistory, setAllServiceHistory] = useState<ServiceRecord[]>([]);
+  const [activeServiceRecords, setActiveServiceRecords] = useState<ServiceRecord[]>([]);
+  const [activeServicesLoading, setActiveServicesLoading] = useState(false);
+
+  const loadActiveServiceRecords = async () => {
+    setActiveServicesLoading(true);
+    try {
+      setActiveServiceRecords(await fetchActiveServiceRecords());
+    } catch (e) {
+      setError(userFriendlyError(e, "Falha ao carregar prestadores que estão no condomínio."));
+    } finally {
+      setActiveServicesLoading(false);
+    }
+  };
 
   const loadServiceCompanies = async () => {
     try {
@@ -621,6 +639,10 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
 
   useEffect(() => {
     if (!leisureMode && !poolMode && (type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON" || companyMode)) void loadServiceCompanies();
+  }, [type, companyMode, leisureMode, poolMode]);
+
+  useEffect(() => {
+    if (!companyMode && !leisureMode && !poolMode && type === "SERVICE_PROVIDER") void loadActiveServiceRecords();
   }, [type, companyMode, leisureMode, poolMode]);
 
   useEffect(() => {
@@ -758,6 +780,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const tableColumnCount =
     5 +
     (canRegisterEvent ? 1 : 0) +
+    (type === "SERVICE_PROVIDER" ? 1 : 0) +
     (type === "RESIDENT" ? 1 : 0) +
     (type === "VEHICLE" ? 1 : 0) +
     (showDetailsColumn ? 1 : 0);
@@ -1144,7 +1167,10 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
         saved = await uploadRegistryDocumentPhoto(saved.id, "document", documentPhotoFile);
       }
       if (!editingId && registerNow && isAccessPerson) await registerAccessEvent(saved, quickAccess);
-      if (!editingId && registerNow && isServiceProvider) await registerServiceEvent(saved, quickService);
+      if (!editingId && registerNow && isServiceProvider) {
+        await registerServiceEvent(saved, quickService);
+        await loadActiveServiceRecords();
+      }
 
       resetPhotoSelection();
       setDialogOpen(false);
@@ -1220,9 +1246,29 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
     try {
       await registerServiceEvent(serviceRow, serviceForm);
       setServiceDialogOpen(false); setServiceRow(null);
-      setSuccessMessage("Serviço registrado com sucesso.");
+      await loadActiveServiceRecords();
+      setSuccessMessage("Serviço iniciado com sucesso. O prestador agora aparece na lista de quem está no condomínio.");
     } catch (e) { setError(userFriendlyError(e, "Falha ao registrar serviço.")); }
     finally { setLoading(false); }
+  };
+
+  const finishActiveService = async (record: ServiceRecord) => {
+    const confirmed = await confirmDialog({
+      title: "Finalizar serviço?",
+      text: `Confirma a saída de ${record.serviceProviderName || "prestador"} do condomínio e o término do serviço?`,
+      confirmButtonText: "Finalizar serviço",
+    });
+    if (!confirmed) return;
+    setLoading(true); setError(null);
+    try {
+      await finishServiceRecord(record.id);
+      await loadActiveServiceRecords();
+      setSuccessMessage("Serviço finalizado e saída do prestador registrada com sucesso.");
+    } catch (e) {
+      setError(userFriendlyError(e, "Falha ao finalizar serviço."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openCondominiumServiceHistory = async () => {
@@ -1231,6 +1277,15 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
       setCondominiumServiceHistory(await fetchServiceRecords(undefined, "CONDOMINIUM"));
       setCondominiumServiceDialogOpen(true);
     } catch (e) { setError(userFriendlyError(e, "Falha ao carregar histórico de serviços do condomínio.")); }
+    finally { setHistoryLoading(false); }
+  };
+
+  const openAllServiceHistory = async () => {
+    setHistoryLoading(true); setError(null);
+    try {
+      setAllServiceHistory(await fetchServiceRecords());
+      setAllServiceHistoryDialogOpen(true);
+    } catch (e) { setError(userFriendlyError(e, "Falha ao carregar o histórico de serviços.")); }
     finally { setHistoryLoading(false); }
   };
 
@@ -1605,9 +1660,14 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
             </Tooltip>
           </Stack>
           {isServiceProvider && (
-            <Button variant="outlined" startIcon={<VisibilityOutlinedIcon />} onClick={() => void openCondominiumServiceHistory()}>
-              Serviços do condomínio
-            </Button>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <Button variant="outlined" startIcon={<VisibilityOutlinedIcon />} onClick={() => void openAllServiceHistory()}>
+                Histórico de serviços
+              </Button>
+              <Button variant="outlined" startIcon={<VisibilityOutlinedIcon />} onClick={() => void openCondominiumServiceHistory()}>
+                Serviços do condomínio
+              </Button>
+            </Stack>
           )}
         </Box>
 
@@ -1699,7 +1759,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                 )}
                 {selectedRow.entryType === "SERVICE_PROVIDER" && (
                   <Stack spacing={1}>
-                    <Button variant="contained" color="success" startIcon={<EngineeringOutlinedIcon />} onClick={() => openServiceEvent(selectedRow)}>Registrar serviço</Button>
+                    <Button variant="contained" color="success" startIcon={<EngineeringOutlinedIcon />} onClick={() => openServiceEvent(selectedRow)}>Iniciar serviço</Button>
                     <Button variant="text" startIcon={<VisibilityOutlinedIcon />} onClick={() => void openHistory(selectedRow)}>Ver histórico</Button>
                   </Stack>
                 )}
@@ -1815,6 +1875,38 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
           </Card>
         )}
 
+        {isServiceProvider && (
+          <Card variant="outlined" sx={{ mt: 2, borderColor: activeServiceRecords.length ? "warning.main" : "divider", bgcolor: activeServiceRecords.length ? "action.hover" : "background.paper" }}>
+            <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={800}>Prestadores no condomínio agora</Typography>
+                  <Typography variant="caption" color="text.secondary">Serviços iniciados e ainda não finalizados. O mais recente aparece primeiro.</Typography>
+                </Box>
+                <Chip size="small" color={activeServiceRecords.length ? "warning" : "default"} label={`${activeServiceRecords.length} em serviço`} />
+              </Stack>
+              {activeServicesLoading ? <LinearProgress /> : activeServiceRecords.length === 0 ? (
+                <Alert severity="success" icon={<CheckCircleOutlineIcon fontSize="inherit" />}>Nenhum prestador com serviço iniciado neste momento.</Alert>
+              ) : (
+                <TableContainer sx={{ maxHeight: 280 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead><TableRow><TableCell>Prestador</TableCell><TableCell>Atividade</TableCell><TableCell>Local</TableCell><TableCell>Entrada</TableCell><TableCell align="right">Saída</TableCell></TableRow></TableHead>
+                    <TableBody>{activeServiceRecords.map(record => (
+                      <TableRow key={record.id} hover>
+                        <TableCell><Typography variant="body2" fontWeight={700}>{record.serviceProviderName || "-"}</Typography><Typography variant="caption" color="text.secondary">{record.serviceCompanyName || "Particular"}</Typography></TableCell>
+                        <TableCell>{record.serviceDescription}</TableCell>
+                        <TableCell>{record.serviceScope === "CONDOMINIUM" ? "Condomínio" : formatUnit(record.block, record.apartment)}</TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDateTime(record.performedAt)}</TableCell>
+                        <TableCell align="right"><Button size="small" variant="contained" color="success" startIcon={<LogoutOutlinedIcon />} onClick={() => void finishActiveService(record)}>Finalizar</Button></TableCell>
+                      </TableRow>
+                    ))}</TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <TableContainer sx={{ mt: 2 }}>
           <Table size="small" sx={{ minWidth: 760 }}>
             <TableHead>
@@ -1856,7 +1948,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                 )}
                 {type === "VEHICLE" && <TableCell align="center">Vaga alugada</TableCell>}
                 {showDetailsColumn && <TableCell>Detalhes</TableCell>}
-                <TableCell align="center">Status</TableCell>
+                {type === "SERVICE_PROVIDER" && <TableCell align="center">No condomínio</TableCell>}
+                <TableCell align="center">Cadastro</TableCell>
                 <TableCell align="right">Ações</TableCell>
               </TableRow>
             </TableHead>
@@ -1882,7 +1975,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                 >
                   {canRegisterEvent && (
                     <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      <Tooltip title={row.entryType === "VISITOR" ? "Registrar nova visita" : row.entryType === "DELIVERY_PERSON" ? "Registrar nova entrega" : "Registrar serviço realizado"}>
+                      <Tooltip title={row.entryType === "VISITOR" ? "Registrar nova visita" : row.entryType === "DELIVERY_PERSON" ? "Registrar nova entrega" : "Iniciar serviço"}>
                         <IconButton
                           size="small"
                           aria-label="Registrar movimentação"
@@ -1932,6 +2025,13 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                     </TableCell>
                   )}
                   {showDetailsColumn && <TableCell>{detailsLabel(row)}</TableCell>}
+                  {type === "SERVICE_PROVIDER" && (
+                    <TableCell align="center">
+                      {activeServiceRecords.some(record => record.serviceProviderRegistryEntryId === row.id)
+                        ? <Chip size="small" color="warning" label="Em serviço" />
+                        : <Chip size="small" variant="outlined" label="Fora" />}
+                    </TableCell>
+                  )}
                   <TableCell align="center">
                     <Chip size="small" label={row.active ? "Ativo" : "Inativo"} variant={row.active ? "filled" : "outlined"} />
                   </TableCell>
@@ -2307,7 +2407,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
             )}
             {!editingId && isServiceProvider && (
               <Box sx={{ gridColumn: { sm: "1 / -1" }, border: "1px solid", borderColor: "divider", borderRadius: 1, p: 2 }}>
-                <FormControlLabel control={<Switch checked={registerNow} onChange={(e) => setRegisterNow(e.target.checked)} />} label="Cadastrar e registrar o serviço de hoje agora" />
+                <FormControlLabel control={<Switch checked={registerNow} onChange={(e) => setRegisterNow(e.target.checked)} />} label="Cadastrar e iniciar o serviço agora" />
                 {registerNow && (
                   <Box sx={{ mt: 1.5, display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                     <FormControlLabel control={<Switch checked={quickService.scope === "CONDOMINIUM"} onChange={(e) => setQuickService(v => ({ ...v, scope: e.target.checked ? "CONDOMINIUM" : "UNIT" }))} />} label="Serviço para o condomínio como um todo" />
@@ -2316,7 +2416,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                       <Autocomplete options={Array.from(new Set(residentialUnits.map((u) => u.block))).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))} value={quickService.block || null} onChange={(_, value) => setQuickService((v) => ({ ...v, block: value || "", apartment: residentialUnits.some(u => u.block === value && u.apartment === v.apartment) ? v.apartment : "" }))} renderInput={(params) => <TextField {...params} label="Bloco" placeholder="Digite para pesquisar" required />} noOptionsText="Nenhum bloco cadastrado" />
                       <Autocomplete options={residentialUnits.filter((u) => !quickService.block || u.block === quickService.block).map((u) => u.apartment).filter((v,i,a) => a.indexOf(v) === i).sort((a,b) => a.localeCompare(b, "pt-BR", { numeric: true }))} value={quickService.apartment || null} onChange={(_, value) => setQuickService((v) => ({ ...v, apartment: value || "" }))} renderInput={(params) => <TextField {...params} label="Apartamento" placeholder="Digite para pesquisar" required />} disabled={!quickService.block} noOptionsText={quickService.block ? "Nenhum apartamento cadastrado neste bloco" : "Selecione o bloco primeiro"} />
                     </>}
-                    <TextField label="Serviço realizado" value={quickService.serviceDescription} onChange={(e) => setQuickService(v => ({ ...v, serviceDescription: e.target.value }))} required sx={{ gridColumn: { sm: "1 / -1" } }} />
+                    <TextField label="Serviço / atividade a realizar" value={quickService.serviceDescription} onChange={(e) => setQuickService(v => ({ ...v, serviceDescription: e.target.value }))} required sx={{ gridColumn: { sm: "1 / -1" } }} />
                     <TextField label="Observações" value={quickService.notes} onChange={(e) => setQuickService(v => ({ ...v, notes: e.target.value }))} multiline minRows={2} sx={{ gridColumn: { sm: "1 / -1" } }} />
                   </Box>
                 )}
@@ -2463,7 +2563,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
       </Dialog>
 
       <Dialog open={serviceDialogOpen} onClose={() => setServiceDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Registrar serviço{serviceRow ? ` — ${serviceRow.name}` : ""}</DialogTitle>
+        <DialogTitle>Iniciar serviço{serviceRow ? ` — ${serviceRow.name}` : ""}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <FormControlLabel
@@ -2477,13 +2577,13 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
               </Box>
             )}
             <TextField label="Data e hora" type="datetime-local" value={serviceForm.dateTime} onChange={(e) => setServiceForm(v => ({ ...v, dateTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
-            <TextField label="Serviço realizado" value={serviceForm.serviceDescription} onChange={(e) => setServiceForm(v => ({ ...v, serviceDescription: e.target.value }))} required />
+            <TextField label="Serviço / atividade a realizar" value={serviceForm.serviceDescription} onChange={(e) => setServiceForm(v => ({ ...v, serviceDescription: e.target.value }))} required />
             <TextField label="Observações" value={serviceForm.notes} onChange={(e) => setServiceForm(v => ({ ...v, notes: e.target.value }))} multiline minRows={2} />
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setServiceDialogOpen(false)}>Cancelar</Button>
-          <Button variant="contained" color="success" onClick={() => void saveServiceEvent()} disabled={loading}>{loading ? "Registrando..." : "Registrar serviço"}</Button>
+          <Button variant="contained" color="success" onClick={() => void saveServiceEvent()} disabled={loading}>{loading ? "Iniciando..." : "Iniciar serviço"}</Button>
         </DialogActions>
       </Dialog>
 
@@ -2500,6 +2600,14 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
         <DialogActions>
           <Button onClick={() => setHistoryDialogOpen(false)}>Fechar</Button>
         </DialogActions>
+      </Dialog>
+
+      <Dialog open={allServiceHistoryDialogOpen} onClose={() => setAllServiceHistoryDialogOpen(false)} fullWidth maxWidth="xl">
+        <DialogTitle>Histórico de serviços realizados</DialogTitle>
+        <DialogContent>
+          {historyLoading ? <Typography sx={{ py: 3 }}>Carregando histórico...</Typography> : <ServiceHistory rows={allServiceHistory} title="Todos os serviços" />}
+        </DialogContent>
+        <DialogActions><Button onClick={() => setAllServiceHistoryDialogOpen(false)}>Fechar</Button></DialogActions>
       </Dialog>
 
       <Dialog open={condominiumServiceDialogOpen} onClose={() => setCondominiumServiceDialogOpen(false)} fullWidth maxWidth="lg">

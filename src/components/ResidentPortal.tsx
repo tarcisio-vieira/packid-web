@@ -29,6 +29,7 @@ import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import ToysIcon from "@mui/icons-material/Toys";
 import SpaOutlinedIcon from "@mui/icons-material/SpaOutlined";
+import WcOutlinedIcon from "@mui/icons-material/WcOutlined";
 import KeyIcon from "@mui/icons-material/Key";
 import LogoutIcon from "@mui/icons-material/Logout";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
@@ -103,7 +104,9 @@ function SpaceButton({ type, rows, busy, onClick }: Readonly<{ type: SpaceType; 
       ? SportsEsportsIcon
       : type === "SAUNA"
         ? SpaOutlinedIcon
-        : ToysIcon;
+        : type === "MALE_BATHROOM" || type === "FEMALE_BATHROOM"
+          ? WcOutlinedIcon
+          : ToysIcon;
 
   return (
     <Card
@@ -781,8 +784,8 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
                   <Typography variant="body2" color="text.secondary">Solicite ou devolva a chave com poucos toques.</Typography>
                 </Box>
               </Stack>
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" }, gap: { xs: 1, sm: 1.5 } }}>
-                {(["GYM", "GAMES_ROOM", "PLAYROOM", "SAUNA"] as SpaceType[]).map(type => (
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", md: "repeat(3,minmax(0,1fr))" }, gap: { xs: 1, sm: 1.5 } }}>
+                {(["GYM", "GAMES_ROOM", "PLAYROOM", "SAUNA", "MALE_BATHROOM", "FEMALE_BATHROOM"] as SpaceType[]).map(type => (
                   <SpaceButton key={type} type={type} rows={activeRows} busy={busySpace === type} onClick={() => void toggleSpace(type)} />
                 ))}
               </Box>
