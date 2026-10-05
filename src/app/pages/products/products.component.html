@@ -1,0 +1,78 @@
+<main class="page">
+  <header>
+    <div><p>Cadastro simplificado</p><h1>Produtos</h1></div>
+    <div class="header-actions">
+      <button
+        type="button"
+        class="excel-export"
+        (click)="exportExcel()"
+        [disabled]="exporting()"
+        title="Baixar lista completa de produtos em Excel"
+        aria-label="Baixar lista completa de produtos em Excel">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 3h10l6 6v12H4V3zm10 1.8V10h5.2L14 4.8zM7.2 12l2.2 3-2.3 3h2l1.3-1.9 1.3 1.9h2l-2.3-3 2.2-3h-2l-1.2 1.8-1.2-1.8h-2z"/>
+        </svg>
+      </button>
+      <button (click)="newProduct()">＋ Novo produto</button>
+    </div>
+  </header>
+
+  @if(error() && !showForm()){<div class="page-error">{{error()}}</div>}
+
+  <section class="toolbar">
+    <input [(ngModel)]="query" (input)="searchChanged()" placeholder="Pesquisar por nome ou código">
+    <span>{{ total() }} produto(s)</span>
+  </section>
+
+  <section class="table">
+    <div class="thead"><span>Produto</span><span>Código</span><span>Unidade</span><span>Preço</span><span></span></div>
+    @for(p of list();track p.id){
+      <button class="row" (click)="edit(p)">
+        <span><b>{{p.name}}</b><small>{{p.barcode?'Código de barras':'Código interno'}}</small></span>
+        <span>{{p.barcode||p.internalCode}}</span>
+        <span>{{p.unit}}</span>
+        <strong>{{p.price|currency:'BRL'}}</strong>
+        <span>✎</span>
+      </button>
+    }
+  </section>
+
+  <section class="pagination" aria-label="Paginação de produtos">
+    <div class="page-size">
+      <label for="productPageSize">Exibir</label>
+      <select id="productPageSize" [(ngModel)]="pageSize" (ngModelChange)="pageSizeChanged()">
+        @for(size of pageSizes; track size){<option [ngValue]="size">{{size}}</option>}
+      </select>
+      <span>por página</span>
+    </div>
+
+    <div class="page-status">
+      <span>{{rangeStart()}}–{{rangeEnd()}} de {{total()}}</span>
+      <span>Página {{totalPages() ? page + 1 : 0}} de {{totalPages()}}</span>
+    </div>
+
+    <div class="page-actions">
+      <button type="button" (click)="previousPage()" [disabled]="page===0">‹ Anterior</button>
+      <button type="button" (click)="nextPage()" [disabled]="page+1>=totalPages()">Próxima ›</button>
+    </div>
+  </section>
+
+  @if(showForm()){
+    <div class="modal">
+      <form (ngSubmit)="save()">
+        <div class="title"><h2>{{editing()?'Editar':'Novo'}} produto</h2><button type="button" (click)="showForm.set(false)">×</button></div>
+        @if(error()){<div class="error">{{error()}}</div>}
+        <div class="grid">
+          <label>Código de barras<input [(ngModel)]="form.barcode" name="barcode" placeholder="Opcional"></label>
+          <label>Código interno<input [(ngModel)]="form.internalCode" name="internal" placeholder="Ex.: FRU004"></label>
+        </div>
+        <label>Nome<input [(ngModel)]="form.name" name="name" required></label>
+        <div class="grid">
+          <label>Unidade<select [(ngModel)]="form.unit" name="unit"><option value="UN">Unidade</option><option value="KG">Quilograma</option></select></label>
+          <label>Preço<input type="number" [(ngModel)]="form.price" name="price" min="0.01" step="0.01" required></label>
+        </div>
+        <button class="save">Salvar</button>
+      </form>
+    </div>
+  }
+</main>

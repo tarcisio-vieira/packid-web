@@ -1,0 +1,97 @@
+<main class="login-neutral">
+  <section class="login-panel">
+    <header class="brand-block">
+      <img src="assets/logo-vsgi-neutral.svg" alt="VSGI Caixa Fácil">
+    </header>
+
+    @if(tenantOptions().length){
+      <div class="auth-card selection-card">
+        <div class="card-heading">
+          <span class="heading-icon">↪</span>
+          <div>
+            <h1>Escolha o comércio</h1>
+            <p>Seu acesso está vinculado a mais de um comércio. Selecione onde deseja trabalhar.</p>
+          </div>
+        </div>
+        @if(error()){<div class="error">{{error()}}</div>}
+        <div class="tenant-list">
+          @for(option of tenantOptions();track option.id){
+            <button type="button" class="tenant-option" (click)="chooseTenant(option)" [disabled]="loading()">
+              <span class="tenant-icon">🏪</span>
+              <span class="tenant-copy"><b>{{option.name}}</b><small>{{option.defaultStore.name}}</small></span>
+              <strong>Entrar →</strong>
+            </button>
+          }
+        </div>
+        <button type="button" class="text-button back" (click)="backToLogin()">← Voltar ao login</button>
+      </div>
+    } @else if(platformMode()){
+      <div class="auth-card admin-card">
+        <div class="admin-badge">ACESSO RESTRITO</div>
+        <h1>Administração VSGI</h1>
+        <p class="intro">Área exclusiva para administração comercial e técnica do SaaS.</p>
+        @if(error()){<div class="error">{{error()}}</div>}
+        <form (ngSubmit)="submit()">
+          <label>Usuário
+            <input name="username" [(ngModel)]="username" autocomplete="username" required autofocus>
+          </label>
+          <label>Senha
+            <input name="password" [(ngModel)]="password" type="password" autocomplete="current-password" required>
+          </label>
+          <button class="primary admin-primary" [disabled]="loading()">{{loading()?'Entrando...':'Entrar na administração'}}</button>
+        </form>
+        <button type="button" class="text-button" (click)="closeAdmin()">← Voltar ao acesso normal</button>
+      </div>
+    } @else {
+      <div class="auth-card">
+        <div class="card-heading user-heading">
+          <span class="heading-icon google-lock">G</span>
+          <div>
+            <h1>Entrar no Caixa Fácil</h1>
+            <p>Use sua conta Google. Depois do login, o sistema identifica automaticamente os comércios aos quais você tem acesso.</p>
+          </div>
+        </div>
+        @if(error()){<div class="error">{{error()}}</div>}
+
+        <button class="google" type="button" (click)="google()" [disabled]="loading()">
+          <span class="google-g">G</span>
+          <span>Continuar com Google</span>
+        </button>
+        <div class="login-note"><span>✓</span> Seus dados ficam separados por comércio e protegidos pelo seu acesso.</div>
+
+        <div class="secondary-access">
+          <button type="button" class="text-button local-toggle" (click)="toggleLocalLogin()">
+            {{showLocalLogin()?'Ocultar acesso por usuário e senha':'Entrar com usuário e senha'}}
+          </button>
+        </div>
+
+        @if(showLocalLogin()){
+          <div class="local-login">
+            <div class="or"><span>acesso alternativo</span></div>
+            <form (ngSubmit)="submit()">
+              <label>Usuário
+                <input name="username" [(ngModel)]="username" autocomplete="username" required>
+              </label>
+              <label>Senha
+                <input name="password" [(ngModel)]="password" type="password" autocomplete="current-password" required>
+              </label>
+              <label class="optional-code">Código do comércio <small>(opcional)</small>
+                <input name="tenantSlug" [(ngModel)]="tenantSlug" autocomplete="organization" placeholder="Ex.: mercado-vieira">
+              </label>
+              <button class="primary" [disabled]="loading()">{{loading()?'Entrando...':'Entrar'}}</button>
+            </form>
+          </div>
+        }
+      </div>
+    }
+
+    <footer class="login-footer">
+      <span>VSGI Caixa Fácil</span>
+      <span class="dot">•</span>
+      <span>Acesso seguro</span>
+      @if(!platformMode() && !tenantOptions().length){
+        <button type="button" class="saas-admin-link" (click)="openAdmin()" title="Administração da plataforma">Administração VSGI</button>
+      }
+    </footer>
+  </section>
+</main>

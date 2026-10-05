@@ -26,6 +26,11 @@ import PackagePickupNotifier from "./components/PackagePickupNotifier";
 import ResidentPortal from "./components/ResidentPortal";
 import CollaboratorLoginPage from "./components/CollaboratorLoginPage";
 import ResidentLoginPage from "./components/ResidentLoginPage";
+import AmenityReservationsScreen from "./components/AmenityReservationsScreen";
+import AnnouncementsScreen from "./components/AnnouncementsScreen";
+import ManagedDocumentsScreen from "./components/ManagedDocumentsScreen";
+import BillingScreen from "./components/BillingScreen";
+import CondominiumBrandIcon from "./components/shared/CondominiumBrandIcon";
 
 import {
   Alert,
@@ -51,26 +56,40 @@ import {
   FormControlLabel,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
-import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
 import DomainRoundedIcon from "@mui/icons-material/DomainRounded";
 import PoolRoundedIcon from "@mui/icons-material/PoolRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
+import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
+import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
+import LibraryBooksRoundedIcon from "@mui/icons-material/LibraryBooksRounded";
+import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 
 // ----- Tipos -----
-type ActiveView = "home" | "identifyPackage" | "registry" | "spaces" | "poolCards" | "settings";
+type ActiveView = "home" | "identifyPackage" | "registry" | "spaces" | "reservations" | "announcements" | "library" | "internalRegulation" | "billing" | "poolCards" | "settings";
 type AccessRoute = "collaborator" | "resident";
 
+const IS_RESIDENT_APP = import.meta.env.VITE_ACCESS_ROUTE === "resident";
+
 function condominiumAccessPath(segment: "colaborador" | "user"): string {
+  if (IS_RESIDENT_APP) {
+    return `/${segment}`;
+  }
+
   const base = (import.meta.env.BASE_URL || "/condominio/").replace(/\/+$/, "");
   return `${base}/${segment}`;
 }
 
 function detectAccessRoute(): AccessRoute {
+  if (IS_RESIDENT_APP) {
+    return "resident";
+  }
+
   const path = globalThis.location.pathname.replace(/\/+$/, "").toLowerCase();
   return path.endsWith("/user") ? "resident" : "collaborator";
 }
@@ -1437,14 +1456,33 @@ function App() {
     return () => window.removeEventListener("condominium-logo-updated", update);
   }, []);
 
-  useEffect(() => {
-    const base = (import.meta.env.BASE_URL || "/condominio/").replace(/\/+$/, "").toLowerCase();
-    const current = globalThis.location.pathname.replace(/\/+$/, "").toLowerCase();
-    if (current === base) {
-      const target = `${condominiumAccessPath("colaborador")}${globalThis.location.search}${globalThis.location.hash}`;
+useEffect(() => {
+  const current = globalThis.location.pathname
+    .replace(/\/+$/, "")
+    .toLowerCase();
+
+  if (IS_RESIDENT_APP) {
+    if (!current || current === "/") {
+      const target = `/user${globalThis.location.search}${globalThis.location.hash}`;
+
       globalThis.history.replaceState({}, document.title, target);
     }
-  }, []);
+
+    return;
+  }
+
+  const base = (import.meta.env.BASE_URL || "/condominio/")
+    .replace(/\/+$/, "")
+    .toLowerCase();
+
+  if (current === base) {
+    const target =
+      `${condominiumAccessPath("colaborador")}` +
+      `${globalThis.location.search}${globalThis.location.hash}`;
+
+    globalThis.history.replaceState({}, document.title, target);
+  }
+}, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1550,6 +1588,28 @@ function App() {
       return <RegistryScreen currentUser={user} initialNavigation="POOL_CARDS" />;
     }
 
+    if (activeView === "reservations") {
+      return <AmenityReservationsScreen currentUser={user} />;
+    }
+
+    if (activeView === "announcements") {
+      return <AnnouncementsScreen currentUser={user} />;
+    }
+
+    if (activeView === "library") {
+      return <ManagedDocumentsScreen category="LIBRARY" currentUser={user} />;
+    }
+
+    if (activeView === "internalRegulation") {
+      return <ManagedDocumentsScreen category="INTERNAL_REGULATION" currentUser={user} />;
+    }
+
+    if (activeView === "billing") {
+      const canManageSettings = user.canManageSettings ?? ["ADMIN", "SECRETARY"].includes((user.role ?? "").toUpperCase());
+      if (!canManageSettings) return <HomeScreen currentUser={user} />;
+      return <BillingScreen />;
+    }
+
     if (activeView === "spaces") {
       return <RegistryScreen currentUser={user} initialNavigation="LEISURE_AREA" />;
     }
@@ -1589,7 +1649,7 @@ function App() {
         flexDirection: "column",
       }}
     >
-      <AppBar position="static" color="default" elevation={1}>
+      {accessRoute !== "resident" && <AppBar position="static" color="default" elevation={1}>
         <Toolbar
           disableGutters
           sx={{
@@ -1662,42 +1722,8 @@ function App() {
               flexShrink: 0,
             }}
           >
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 0.5,
-                mr: { xs: 0.15, sm: 0.35 },
-              }}
-            >
-              <Box
-                sx={{
-                  width: 25,
-                  height: 25,
-                  borderRadius: 1.15,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  bgcolor: "text.primary",
-                  color: "background.paper",
-                  flexShrink: 0,
-                }}
-              >
-                <ApartmentRoundedIcon sx={{ fontSize: 17 }} />
-              </Box>
-              <Typography
-                component="div"
-                sx={{
-                  display: "block",
-                  fontSize: { xs: "0.72rem", sm: "0.82rem" },
-                  fontWeight: 800,
-                  letterSpacing: "0.12em",
-                  lineHeight: 1,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                VSGI
-              </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", mr: { xs: 0.15, sm: 0.35 } }}>
+              <CondominiumBrandIcon size={28} />
             </Box>
 
             {user && (
@@ -1715,7 +1741,7 @@ function App() {
             )}
           </Box>
         </Toolbar>
-      </AppBar>
+      </AppBar>}
 
       <Drawer
         anchor="left"
@@ -1742,24 +1768,12 @@ function App() {
         >
           <Box sx={{ px: 2, pt: 1.75, pb: 1.5 }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography
-                  variant="overline"
-                  sx={{
-                    display: "block",
-                    fontSize: "0.66rem",
-                    lineHeight: 1.2,
-                    fontWeight: 800,
-                    letterSpacing: "0.12em",
-                    color: "primary.main",
-                  }}
-                >
-                  VSGI CONDOMÍNIO
-                </Typography>
-                <Typography sx={{ mt: 0.25, fontSize: "1.18rem", fontWeight: 750, lineHeight: 1.3 }}>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                <CondominiumBrandIcon size={36} />
+                <Typography sx={{ fontSize: "1.08rem", fontWeight: 800, lineHeight: 1.3 }}>
                   {t("menu.main")}
                 </Typography>
-              </Box>
+              </Stack>
 
               <Tooltip title="Fechar menu" arrow>
                 <IconButton
@@ -1868,7 +1882,64 @@ function App() {
                 />
                 {activeView === "registry" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
               </ListItemButton>
+
+              <ListItemButton
+                selected={activeView === "reservations"}
+                onClick={() => { setActiveView("reservations"); setDrawerOpen(false); }}
+                sx={{ minHeight: 48, mb: 0.5, px: 1.25, borderRadius: 2, "&.Mui-selected": { bgcolor: "action.selected" }, "&.Mui-selected:hover": { bgcolor: "action.selected" } }}
+              >
+                <ListItemIcon sx={{ minWidth: 40, color: activeView === "reservations" ? "primary.main" : "text.secondary" }}>
+                  <EventAvailableRoundedIcon />
+                </ListItemIcon>
+                <ListItemText primary="Reservas de ambientes" primaryTypographyProps={{ fontWeight: activeView === "reservations" ? 700 : 500 }} />
+                {activeView === "reservations" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
+              </ListItemButton>
+
+              <ListItemButton
+                selected={activeView === "announcements"}
+                onClick={() => { setActiveView("announcements"); setDrawerOpen(false); }}
+                sx={{ minHeight: 48, mb: 0.5, px: 1.25, borderRadius: 2, "&.Mui-selected": { bgcolor: "action.selected" }, "&.Mui-selected:hover": { bgcolor: "action.selected" } }}
+              >
+                <ListItemIcon sx={{ minWidth: 40, color: activeView === "announcements" ? "primary.main" : "text.secondary" }}>
+                  <CampaignRoundedIcon />
+                </ListItemIcon>
+                <ListItemText primary="Comunicados" primaryTypographyProps={{ fontWeight: activeView === "announcements" ? 700 : 500 }} />
+                {activeView === "announcements" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
+              </ListItemButton>
+
+              <ListItemButton
+                selected={activeView === "library"}
+                onClick={() => { setActiveView("library"); setDrawerOpen(false); }}
+                sx={{ minHeight: 48, mb: 0.5, px: 1.25, borderRadius: 2, "&.Mui-selected": { bgcolor: "action.selected" }, "&.Mui-selected:hover": { bgcolor: "action.selected" } }}
+              >
+                <ListItemIcon sx={{ minWidth: 40, color: activeView === "library" ? "primary.main" : "text.secondary" }}><LibraryBooksRoundedIcon /></ListItemIcon>
+                <ListItemText primary="Biblioteca" primaryTypographyProps={{ fontWeight: activeView === "library" ? 700 : 500 }} />
+                {activeView === "library" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
+              </ListItemButton>
+
+              <ListItemButton
+                selected={activeView === "internalRegulation"}
+                onClick={() => { setActiveView("internalRegulation"); setDrawerOpen(false); }}
+                sx={{ minHeight: 48, mb: 0.5, px: 1.25, borderRadius: 2, "&.Mui-selected": { bgcolor: "action.selected" }, "&.Mui-selected:hover": { bgcolor: "action.selected" } }}
+              >
+                <ListItemIcon sx={{ minWidth: 40, color: activeView === "internalRegulation" ? "primary.main" : "text.secondary" }}><GavelRoundedIcon /></ListItemIcon>
+                <ListItemText primary="RI · Regulamento Interno" primaryTypographyProps={{ fontWeight: activeView === "internalRegulation" ? 700 : 500 }} />
+                {activeView === "internalRegulation" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
+              </ListItemButton>
             </>}
+
+
+            {(user?.canManageSettings ?? ["ADMIN", "SECRETARY"].includes((user?.role ?? "").toUpperCase())) && (
+              <ListItemButton
+                selected={activeView === "billing"}
+                onClick={() => { setActiveView("billing"); setDrawerOpen(false); }}
+                sx={{ minHeight: 48, mb: 0.5, px: 1.25, borderRadius: 2, "&.Mui-selected": { bgcolor: "action.selected" }, "&.Mui-selected:hover": { bgcolor: "action.selected" } }}
+              >
+                <ListItemIcon sx={{ minWidth: 40, color: activeView === "billing" ? "primary.main" : "text.secondary" }}><ReceiptLongRoundedIcon /></ListItemIcon>
+                <ListItemText primary="Boletos" primaryTypographyProps={{ fontWeight: activeView === "billing" ? 700 : 500 }} />
+                {activeView === "billing" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
+              </ListItemButton>
+            )}
 
             {(user?.canViewPoolCards ?? ["ADMIN", "SECRETARY", "PORTER", "POOL_ATTENDANT"].includes((user?.role ?? "").toUpperCase())) && (
               <ListItemButton

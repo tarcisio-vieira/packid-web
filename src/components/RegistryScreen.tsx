@@ -56,6 +56,8 @@ import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import DeckOutlinedIcon from "@mui/icons-material/DeckOutlined";
 import PoolOutlinedIcon from "@mui/icons-material/PoolOutlined";
+import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
+import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import PhoneAndroidOutlinedIcon from "@mui/icons-material/PhoneAndroidOutlined";
@@ -80,6 +82,7 @@ import {
   fetchServiceRecords,
   fetchUnitRegistrySummary,
   fetchResidentialUnits,
+  fetchRegistryPhotoVisibilitySettings,
   fetchVisitorVisits,
   finishServiceRecord,
   startApartmentOccupancy,
@@ -97,6 +100,8 @@ import {
 import ServiceCompanyPanel from "./ServiceCompanyPanel";
 import SpacesScreen from "./SpacesScreen";
 import PoolCardsScreen from "./PoolCardsScreen";
+import AmenityReservationsScreen from "./AmenityReservationsScreen";
+import AnnouncementsScreen from "./AnnouncementsScreen";
 import { confirmDialog } from "../utils/confirmDialog";
 import type {
   ApartmentOccupancy,
@@ -125,7 +130,7 @@ const TYPES: Array<{ type: RegistryEntryType; label: string }> = [
   { type: "VEHICLE", label: "Veículos" },
 ];
 
-type RegistryNavigationValue = RegistryEntryType | "SERVICE_COMPANY" | "LEISURE_AREA" | "POOL_CARDS";
+type RegistryNavigationValue = RegistryEntryType | "SERVICE_COMPANY" | "LEISURE_AREA" | "AMENITY_RESERVATIONS" | "ANNOUNCEMENTS" | "POOL_CARDS";
 
 const NAVIGATION_ITEMS: Array<{ value: RegistryNavigationValue; label: string; color: string }> = [
   { value: "RESIDENT", label: "Condôminos", color: "#1976d2" },
@@ -137,6 +142,8 @@ const NAVIGATION_ITEMS: Array<{ value: RegistryNavigationValue; label: string; c
   { value: "PET", label: "Pets", color: "#d81b60" },
   { value: "VEHICLE", label: "Veículos", color: "#3949ab" },
   { value: "LEISURE_AREA", label: "Área de lazer", color: "#00897b" },
+  { value: "AMENITY_RESERVATIONS", label: "Reservas de ambientes", color: "#6a1b9a" },
+  { value: "ANNOUNCEMENTS", label: "Comunicados", color: "#0F766E" },
   { value: "POOL_CARDS", label: "Carteirinhas de piscina", color: "#00796b" },
 ];
 
@@ -170,6 +177,10 @@ function navigationIcon(value: RegistryNavigationValue) {
       return <DirectionsCarOutlinedIcon />;
     case "LEISURE_AREA":
       return <DeckOutlinedIcon />;
+    case "AMENITY_RESERVATIONS":
+      return <EventAvailableRoundedIcon />;
+    case "ANNOUNCEMENTS":
+      return <CampaignRoundedIcon />;
     case "POOL_CARDS":
       return <PoolOutlinedIcon />;
   }
@@ -223,15 +234,40 @@ const emptyServiceCompanyPayload = (name = ""): ServiceCompanyPayload => ({
   active: true,
 });
 
-function defaultUnitUsername(block?: string | null, apartment?: string | null): string {
-  return `${block ?? ""}${apartment ?? ""}`.replace(/[^A-Za-z0-9._-]/g, "").toLowerCase();
+function defaultResidentUsername(name?: string | null, block?: string | null, apartment?: string | null): string {
+  const person = (name ?? "morador")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .slice(0, 12) || "morador";
+  const unit = `${block ?? ""}${apartment ?? ""}`.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
+  return `${person}${unit ? `.${unit}` : ""}`;
 }
 
 function generateTemporaryPassword(length = 10): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const bytes = new Uint32Array(length);
-  globalThis.crypto.getRandomValues(bytes);
-  return Array.from(bytes, value => alphabet[value % alphabet.length]).join("");
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const digits = "23456789";
+  const all = upper + lower + digits;
+  const randomChar = (alphabet: string) => {
+    const value = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(value);
+    return alphabet[value[0] % alphabet.length];
+  };
+  const chars = [randomChar(upper), randomChar(lower), randomChar(digits)];
+  while (chars.length < Math.max(8, length)) chars.push(randomChar(all));
+  for (let i = chars.length - 1; i > 0; i--) {
+    const value = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(value);
+    const j = value[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
+}
+
+function validResidentPassword(value: string): boolean {
+  return value.length >= 8 && /[A-Z]/.test(value) && /[a-z]/.test(value) && /[0-9]/.test(value);
 }
 
 type AccessForm = {
@@ -448,12 +484,14 @@ function SpaceAccessHistory({ rows }: Readonly<{ rows: SpaceAccess[] }>) {
 }
 
 export default function RegistryScreen({ embedded = false, currentUser, initialNavigation }: Readonly<{ embedded?: boolean; currentUser?: User | null; initialNavigation?: RegistryNavigationValue }>) {
-  const initialRegistryType: RegistryEntryType = initialNavigation && !["SERVICE_COMPANY", "LEISURE_AREA", "POOL_CARDS"].includes(initialNavigation)
+  const initialRegistryType: RegistryEntryType = initialNavigation && !["SERVICE_COMPANY", "LEISURE_AREA", "AMENITY_RESERVATIONS", "ANNOUNCEMENTS", "POOL_CARDS"].includes(initialNavigation)
     ? initialNavigation as RegistryEntryType
     : "RESIDENT";
   const [type, setType] = useState<RegistryEntryType>(initialRegistryType);
   const [companyMode, setCompanyMode] = useState(initialNavigation === "SERVICE_COMPANY");
   const [leisureMode, setLeisureMode] = useState(initialNavigation === "LEISURE_AREA");
+  const [reservationMode, setReservationMode] = useState(initialNavigation === "AMENITY_RESERVATIONS");
+  const [announcementMode, setAnnouncementMode] = useState(initialNavigation === "ANNOUNCEMENTS");
   const [poolMode, setPoolMode] = useState(initialNavigation === "POOL_CARDS" || (currentUser?.role || "").toUpperCase() === "POOL_ATTENDANT");
   const [companyNewRequestSeq, setCompanyNewRequestSeq] = useState(0);
   const [rows, setRows] = useState<RegistryEntry[]>([]);
@@ -466,6 +504,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [photoVisibility, setPhotoVisibility] = useState({ showServiceProviderPhoto: true, showDeliveryPersonPhoto: true });
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] = useState<RegistrySortField>("unit");
@@ -630,20 +669,28 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   }, [search]);
 
   useEffect(() => {
+    let cancelled = false;
+    void fetchRegistryPhotoVisibilitySettings()
+      .then((settings) => { if (!cancelled) setPhotoVisibility(settings); })
+      .catch(() => { /* Mantém o padrão visível se a configuração não puder ser carregada. */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     setSelectedRow(null);
-  }, [type, companyMode, leisureMode, poolMode]);
+  }, [type, companyMode, leisureMode, reservationMode, announcementMode, poolMode]);
 
   useEffect(() => {
-    if (!companyMode && !leisureMode && !poolMode) void loadRows(type);
-  }, [type, companyMode, leisureMode, poolMode, page, rowsPerPage, debouncedSearch, showInactive, showOwnersOnly, sortField, sortDirection]);
+    if (!companyMode && !leisureMode && !reservationMode && !announcementMode && !poolMode) void loadRows(type);
+  }, [type, companyMode, leisureMode, reservationMode, announcementMode, poolMode, page, rowsPerPage, debouncedSearch, showInactive, showOwnersOnly, sortField, sortDirection]);
 
   useEffect(() => {
-    if (!leisureMode && !poolMode && (type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON" || companyMode)) void loadServiceCompanies();
-  }, [type, companyMode, leisureMode, poolMode]);
+    if (!leisureMode && !reservationMode && !announcementMode && !poolMode && (type === "SERVICE_PROVIDER" || type === "DELIVERY_PERSON" || companyMode)) void loadServiceCompanies();
+  }, [type, companyMode, leisureMode, reservationMode, announcementMode, poolMode]);
 
   useEffect(() => {
-    if (!companyMode && !leisureMode && !poolMode && type === "SERVICE_PROVIDER") void loadActiveServiceRecords();
-  }, [type, companyMode, leisureMode, poolMode]);
+    if (!companyMode && !leisureMode && !reservationMode && !announcementMode && !poolMode && type === "SERVICE_PROVIDER") void loadActiveServiceRecords();
+  }, [type, companyMode, leisureMode, reservationMode, announcementMode, poolMode]);
 
   useEffect(() => {
     const handleRegistryTabShortcut = (event: globalThis.KeyboardEvent) => {
@@ -673,6 +720,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
       const nextType: RegistryEntryType = event.key === "ArrowUp" ? "RESIDENT" : "SERVICE_PROVIDER";
       setCompanyMode(false);
       setLeisureMode(false);
+      setReservationMode(false);
       setPoolMode(false);
       setType(nextType);
       setSearch("");
@@ -695,10 +743,10 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   }, [currentUser?.role]);
 
   useEffect(() => {
-    if (poolMode) return;
+    if (poolMode || reservationMode || announcementMode) return;
     void fetchResidentialUnits().then((items) => setResidentialUnits(items.filter((u) => u.active !== false)))
       .catch((e) => setError(userFriendlyError(e, "Falha ao carregar blocos e apartamentos cadastrados.")));
-  }, [poolMode]);
+  }, [poolMode, reservationMode, announcementMode]);
 
   const visibleRows = rows;
   const paginatedRows = rows;
@@ -774,11 +822,26 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   const isServiceProvider = type === "SERVICE_PROVIDER";
   const isDeliveryPerson = type === "DELIVERY_PERSON";
   const isCompanyLinkedPerson = isServiceProvider || isDeliveryPerson;
+  const showPersonPhotoForCurrentType = isServiceProvider
+    ? photoVisibility.showServiceProviderPhoto
+    : isDeliveryPerson
+      ? photoVisibility.showDeliveryPersonPhoto
+      : true;
+  const personPhotoVisibleForEntry = (entryType: RegistryEntryType) =>
+    entryType === "SERVICE_PROVIDER"
+      ? photoVisibility.showServiceProviderPhoto
+      : entryType === "DELIVERY_PERSON"
+        ? photoVisibility.showDeliveryPersonPhoto
+        : true;
+  const showPhotoColumn = !isCompanyLinkedPerson || showPersonPhotoForCurrentType;
+  const showDocumentPhotoColumn = isServiceProvider || isDeliveryPerson;
   const canRegisterEvent = isAccessPerson || isServiceProvider;
   const showDetailsColumn = type !== "RESIDENT";
 
   const tableColumnCount =
-    5 +
+    4 +
+    (showPhotoColumn ? 1 : 0) +
+    (showDocumentPhotoColumn ? 1 : 0) +
     (canRegisterEvent ? 1 : 0) +
     (type === "SERVICE_PROVIDER" ? 1 : 0) +
     (type === "RESIDENT" ? 1 : 0) +
@@ -1119,12 +1182,12 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
         setError("Para liberar o acesso da unidade, informe um usuário com pelo menos 4 caracteres.");
         return;
       }
-      if (!editingId && (form.residentPassword ?? "").length < 8) {
-        setError("Para liberar o primeiro acesso da unidade, informe ou gere uma senha com pelo menos 8 caracteres.");
+      if (!editingId && !validResidentPassword(form.residentPassword ?? "")) {
+        setError("Para liberar o primeiro acesso, a senha deve ter pelo menos 8 caracteres, com maiúscula, minúscula e número.");
         return;
       }
-      if (editingId && (form.residentPassword ?? "").length > 0 && (form.residentPassword ?? "").length < 8) {
-        setError("A nova senha deve ter pelo menos 8 caracteres. Deixe em branco para manter a senha atual.");
+      if (editingId && (form.residentPassword ?? "").length > 0 && !validResidentPassword(form.residentPassword ?? "")) {
+        setError("A nova senha deve ter pelo menos 8 caracteres, com maiúscula, minúscula e número. Deixe em branco para manter a atual.");
         return;
       }
     }
@@ -1371,7 +1434,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
   };
 
   const exportCurrentTab = async () => {
-    if (!canExportExcel || leisureMode) return;
+    if (!canExportExcel || leisureMode || reservationMode || announcementMode) return;
     setExporting(true);
     setError(null);
     try {
@@ -1418,7 +1481,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
           }}
         >
           <Tabs
-          value={poolMode ? "POOL_CARDS" : leisureMode ? "LEISURE_AREA" : companyMode ? "SERVICE_COMPANY" : type}
+          value={poolMode ? "POOL_CARDS" : announcementMode ? "ANNOUNCEMENTS" : reservationMode ? "AMENITY_RESERVATIONS" : leisureMode ? "LEISURE_AREA" : companyMode ? "SERVICE_COMPANY" : type}
           onChange={(_, value: RegistryNavigationValue) => {
             setSearch("");
             setDebouncedSearch("");
@@ -1428,6 +1491,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
             if (value === "SERVICE_COMPANY") {
               setCompanyMode(true);
               setLeisureMode(false);
+              setReservationMode(false);
+              setAnnouncementMode(false);
               setPoolMode(false);
               return;
             }
@@ -1435,6 +1500,26 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
             if (value === "LEISURE_AREA") {
               setCompanyMode(false);
               setLeisureMode(true);
+              setReservationMode(false);
+              setAnnouncementMode(false);
+              setPoolMode(false);
+              return;
+            }
+
+            if (value === "AMENITY_RESERVATIONS") {
+              setCompanyMode(false);
+              setLeisureMode(false);
+              setReservationMode(true);
+              setAnnouncementMode(false);
+              setPoolMode(false);
+              return;
+            }
+
+            if (value === "ANNOUNCEMENTS") {
+              setCompanyMode(false);
+              setLeisureMode(false);
+              setReservationMode(false);
+              setAnnouncementMode(true);
               setPoolMode(false);
               return;
             }
@@ -1442,12 +1527,16 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
             if (value === "POOL_CARDS") {
               setCompanyMode(false);
               setLeisureMode(false);
+              setReservationMode(false);
+              setAnnouncementMode(false);
               setPoolMode(true);
               return;
             }
 
             setCompanyMode(false);
             setLeisureMode(false);
+            setReservationMode(false);
+            setAnnouncementMode(false);
             setPoolMode(false);
             setType(value as RegistryEntryType);
             setSortField(defaultRegistrySortField(value));
@@ -1505,6 +1594,10 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
 
         {poolMode ? (
           <PoolCardsScreen currentUser={currentUser || { name: "", email: "", role: "PORTER" }} />
+        ) : announcementMode ? (
+          <AnnouncementsScreen currentUser={currentUser || { name: "", email: "", role: "PORTER" }} />
+        ) : reservationMode ? (
+          <AmenityReservationsScreen currentUser={currentUser || { name: "", email: "", role: "PORTER" }} embedded />
         ) : leisureMode ? (
           <SpacesScreen embedded canExport={canExportExcel} />
         ) : companyMode ? (
@@ -1683,16 +1776,18 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
           <Card variant="outlined" sx={{ mt: 2, bgcolor: "action.hover" }}>
             <CardContent>
               <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
-                <Avatar
-                  src={
-                    selectedRow.photoAvailable && selectedRow.photoOwnedByCurrentUser
-                      ? registryEntryPhotoUrl(selectedRow.id, selectedRow.updatedAt ?? selectedRow.createdAt)
-                      : undefined
-                  }
-                  sx={{ width: 72, height: 72 }}
-                >
-                  {selectedRow.name?.charAt(0)?.toUpperCase()}
-                </Avatar>
+                {personPhotoVisibleForEntry(selectedRow.entryType) && (
+                  <Avatar
+                    src={
+                      selectedRow.photoAvailable && selectedRow.photoOwnedByCurrentUser
+                        ? registryEntryPhotoUrl(selectedRow.id, selectedRow.updatedAt ?? selectedRow.createdAt)
+                        : undefined
+                    }
+                    sx={{ width: 72, height: 72 }}
+                  >
+                    {selectedRow.name?.charAt(0)?.toUpperCase()}
+                  </Avatar>
+                )}
                 <Box sx={{ flex: 1 }}>
                   <Stack direction="row" spacing={0.7} alignItems="center" flexWrap="wrap" useFlexGap>
                     <Typography variant="subtitle1" fontWeight={700}>
@@ -1914,7 +2009,8 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                 {canRegisterEvent && (
                   <TableCell width={92} align="center">Registrar</TableCell>
                 )}
-                <TableCell width={72}>Foto</TableCell>
+                {showPhotoColumn && <TableCell width={72}>Foto</TableCell>}
+                {showDocumentPhotoColumn && <TableCell width={110} align="center">Foto do documento</TableCell>}
                 <TableCell sortDirection={sortField === "name" ? sortDirection : false}>
                   <TableSortLabel
                     active={sortField === "name"}
@@ -1987,24 +2083,45 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                       </Tooltip>
                     </TableCell>
                   )}
-                  <TableCell>
-                    <Avatar
-                      variant={isCompanyLinkedPerson ? "rounded" : "circular"}
-                      src={
-                        isCompanyLinkedPerson
-                          ? (row.documentPhotoAvailable && row.documentPhotoOwnedByCurrentUser
-                              ? registryDocumentPhotoUrl(row.id, "document", row.updatedAt ?? row.createdAt)
-                              : undefined)
-                          : (row.photoAvailable && row.photoOwnedByCurrentUser
-                              ? registryEntryPhotoUrl(row.id, row.updatedAt ?? row.createdAt)
-                              : undefined)
-                      }
-                      alt={isCompanyLinkedPerson ? `Documento de ${row.name}` : row.name}
-                      sx={{ width: isCompanyLinkedPerson ? 56 : 40, height: 40 }}
-                    >
-                      {isCompanyLinkedPerson ? <BadgeOutlinedIcon fontSize="small" /> : row.name?.charAt(0)?.toUpperCase()}
-                    </Avatar>
-                  </TableCell>
+                  {showPhotoColumn && (
+                    <TableCell>
+                      <Avatar
+                        variant="circular"
+                        src={
+                          row.photoAvailable && row.photoOwnedByCurrentUser
+                            ? registryEntryPhotoUrl(row.id, row.updatedAt ?? row.createdAt)
+                            : undefined
+                        }
+                        alt={row.name}
+                        sx={{ width: 40, height: 40 }}
+                      >
+                        {row.name?.charAt(0)?.toUpperCase()}
+                      </Avatar>
+                    </TableCell>
+                  )}
+                  {showDocumentPhotoColumn && (
+                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
+                      {row.documentPhotoAvailable && row.documentPhotoOwnedByCurrentUser ? (
+                        <Tooltip title="Foto do documento">
+                          <Avatar
+                            variant="rounded"
+                            src={registryDocumentPhotoUrl(row.id, "document", row.updatedAt ?? row.createdAt)}
+                            alt={`Documento de ${row.name}`}
+                            sx={{ width: 56, height: 40, mx: "auto", cursor: "pointer", bgcolor: "action.hover" }}
+                            onClick={() => window.open(registryDocumentPhotoUrl(row.id, "document", row.updatedAt ?? row.createdAt), "_blank", "noopener,noreferrer")}
+                          >
+                            <BadgeOutlinedIcon fontSize="small" />
+                          </Avatar>
+                        </Tooltip>
+                      ) : (
+                        <Tooltip title={row.documentPhotoAvailable ? "Foto do documento indisponível para esta conta" : "Sem foto do documento"}>
+                          <Avatar variant="rounded" sx={{ width: 56, height: 40, mx: "auto", bgcolor: "action.disabledBackground", color: "text.disabled" }}>
+                            <BadgeOutlinedIcon fontSize="small" />
+                          </Avatar>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Typography variant="body2" fontWeight={600}>{row.name}</Typography>
                     {row.ownerName && row.entryType !== "PET" && (
@@ -2102,52 +2219,54 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
         <DialogTitle>{editingId ? "Editar cadastro" : "Novo cadastro"} — {selectedLabel}</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 1, display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-            <Box
-              sx={{
-                gridColumn: { sm: "1 / -1" },
-                display: "flex",
-                flexDirection: { xs: "column", sm: "row" },
-                alignItems: { xs: "flex-start", sm: "center" },
-                gap: 2,
-                p: 1.5,
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 1,
-              }}
-            >
-              <Avatar src={photoPreview ?? storedPhotoUrl ?? undefined} sx={{ width: 96, height: 96 }}>
-                {form.name?.charAt(0)?.toUpperCase()}
-              </Avatar>
-              <Stack spacing={1} alignItems="flex-start">
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                  <Button component="label" variant="outlined" disabled={loading || photoLockedByAnotherAccount}>
-                    {photoFile ? "Trocar arquivo" : "Escolher arquivo"}
-                    <input hidden type="file" accept="image/jpeg,image/png" onChange={(event) => handlePhotoSelected(event.target.files?.[0])} />
-                  </Button>
-                  <Button
-                    variant="contained"
-                    startIcon={<PhotoCameraIcon />}
-                    onClick={() => openCamera("profile")}
-                    disabled={loading || photoLockedByAnotherAccount}
-                  >
-                    Tirar foto
-                  </Button>
-                  {editingRow?.photoAvailable && editingRow.photoOwnedByCurrentUser && (
-                    <Button color="error" variant="text" startIcon={<DeleteForeverIcon />} onClick={() => void removePhoto()} disabled={loading}>
-                      Remover foto
+            {showPersonPhotoForCurrentType && (
+              <Box
+                sx={{
+                  gridColumn: { sm: "1 / -1" },
+                  display: "flex",
+                  flexDirection: { xs: "column", sm: "row" },
+                  alignItems: { xs: "flex-start", sm: "center" },
+                  gap: 2,
+                  p: 1.5,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1,
+                }}
+              >
+                <Avatar src={photoPreview ?? storedPhotoUrl ?? undefined} sx={{ width: 96, height: 96 }}>
+                  {form.name?.charAt(0)?.toUpperCase()}
+                </Avatar>
+                <Stack spacing={1} alignItems="flex-start">
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                    <Button component="label" variant="outlined" disabled={loading || photoLockedByAnotherAccount}>
+                      {photoFile ? "Trocar arquivo" : "Escolher arquivo"}
+                      <input hidden type="file" accept="image/jpeg,image/png" onChange={(event) => handlePhotoSelected(event.target.files?.[0])} />
                     </Button>
+                    <Button
+                      variant="contained"
+                      startIcon={<PhotoCameraIcon />}
+                      onClick={() => openCamera("profile")}
+                      disabled={loading || photoLockedByAnotherAccount}
+                    >
+                      Tirar foto
+                    </Button>
+                    {editingRow?.photoAvailable && editingRow.photoOwnedByCurrentUser && (
+                      <Button color="error" variant="text" startIcon={<DeleteForeverIcon />} onClick={() => void removePhoto()} disabled={loading}>
+                        Remover foto
+                      </Button>
+                    )}
+                  </Stack>
+                  <Typography variant="caption" sx={{ opacity: 0.75 }}>
+                    Escolha uma imagem do computador/celular ou capture pela câmera. JPG ou PNG, até 12 MB. O VSGI redimensiona e compacta automaticamente antes de enviar ao Google Drive.
+                  </Typography>
+                  {photoLockedByAnotherAccount && (
+                    <Typography variant="caption" color="warning.main">
+                      A foto atual pertence ao Drive de outra conta Google.
+                    </Typography>
                   )}
                 </Stack>
-                <Typography variant="caption" sx={{ opacity: 0.75 }}>
-                  Escolha uma imagem do computador/celular ou capture pela câmera. JPG ou PNG, até 12 MB. O VSGI redimensiona e compacta automaticamente antes de enviar ao Google Drive.
-                </Typography>
-                {photoLockedByAnotherAccount && (
-                  <Typography variant="caption" color="warning.main">
-                    A foto atual pertence ao Drive de outra conta Google.
-                  </Typography>
-                )}
-              </Stack>
-            </Box>
+              </Box>
+            )}
 
             {isCompanyLinkedPerson && (
               <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
@@ -2235,7 +2354,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                             ...current,
                             residentAccessEnabled: enabled,
                             residentUsername: enabled && !(current.residentUsername ?? "").trim()
-                              ? defaultUnitUsername(current.block, current.apartment)
+                              ? defaultResidentUsername(current.name, current.block, current.apartment)
                               : current.residentUsername,
                             residentPassword: enabled && !Boolean(current.residentAccessEnabled) && !(current.residentPassword ?? "")
                               ? generateTemporaryPassword()
@@ -2244,20 +2363,20 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                         }}
                       />
                     }
-                    label="Liberar acesso de visualização da unidade"
+                    label="Liberar acesso deste morador ao aplicativo"
                   />
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: form.residentAccessEnabled ? 1.5 : 0 }}>
-                    O acesso pertence ao bloco/apartamento e é compartilhado pelos moradores da ocupação atual. Ao encerrar a ocupação, ele é revogado.
+                    O acesso é pessoal deste condômino. Ao entrar, usuário e senha identificam automaticamente o condomínio, a unidade e o morador.
                   </Typography>
                   {form.residentAccessEnabled && (
                     <Stack spacing={1.5}>
                       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                         <TextField
-                          label="Usuário da unidade"
+                          label="Usuário do morador"
                           value={form.residentUsername ?? ""}
                           onChange={(e) => setField("residentUsername", e.target.value)}
                           required
-                          helperText="Sugestão: bloco + apartamento (ex.: 2608). O morador poderá alterar depois."
+                          helperText="Use um identificador pessoal. Sugestão automática: nome + unidade. O morador poderá alterar depois."
                         />
                         <TextField
                           label={editingId ? "Nova senha (opcional)" : "Senha temporária"}
@@ -2265,7 +2384,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                           value={form.residentPassword ?? ""}
                           onChange={(e) => setField("residentPassword", e.target.value)}
                           required={!editingId}
-                          helperText={editingId ? "A senha atual não é exibida. Digite ou gere uma nova senha para redefinir." : "Senha temporária visível para ser repassada ao morador. Mínimo de 8 caracteres."}
+                          helperText={editingId ? "A senha atual não é exibida. Digite ou gere uma nova senha para redefinir." : "Mínimo de 8 caracteres, com maiúscula, minúscula e número."}
                           InputProps={{
                             endAdornment: (
                               <Button
@@ -2287,7 +2406,7 @@ export default function RegistryScreen({ embedded = false, currentUser, initialN
                             onChange={(e) => setField("residentCredentialEmailEnabled", e.target.checked)}
                           />
                         }
-                        label="Enviar novas credenciais por e-mail para os condôminos desta unidade"
+                        label="Enviar novas credenciais por e-mail para este morador"
                       />
                       <Typography variant="caption" color="text.secondary">
                         Inicia desabilitado. O envio só ocorrerá se a opção geral de e-mails de credenciais também estiver habilitada em Configurações. Uma senha criada ou redefinida pela administração será marcada para troca obrigatória no primeiro acesso.

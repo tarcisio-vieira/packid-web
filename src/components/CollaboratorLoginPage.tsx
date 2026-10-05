@@ -9,11 +9,12 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
-import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
-import DoorFrontOutlinedIcon from "@mui/icons-material/DoorFrontOutlined";
-import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import DoorFrontOutlinedIcon from "@mui/icons-material/DoorFrontRounded";
+import LockOutlinedIcon from "@mui/icons-material/LockRounded";
+import CondominiumBrandIcon from "./shared/CondominiumBrandIcon";
+import { condominiumBrand } from "../theme/condominiumBrand";
 
 export default function CollaboratorLoginPage({
   error,
@@ -33,7 +34,7 @@ export default function CollaboratorLoginPage({
         px: { xs: 2, sm: 3 },
         py: { xs: 3, sm: 5 },
         background:
-          "radial-gradient(circle at 10% 10%, rgba(25,118,210,.10), transparent 30%), radial-gradient(circle at 92% 90%, rgba(46,125,50,.08), transparent 30%), linear-gradient(145deg, #f8f9fb 0%, #f5f2e9 100%)",
+          "radial-gradient(circle at 10% 10%, rgba(20,184,166,.13), transparent 30%), radial-gradient(circle at 92% 90%, rgba(15,118,110,.10), transparent 30%), linear-gradient(145deg, #f7fbfa 0%, #eef7f5 100%)",
       }}
     >
       <Card
@@ -51,7 +52,7 @@ export default function CollaboratorLoginPage({
         <Box
           sx={{
             height: 6,
-            background: "linear-gradient(90deg, #1976d2 0%, #42a5f5 52%, #2e7d32 100%)",
+            background: `linear-gradient(90deg, ${condominiumBrand.primaryDark} 0%, ${condominiumBrand.primary} 52%, ${condominiumBrand.primaryLight} 100%)`,
           }}
         />
 
@@ -62,34 +63,7 @@ export default function CollaboratorLoginPage({
           }}
         >
           <Stack alignItems="center" textAlign="center">
-            <Box
-              sx={{
-                width: 66,
-                height: 66,
-                borderRadius: 4,
-                display: "grid",
-                placeItems: "center",
-                color: "white",
-                background: "linear-gradient(145deg, #2588e3 0%, #1169c7 100%)",
-                boxShadow: "0 14px 30px rgba(25,118,210,.28)",
-                mb: 1.7,
-              }}
-            >
-              <ApartmentRoundedIcon sx={{ fontSize: 36 }} />
-            </Box>
-
-            <Typography
-              variant="overline"
-              sx={{
-                fontWeight: 900,
-                letterSpacing: 2.4,
-                color: "text.secondary",
-                lineHeight: 1,
-                mb: 0.8,
-              }}
-            >
-              VSGI
-            </Typography>
+            <Box sx={{ mb: 1.7 }}><CondominiumBrandIcon size={66} /></Box>
 
             <Typography
               component="h1"
@@ -108,13 +82,15 @@ export default function CollaboratorLoginPage({
               icon={<AdminPanelSettingsOutlinedIcon />}
               label="Acesso de colaboradores"
               variant="outlined"
-              color="primary"
               size="small"
               sx={{
                 mt: 1.7,
                 px: 0.5,
                 fontWeight: 750,
-                bgcolor: "rgba(25,118,210,.035)",
+                bgcolor: condominiumBrand.primarySofter,
+                color: condominiumBrand.primary,
+                borderColor: condominiumBrand.primary,
+                "& .MuiChip-icon": { color: condominiumBrand.primary },
               }}
             />
 
@@ -143,15 +119,15 @@ export default function CollaboratorLoginPage({
               minHeight: 52,
               borderRadius: 2.6,
               color: "#17212b",
-              borderColor: "rgba(25,118,210,.48)",
+              borderColor: "rgba(15,118,110,.42)",
               bgcolor: "#fff",
               fontWeight: 800,
               textTransform: "none",
               boxShadow: "0 3px 10px rgba(28,58,90,.04)",
               "&:hover": {
-                borderColor: "primary.main",
-                bgcolor: "rgba(25,118,210,.035)",
-                boxShadow: "0 6px 16px rgba(25,118,210,.08)",
+                borderColor: condominiumBrand.primary,
+                bgcolor: condominiumBrand.primarySofter,
+                boxShadow: "0 6px 16px rgba(15,118,110,.10)",
               },
             }}
             startIcon={
@@ -161,7 +137,7 @@ export default function CollaboratorLoginPage({
                 sx={{
                   fontSize: 20,
                   fontWeight: 900,
-                  color: "#1a73e8",
+                  color: condominiumBrand.primary,
                   lineHeight: 1,
                   fontFamily: "Arial, sans-serif",
                 }}
@@ -197,10 +173,10 @@ export default function CollaboratorLoginPage({
               borderRadius: 2.4,
               textTransform: "none",
               fontWeight: 750,
-              color: "#263746",
-              bgcolor: "#f7f9fb",
-              border: "1px solid rgba(38,55,70,.08)",
-              "&:hover": { bgcolor: "#f0f4f7" },
+              color: condominiumBrand.text,
+              bgcolor: condominiumBrand.primarySofter,
+              border: `1px solid ${condominiumBrand.border}`,
+              "&:hover": { bgcolor: condominiumBrand.primarySoft },
             }}
           >
             Acessar como morador

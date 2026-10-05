@@ -38,6 +38,7 @@ import {
 } from "../api";
 import SystemUsersPanel from "./SystemUsersPanel";
 import UnitManagementPanel from "./UnitManagementPanel";
+import BankIntegrationSettingsPanel from "./BankIntegrationSettingsPanel";
 import { confirmDialog } from "../utils/confirmDialog";
 
 function emptyPayload(): CondominiumSettingsPayload {
@@ -57,6 +58,8 @@ function emptyPayload(): CondominiumSettingsPayload {
     emailNotificationsEnabled: true,
     residentCredentialEmailsEnabled: false,
     packIdPrintTwoLabels: true,
+    showServiceProviderPhoto: true,
+    showDeliveryPersonPhoto: true,
     poolCardTitle: "PISCINA",
     poolCardSubtitle: "USO DA PISCINA",
     poolOpeningHours: "Todos os dias das 09h às 17h.",
@@ -90,6 +93,8 @@ function toPayload(data: CondominiumSettings): CondominiumSettingsPayload {
     emailNotificationsEnabled: data.emailNotificationsEnabled !== false,
     residentCredentialEmailsEnabled: data.residentCredentialEmailsEnabled === true,
     packIdPrintTwoLabels: data.packIdPrintTwoLabels !== false,
+    showServiceProviderPhoto: data.showServiceProviderPhoto !== false,
+    showDeliveryPersonPhoto: data.showDeliveryPersonPhoto !== false,
     poolCardTitle: data.poolCardTitle ?? "PISCINA",
     poolCardSubtitle: data.poolCardSubtitle ?? "USO DA PISCINA",
     poolOpeningHours: data.poolOpeningHours ?? "",
@@ -420,6 +425,23 @@ export default function SettingsScreen({
         </Paper>
 
         <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
+          <Typography variant="h6" sx={{ mb: .5 }}>Fotos de prestadores e entregadores</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
+            Controle se a foto da pessoa aparece no cadastro, edição e listas da portaria. A foto do documento continua disponível independentemente destas opções.
+          </Typography>
+          <Stack spacing={.5}>
+            <FormControlLabel
+              control={<Switch checked={form.showServiceProviderPhoto !== false} onChange={(e) => setField("showServiceProviderPhoto", e.target.checked)} />}
+              label="Mostrar foto da pessoa em Prestadores de serviço"
+            />
+            <FormControlLabel
+              control={<Switch checked={form.showDeliveryPersonPhoto !== false} onChange={(e) => setField("showDeliveryPersonPhoto", e.target.checked)} />}
+              label="Mostrar foto da pessoa em Entregadores"
+            />
+          </Stack>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
             <PoolIcon color="primary" />
             <Typography variant="h6">Carteirinha da piscina</Typography>
@@ -532,6 +554,9 @@ export default function SettingsScreen({
             </Stack>
           </Stack>
         </Paper>
+
+        <Divider sx={{ my: 3 }} />
+        <BankIntegrationSettingsPanel />
 
         {(currentUser?.role ?? "").toUpperCase() === "ADMIN" && settings?.tenantId && settings?.condominiumId && (
           <>

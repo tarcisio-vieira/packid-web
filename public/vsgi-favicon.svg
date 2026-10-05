@@ -1,6 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="VSGI Condomínio">
-  <rect x="4" y="4" width="56" height="56" rx="15" fill="#263746"/>
-  <path d="M18 50V20.5c0-1.2.8-2.3 2-2.7l12-4.3 12 4.3c1.2.4 2 1.5 2 2.7V50" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M26 25h3M35 25h3M26 33h3M35 33h3M26 41h3M35 41h3" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
-  <path d="M31 50V43h2v7" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Condomínio residencial - casas e apartamentos">
+  <rect x="3" y="3" width="58" height="58" rx="16" fill="#0F766E"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Edifício -->
+    <path d="M12.5 49V20.5L28 15v34"/>
+    <path d="M18 25h4M18 32h4M18 39h4"/>
+    <!-- Casa -->
+    <path d="M30 34.5 43.5 23 57 34.5"/>
+    <path d="M34 32v17h19V32"/>
+    <path d="M41 49V39h5v10"/>
+    <!-- Base comum -->
+    <path d="M10 49h47"/>
+  </g>
 </svg>

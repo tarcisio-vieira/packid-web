@@ -1,8 +1,17 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
-  plugins: [react()],
-  base: mode === "dev" ? "/packid-dev/" : "/condominio/",
-}));
+export default defineConfig(({ mode }) => {
+  let base = "/condominio/";
+
+  if (mode === "android") {
+    base = "./";
+  } else if (mode === "dev") {
+    base = "/packid-dev/";
+  }
+
+  return {
+    plugins: [react()],
+    base,
+  };
+});

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VSGI Condomínio</string>
+    <string name="title_activity_main">VSGI Condomínio</string>
+    <string name="package_name">br.com.vsgi.condominio</string>
+    <string name="custom_url_scheme">br.com.vsgi.condominio</string>
+</resources>

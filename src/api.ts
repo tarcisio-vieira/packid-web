@@ -862,6 +862,8 @@ export async function fetchPublicTenants(): Promise<PublicTenant[]> {
 
 export type ResidentSession = {
   occupancyId: string;
+  residentEntryId: string;
+  residentName: string;
   tenantName: string;
   tenantSlug: string;
   block: string;
@@ -871,11 +873,8 @@ export type ResidentSession = {
 };
 
 export type ResidentLoginPayload = {
-  tenantSlug: string;
   username: string;
   password: string;
-  block: string;
-  apartment: string;
 };
 
 export type ResidentPortalData = {
@@ -1060,6 +1059,8 @@ export type CondominiumSettings = {
   emailNotificationsEnabled: boolean;
   residentCredentialEmailsEnabled: boolean;
   packIdPrintTwoLabels: boolean;
+  showServiceProviderPhoto: boolean;
+  showDeliveryPersonPhoto: boolean;
   logoAvailable: boolean;
   logoFileName?: string | null;
   poolCardTitle: string;
@@ -1094,6 +1095,20 @@ export async function fetchCondominiumSettings(): Promise<CondominiumSettings> {
 export type PackIdLabelPrintSettings = {
   copies: 1 | 2;
 };
+
+export type RegistryPhotoVisibilitySettings = {
+  showServiceProviderPhoto: boolean;
+  showDeliveryPersonPhoto: boolean;
+};
+
+export async function fetchRegistryPhotoVisibilitySettings(): Promise<RegistryPhotoVisibilitySettings> {
+  const resp = await fetch(`${API_URL}/api/settings/registry-photo-visibility`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
 
 export async function fetchPackIdLabelPrintSettings(): Promise<PackIdLabelPrintSettings> {
   const resp = await fetch(`${API_URL}/api/settings/label-print`, {
@@ -1382,3 +1397,314 @@ export async function requestResidentPackagePickup(id: string): Promise<PackIdRe
   if (!resp.ok) throw new Error(await readErrorMessage(resp));
   return resp.json();
 }
+
+export type AmenitySpace = {
+  id: string;
+  name: string;
+  description?: string | null;
+  usageFee: number;
+  minAdvanceDays: number;
+  maxAdvanceDays: number;
+  cancellationDays: number;
+  active: boolean;
+  photoAvailable: boolean;
+};
+
+export type AmenityGuest = { id?: string; name: string; document?: string | null };
+
+export type AmenityReservation = {
+  id: string;
+  amenitySpaceId: string;
+  amenitySpaceName: string;
+  occupancyId: string;
+  block: string;
+  apartment: string;
+  reservationDate: string;
+  status: "BOOKED" | "CANCELLED";
+  usageFee: number;
+  requestedAt: string;
+  cancelledAt?: string | null;
+  cancelledBy?: string | null;
+  notes?: string | null;
+  guests: AmenityGuest[];
+};
+
+export type AmenitySpacePayload = Omit<AmenitySpace, "id" | "photoAvailable">;
+
+export async function fetchAmenitySpaces(): Promise<AmenitySpace[]> {
+  const resp = await fetch(`${API_URL}/api/amenity-spaces`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function createAmenitySpace(payload: AmenitySpacePayload): Promise<AmenitySpace> {
+  const resp = await fetch(`${API_URL}/api/amenity-spaces`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function updateAmenitySpace(id: string, payload: AmenitySpacePayload): Promise<AmenitySpace> {
+  const resp = await fetch(`${API_URL}/api/amenity-spaces/${id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function uploadAmenitySpacePhoto(id: string, file: File): Promise<AmenitySpace> {
+  const form = new FormData(); form.append("file", file);
+  const resp = await fetch(`${API_URL}/api/amenity-spaces/${id}/photo`, { method: "PUT", credentials: "include", body: form });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export function amenitySpacePhotoUrl(id: string): string { return `${API_URL}/api/amenity-spaces/${id}/photo`; }
+
+export async function fetchAmenityReservations(options: { spaceId?: string; from?: string; to?: string; status?: "BOOKED" | "CANCELLED" | ""; includePast?: boolean } = {}): Promise<AmenityReservation[]> {
+  const p = new URLSearchParams();
+  if (options.spaceId) p.set("spaceId", options.spaceId);
+  if (options.from) p.set("from", options.from);
+  if (options.to) p.set("to", options.to);
+  if (options.status) p.set("status", options.status);
+  p.set("includePast", String(Boolean(options.includePast)));
+  const resp = await fetch(`${API_URL}/api/amenity-reservations?${p.toString()}`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchResidentAmenitySpaces(): Promise<AmenitySpace[]> {
+  const resp = await fetch(`${API_URL}/api/resident/amenities/spaces`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+export function residentAmenitySpacePhotoUrl(id: string): string { return `${API_URL}/api/resident/amenities/spaces/${id}/photo`; }
+export async function fetchResidentAmenityReservations(): Promise<AmenityReservation[]> {
+  const resp = await fetch(`${API_URL}/api/resident/amenities/reservations`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+export async function fetchResidentAmenityBookedDates(spaceId: string, from: string, to: string): Promise<string[]> {
+  const params = new URLSearchParams({ from, to });
+  const resp = await fetch(`${API_URL}/api/resident/amenities/spaces/${spaceId}/booked-dates?${params.toString()}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+export async function createResidentAmenityReservation(payload: { amenitySpaceId: string; reservationDate: string; notes?: string; guests?: Array<{ name: string; document?: string }> }): Promise<AmenityReservation> {
+  const resp = await fetch(`${API_URL}/api/resident/amenities/reservations`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+export async function cancelResidentAmenityReservation(id: string): Promise<AmenityReservation> {
+  const resp = await fetch(`${API_URL}/api/resident/amenities/reservations/${id}/cancel`, { method: "POST", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+export async function updateResidentAmenityGuests(id: string, guests: Array<{ name: string; document?: string }>): Promise<AmenityReservation> {
+  const resp = await fetch(`${API_URL}/api/resident/amenities/reservations/${id}/guests`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(guests) });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export type Announcement = {
+  id: string;
+  title: string;
+  bodyHtml: string;
+  bodyText: string;
+  publishedAt: string;
+  createdBy?: string | null;
+  recipientCount: number;
+  deliveredCount: number;
+  failedCount: number;
+  deliveryStatus: "PENDING" | "SENT" | "PARTIAL" | "FAILED";
+};
+
+export async function fetchAnnouncements(): Promise<Announcement[]> {
+  const resp = await fetch(`${API_URL}/api/announcements`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function createAnnouncement(payload: { title: string; bodyHtml: string }): Promise<Announcement> {
+  const resp = await fetch(`${API_URL}/api/announcements`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function fetchResidentAnnouncements(): Promise<Announcement[]> {
+  const resp = await fetch(`${API_URL}/api/resident/announcements`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export type ManagedDocumentCategory = "LIBRARY" | "INTERNAL_REGULATION";
+export type ManagedDocument = {
+  id: string;
+  category: ManagedDocumentCategory;
+  displayName: string;
+  originalFileName: string;
+  mimeType?: string | null;
+  fileExtension?: string | null;
+  fileSize: number;
+  createdAt?: string | null;
+  createdBy?: string | null;
+};
+
+export async function fetchManagedDocuments(category: ManagedDocumentCategory): Promise<ManagedDocument[]> {
+  const resp = await fetch(`${API_URL}/api/managed-documents?category=${encodeURIComponent(category)}`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function uploadManagedDocument(category: ManagedDocumentCategory, displayName: string, file: File): Promise<ManagedDocument> {
+  const form = new FormData();
+  form.append("file", file);
+  const resp = await fetch(`${API_URL}/api/managed-documents?category=${encodeURIComponent(category)}&displayName=${encodeURIComponent(displayName)}`, {
+    method: "POST", credentials: "include", body: form,
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function deleteManagedDocument(id: string): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/managed-documents/${id}`, { method: "DELETE", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+}
+
+async function downloadResponse(url: string, fileName: string): Promise<void> {
+  const resp = await fetch(url, { credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  const blob = await resp.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = fileName || "arquivo";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(objectUrl);
+}
+
+export async function downloadManagedDocument(id: string, fileName: string): Promise<void> {
+  return downloadResponse(`${API_URL}/api/managed-documents/${id}/download`, fileName);
+}
+
+export async function fetchResidentManagedDocuments(category: ManagedDocumentCategory): Promise<ManagedDocument[]> {
+  const resp = await fetch(`${API_URL}/api/resident/documents?category=${encodeURIComponent(category)}`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function downloadResidentManagedDocument(id: string, fileName: string): Promise<void> {
+  return downloadResponse(`${API_URL}/api/resident/documents/${id}/download`, fileName);
+}
+
+export type BankIntegrationSettings = {
+  provider: "NONE" | "SANTANDER" | "BANCO_DO_BRASIL" | "ITAU" | "BRADESCO" | "OUTRO";
+  environment: "SANDBOX" | "PRODUCTION";
+  enabled: boolean;
+  clientId?: string | null;
+  clientSecretConfigured: boolean;
+  apiBaseUrl?: string | null;
+  tokenUrl?: string | null;
+  workspaceId?: string | null;
+  covenantCode?: string | null;
+  beneficiaryCode?: string | null;
+  notes?: string | null;
+  lastSyncAt?: string | null;
+  lastError?: string | null;
+};
+
+export type BankIntegrationSettingsPayload = Omit<BankIntegrationSettings, "clientSecretConfigured" | "lastSyncAt" | "lastError"> & {
+  clientSecret?: string | null;
+};
+
+export async function fetchBankIntegrationSettings(): Promise<BankIntegrationSettings> {
+  const resp = await fetch(`${API_URL}/api/settings/bank-integration`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function updateBankIntegrationSettings(payload: BankIntegrationSettingsPayload): Promise<BankIntegrationSettings> {
+  const resp = await fetch(`${API_URL}/api/settings/bank-integration`, {
+    method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export type BillingChargeStatus = "PENDING" | "PAID" | "OVERDUE" | "CANCELLED";
+export type BillingCharge = {
+  id: string;
+  occupancyId: string;
+  block: string;
+  apartment: string;
+  bankProvider?: string | null;
+  externalId?: string | null;
+  referenceNumber?: string | null;
+  description?: string | null;
+  nominalValue: number;
+  issueDate?: string | null;
+  dueDate: string;
+  status: BillingChargeStatus;
+  digitableLine?: string | null;
+  barcode?: string | null;
+  documentUrl?: string | null;
+  lastBankUpdateAt?: string | null;
+};
+
+export type BillingChargeCreatePayload = {
+  block: string;
+  apartment: string;
+  bankProvider?: string | null;
+  externalId?: string | null;
+  referenceNumber?: string | null;
+  description?: string | null;
+  nominalValue: number;
+  issueDate?: string | null;
+  dueDate: string;
+  digitableLine?: string | null;
+  barcode?: string | null;
+  documentUrl?: string | null;
+};
+
+export async function fetchBillingCharges(): Promise<BillingCharge[]> {
+  const resp = await fetch(`${API_URL}/api/billing/charges`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function createBillingCharge(payload: BillingChargeCreatePayload): Promise<BillingCharge> {
+  const resp = await fetch(`${API_URL}/api/billing/charges`, {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export async function emailBillingCharge(id: string, email?: string): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/billing/charges/${id}/email`, {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email || null }),
+  });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+}
+
+export function billingChargePrintUrl(id: string): string { return `${API_URL}/api/billing/charges/${id}/print`; }
+
+export async function requestBillingSync(): Promise<void> {
+  const resp = await fetch(`${API_URL}/api/billing/sync`, { method: "POST", credentials: "include" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+}
+
+export async function fetchResidentBillingCharges(): Promise<BillingCharge[]> {
+  const resp = await fetch(`${API_URL}/api/resident/billing/charges`, { credentials: "include", cache: "no-store" });
+  if (!resp.ok) throw new Error(await readErrorMessage(resp));
+  return resp.json();
+}
+
+export function residentBillingChargePrintUrl(id: string): string { return `${API_URL}/api/resident/billing/charges/${id}/print`; }

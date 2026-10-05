@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120">
+  <rect x="4" y="4" width="112" height="112" rx="28" fill="#3568c9"/>
+  <rect x="29" y="22" width="53" height="75" rx="8" fill="#fff"/>
+  <rect x="37" y="36" width="30" height="5" rx="2.5" fill="#cdd9f3"/><rect x="37" y="48" width="36" height="5" rx="2.5" fill="#cdd9f3"/><rect x="37" y="60" width="25" height="5" rx="2.5" fill="#cdd9f3"/>
+  <g transform="rotate(-40 75 68)"><rect x="69" y="38" width="12" height="56" rx="5" fill="#8d73df"/><rect x="69" y="38" width="12" height="12" rx="3" fill="#f3c44d"/><path d="M69 94h12l-6 12Z" fill="#f0d1a7"/><path d="M73 103h4l-2 5Z" fill="#20345f"/></g>
+  <text x="136" y="57" font-family="Nunito,Arial,sans-serif" font-size="31" font-weight="900" fill="#20345f">VSGI</text>
+  <text x="136" y="91" font-family="Nunito,Arial,sans-serif" font-size="33" font-weight="900" fill="#3568c9">Caixa Fácil</text>
+</svg>
