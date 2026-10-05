@@ -1,1 +1,48 @@
-{"name":"vsgi-caixa-facil-frontend","version":"1.0.0","private":true,"scripts":{"ng":"ng","start":"ng serve","build":"ng build"},"dependencies":{"@angular/animations":"^21.0.0","@angular/common":"^21.0.0","@angular/compiler":"^21.0.0","@angular/core":"^21.0.0","@angular/forms":"^21.0.0","@angular/platform-browser":"^21.0.0","@angular/platform-browser-dynamic":"^21.0.0","@angular/router":"^21.0.0","rxjs":"~7.8.0","sweetalert2":"^11.26.25","tslib":"^2.6.0"},"devDependencies":{"@angular/build":"^21.0.0","@angular/cli":"^21.0.0","@angular/compiler-cli":"^21.0.0","typescript":"~5.9.0"}}
+{
+  "name": "packid-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:dev": "vite --mode dev",
+    "build": "tsc -b && vite build",
+    "build:dev": "tsc -b && vite build --mode dev",
+    "build:prod": "tsc -b && vite build --mode production",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "preview:dev": "vite preview --mode dev",
+    "build:android": "tsc -b && vite build --mode android"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.5",
+    "@mui/material": "^7.3.5",
+    "i18next": "^25.6.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-i18next": "^16.3.5",
+    "react-is": "18.3.1",
+    "sweetalert2": "^11.26.25",
+    "tesseract.js": "^7.0.0",
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "^5.1.1",
+    "baseline-browser-mapping": "^2.10.8",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vite": "^7.2.4",
+    "@capacitor/cli": "^8.5.2"
+  }
+}

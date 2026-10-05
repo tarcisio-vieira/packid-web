@@ -1456,33 +1456,34 @@ function App() {
     return () => window.removeEventListener("condominium-logo-updated", update);
   }, []);
 
-useEffect(() => {
-  const current = globalThis.location.pathname
-    .replace(/\/+$/, "")
-    .toLowerCase();
+  useEffect(() => {
+    const current = globalThis.location.pathname
+      .replace(/\/+$/, "")
+      .toLowerCase();
 
-  if (IS_RESIDENT_APP) {
-    if (!current || current === "/") {
-      const target = `/user${globalThis.location.search}${globalThis.location.hash}`;
+    if (IS_RESIDENT_APP) {
+      if (!current || current === "/") {
+        const target =
+          `/user${globalThis.location.search}${globalThis.location.hash}`;
+
+        globalThis.history.replaceState({}, document.title, target);
+      }
+
+      return;
+    }
+
+    const base = (import.meta.env.BASE_URL || "/condominio/")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+
+    if (current === base) {
+      const target =
+        `${condominiumAccessPath("colaborador")}` +
+        `${globalThis.location.search}${globalThis.location.hash}`;
 
       globalThis.history.replaceState({}, document.title, target);
     }
-
-    return;
-  }
-
-  const base = (import.meta.env.BASE_URL || "/condominio/")
-    .replace(/\/+$/, "")
-    .toLowerCase();
-
-  if (current === base) {
-    const target =
-      `${condominiumAccessPath("colaborador")}` +
-      `${globalThis.location.search}${globalThis.location.hash}`;
-
-    globalThis.history.replaceState({}, document.title, target);
-  }
-}, []);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
