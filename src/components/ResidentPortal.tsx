@@ -5,7 +5,6 @@ import {
   AccordionDetails,
   AccordionSummary,
   Alert,
-  Avatar,
   Box,
   Button,
   Card,
@@ -93,6 +92,7 @@ import ResidentAnnouncements from "./ResidentAnnouncements";
 import ManagedDocumentsScreen from "./ManagedDocumentsScreen";
 import ResidentBilling from "./ResidentBilling";
 import CondominiumBrandIcon from "./shared/CondominiumBrandIcon";
+import { AuthenticatedAvatar } from "./shared/AuthenticatedMedia";
 import { condominiumBrand } from "../theme/condominiumBrand";
 import { spaceAccessStatusLabel, spaceLabel } from "./SpacesScreen";
 
@@ -292,12 +292,12 @@ function RegistryAccordion({
           alignItems="center"
           sx={{ p: 0.9, borderRadius: 2, bgcolor: "action.hover" }}
         >
-          <Avatar
+          <AuthenticatedAvatar
             sx={{ width: 40, height: 40 }}
-            src={row.photoAvailable && row.photoOwnedByCurrentUser ? residentRegistryPhotoUrl(row.id, row.updatedAt ?? row.createdAt) : undefined}
+            remoteSrc={row.photoAvailable && row.photoOwnedByCurrentUser ? residentRegistryPhotoUrl(row.id, row.updatedAt ?? row.createdAt) : undefined}
           >
             {row.name?.[0]?.toUpperCase()}
-          </Avatar>
+          </AuthenticatedAvatar>
           <Box sx={{ minWidth: 0, flexGrow: 1 }}>
             <Typography variant="body2" fontWeight={750} noWrap>{row.name}</Typography>
             <Typography variant="caption" color="text.secondary" noWrap display="block">
@@ -332,12 +332,12 @@ function ResidentsAccordion({
           alignItems="center"
           sx={{ p: 1, borderRadius: 2, bgcolor: "action.hover" }}
         >
-          <Avatar
+          <AuthenticatedAvatar
             sx={{ width: 42, height: 42, flex: "0 0 auto" }}
-            src={row.photoAvailable && row.photoOwnedByCurrentUser ? residentRegistryPhotoUrl(row.id, row.updatedAt ?? row.createdAt) : undefined}
+            remoteSrc={row.photoAvailable && row.photoOwnedByCurrentUser ? residentRegistryPhotoUrl(row.id, row.updatedAt ?? row.createdAt) : undefined}
           >
             {row.name?.[0]?.toUpperCase()}
-          </Avatar>
+          </AuthenticatedAvatar>
           <Box sx={{ minWidth: 0, flexGrow: 1 }}>
             <Typography variant="body2" fontWeight={800} noWrap>{row.name}</Typography>
             {(row.phone || row.email) && (
@@ -386,9 +386,9 @@ function ResidentPoolCardsAccordion({
             alignItems="center"
             sx={{ p: 1, borderRadius: 2, bgcolor: "action.hover" }}
           >
-            <Avatar sx={{ width: 44, height: 44, flex: "0 0 auto" }} src={photoUrl}>
+            <AuthenticatedAvatar sx={{ width: 44, height: 44, flex: "0 0 auto" }} remoteSrc={photoUrl}>
               {(resident?.name || card.residentName)?.[0]?.toUpperCase()}
-            </Avatar>
+            </AuthenticatedAvatar>
             <Box sx={{ minWidth: 0, flexGrow: 1 }}>
               <Typography variant="body2" fontWeight={800} noWrap>
                 {resident?.name || card.residentName}
@@ -706,7 +706,18 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
   };
 
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: condominiumBrand.page, px: { xs: 0, sm: 2 }, pt: { xs: 0, sm: 2 }, pb: "calc(20px + env(safe-area-inset-bottom))" }}>
+    <Box
+      sx={{
+        minHeight: "100dvh",
+        bgcolor: condominiumBrand.page,
+        px: { xs: 0, sm: 2 },
+        pt: {
+          xs: "calc(env(safe-area-inset-top, 0px) + 12px)",
+          sm: 2,
+        },
+        pb: "calc(20px + env(safe-area-inset-bottom, 0px))",
+      }}
+    >
       <Box sx={{ maxWidth: 1120, mx: "auto" }}>
         {activeSection === "HOME" ? (
           <Box sx={{ px: { xs: 2, sm: 2.5 }, pt: { xs: 1.2, sm: 1.5 }, pb: { xs: 3.5, sm: 4 }, background: "linear-gradient(180deg,#ffffff 0%,#f7faf8 100%)" }}>
@@ -733,7 +744,10 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
             </Stack>
           </Box>
         ) : (
-          <Card elevation={0} sx={{ mx: { xs: 1.25, sm: 0 }, mb: 1.5, borderRadius: 3, border: "1px solid", borderColor: "divider", position: { xs: "sticky", sm: "static" }, top: { xs: 8, sm: "auto" }, zIndex: 10, boxShadow: { xs: "0 6px 24px rgba(20,32,48,.08)", sm: "none" } }}>
+          <Card elevation={0} sx={{ mx: { xs: 1.25, sm: 0 }, mb: 1.5, borderRadius: 3, border: "1px solid", borderColor: "divider", position: { xs: "sticky", sm: "static" }, top: {
+              xs: "calc(env(safe-area-inset-top, 0px) + 8px)",
+              sm: "auto",
+            }, zIndex: 10, boxShadow: { xs: "0 6px 24px rgba(20,32,48,.08)", sm: "none" } }}>
             <CardContent sx={{ p: { xs: 1.25, sm: 2 }, "&:last-child": { pb: { xs: 1.25, sm: 2 } } }}>
               <Stack direction="row" justifyContent="space-between" spacing={1.5} alignItems="center">
                 <Stack direction="row" spacing={1.1} alignItems="center" sx={{ minWidth: 0 }}>
@@ -1030,7 +1044,7 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
           {profileRow && (
             <Stack spacing={2} sx={{ mt: 1 }}>
               <Stack direction="row" spacing={2} alignItems="center">
-                <Avatar sx={{ width: 68, height: 68 }} src={profileRow.photoAvailable && profileRow.photoOwnedByCurrentUser ? residentRegistryPhotoUrl(profileRow.id, profileRow.updatedAt ?? profileRow.createdAt) : undefined}>{profileRow.name?.[0]?.toUpperCase()}</Avatar>
+                <AuthenticatedAvatar sx={{ width: 68, height: 68 }} remoteSrc={profileRow.photoAvailable && profileRow.photoOwnedByCurrentUser ? residentRegistryPhotoUrl(profileRow.id, profileRow.updatedAt ?? profileRow.createdAt) : undefined}>{profileRow.name?.[0]?.toUpperCase()}</AuthenticatedAvatar>
                 <Box sx={{ minWidth: 0 }}>
                   <Typography fontWeight={800}>{profileRow.name}</Typography>
                   <Typography variant="body2" color="text.secondary">Bloco {profileRow.block} Apto {profileRow.apartment}</Typography>

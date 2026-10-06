@@ -6,6 +6,7 @@ import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import PoolOutlinedIcon from "@mui/icons-material/PoolOutlined";
 import type { PoolCard, PoolCardSettings } from "../api";
 import PoolCardStatusIcon from "./PoolCardStatusIcon";
+import { AuthenticatedImage } from "./shared/AuthenticatedMedia";
 
 function Field({ label, value, wide }: { label: string; value?: string | null; wide?: boolean }) {
   return (
@@ -46,7 +47,7 @@ export default function PoolCardVisual({ card, settings, logoUrl }: Readonly<{ c
       <Box sx={{ position: "relative", zIndex: 1, display: "grid", gridTemplateColumns: "56% 44%", height: "82%" }}>
         <Box sx={{ pr: "3%", display: "flex", flexDirection: "column", gap: "clamp(5px, 1.6vw, 16px)" }}>
           <Box sx={{ width: "29%", minWidth: 72, maxWidth: 145, aspectRatio: "1.58 / 1", borderRadius: 2, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: logoUrl ? "transparent" : color, color: "white" }}>
-            {logoUrl ? <Box component="img" src={logoUrl} alt="Logo do condomínio" sx={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <Typography fontWeight={800} align="center" sx={{ fontSize: "clamp(7px, 1.4vw, 14px)", px: .5 }}>{settings.condominiumName}</Typography>}
+            {logoUrl ? <AuthenticatedImage remoteSrc={logoUrl} alt="Logo do condomínio" sx={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <Typography fontWeight={800} align="center" sx={{ fontSize: "clamp(7px, 1.4vw, 14px)", px: .5 }}>{settings.condominiumName}</Typography>}
           </Box>
           <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "clamp(5px, 1.6vw, 16px)" }}>
             <Field label="Bloco:" value={card.block} />

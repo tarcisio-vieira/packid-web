@@ -21,6 +21,7 @@ import {
   residentAmenitySpacePhotoUrl, updateResidentAmenityGuests, userFriendlyError,
   type AmenityReservation, type AmenitySpace,
 } from "../api";
+import { AuthenticatedImage } from "./shared/AuthenticatedMedia";
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const dateBr = (v: string) => new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${v}T12:00:00Z`));
@@ -315,7 +316,7 @@ export default function ResidentAmenityReservations() {
         {spaces.map((space) => (
           <Card key={space.id} variant="outlined" sx={{ borderRadius: 3.5, overflow: "hidden", boxShadow: "0 8px 24px rgba(30,60,45,.06)" }}>
             <Box sx={{ bgcolor: "primary.main", color: "primary.contrastText", px: 2, py: 1.4 }}><Typography fontWeight={900}>{space.name}</Typography></Box>
-            {space.photoAvailable ? <Box component="img" src={residentAmenitySpacePhotoUrl(space.id)} alt={space.name} sx={{ width: "100%", height: 190, objectFit: "cover" }} /> : <Box sx={{ height: 170, display: "grid", placeItems: "center", bgcolor: "#f6f8f7" }}><ImageNotSupportedOutlinedIcon sx={{ fontSize: 64, color: "#c4d0cc" }} /></Box>}
+            {space.photoAvailable ? <AuthenticatedImage remoteSrc={residentAmenitySpacePhotoUrl(space.id)} alt={space.name} sx={{ width: "100%", height: 190, objectFit: "cover" }} /> : <Box sx={{ height: 170, display: "grid", placeItems: "center", bgcolor: "#f6f8f7" }}><ImageNotSupportedOutlinedIcon sx={{ fontSize: 64, color: "#c4d0cc" }} /></Box>}
             <CardContent sx={{ p: 2 }}>
               {space.description && <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{space.description}</Typography>}
               <Stack spacing={.65}>

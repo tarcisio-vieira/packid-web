@@ -165,6 +165,17 @@ export default function ResidentLoginPage({
             Acesso da portaria e secretaria
           </Button>
 
+          <Typography
+            component="a"
+            href="https://app.vsgi.com.br/condominio/politica-de-privacidade.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="caption"
+            sx={{ display: "block", mt: 1.5, textAlign: "center", color: condominiumBrand.primary, fontWeight: 700, textDecoration: "none", "&:hover": { textDecoration: "underline" } }}
+          >
+            Política de Privacidade
+          </Typography>
+
         </CardContent>
       </Card>
     </Box>
