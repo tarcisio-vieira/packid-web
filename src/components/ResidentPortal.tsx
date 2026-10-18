@@ -15,6 +15,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   Drawer,
   IconButton,
   List,
@@ -55,6 +56,8 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleRounded";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailRounded";
+import PolicyRoundedIcon from "@mui/icons-material/PolicyRounded";
+import PersonRemoveRoundedIcon from "@mui/icons-material/PersonRemoveRounded";
 import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
@@ -999,6 +1002,29 @@ export default function ResidentPortal({ session, onLoggedOut }: Readonly<{ sess
               {activeSection === section && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
             </ListItemButton>
           ))}
+          <Divider sx={{ my: 1 }} />
+          <ListItemButton
+            component="a"
+            href="https://app.vsgi.com.br/condominio/politica-de-privacidade.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setMenuOpen(false)}
+            sx={{ borderRadius: 2, mb: .45 }}
+          >
+            <ListItemIcon sx={{ minWidth: 40, color: "text.secondary" }}><PolicyRoundedIcon /></ListItemIcon>
+            <ListItemText primary="Política de Privacidade" />
+          </ListItemButton>
+          <ListItemButton
+            component="a"
+            href="https://app.vsgi.com.br/condominio/politica-de-privacidade.html#exclusao-de-conta"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setMenuOpen(false)}
+            sx={{ borderRadius: 2, mb: .45 }}
+          >
+            <ListItemIcon sx={{ minWidth: 40, color: "text.secondary" }}><PersonRemoveRoundedIcon /></ListItemIcon>
+            <ListItemText primary="Solicitar exclusão de conta" />
+          </ListItemButton>
         </List>
       </Drawer>
 

@@ -69,6 +69,8 @@ import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import PolicyRoundedIcon from "@mui/icons-material/PolicyRounded";
+import PersonRemoveRoundedIcon from "@mui/icons-material/PersonRemoveRounded";
 
 // ----- Tipos -----
 type ActiveView = "home" | "identifyPackage" | "registry" | "spaces" | "reservations" | "announcements" | "library" | "internalRegulation" | "billing" | "poolCards" | "settings";
@@ -1990,6 +1992,30 @@ function App() {
                 {activeView === "settings" && <ChevronRightRoundedIcon sx={{ fontSize: 19, color: "primary.main" }} />}
               </ListItemButton>
             )}
+
+            <Divider sx={{ my: 1 }} />
+            <ListItemButton
+              component="a"
+              href="https://app.vsgi.com.br/condominio/politica-de-privacidade.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setDrawerOpen(false)}
+              sx={{ minHeight: 48, mb: 0.5, px: 1.25, borderRadius: 2 }}
+            >
+              <ListItemIcon sx={{ minWidth: 40, color: "text.secondary" }}><PolicyRoundedIcon /></ListItemIcon>
+              <ListItemText primary="Política de Privacidade" />
+            </ListItemButton>
+            <ListItemButton
+              component="a"
+              href="https://app.vsgi.com.br/condominio/politica-de-privacidade.html#exclusao-de-conta"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setDrawerOpen(false)}
+              sx={{ minHeight: 48, px: 1.25, borderRadius: 2 }}
+            >
+              <ListItemIcon sx={{ minWidth: 40, color: "text.secondary" }}><PersonRemoveRoundedIcon /></ListItemIcon>
+              <ListItemText primary="Solicitar exclusão de conta" />
+            </ListItemButton>
           </List>
 
           <Box sx={{ px: 2, py: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
