@@ -24,6 +24,10 @@ import CondominiumBrandIcon from "./shared/CondominiumBrandIcon";
 import { condominiumBrand } from "../theme/condominiumBrand";
 import { residentLogin, userFriendlyError, type ResidentSession } from "../api";
 
+// O build Android usa VITE_ACCESS_ROUTE=resident. No site, a opção de
+// acesso da portaria e secretaria deve continuar disponível.
+const IS_RESIDENT_APP = import.meta.env.VITE_ACCESS_ROUTE === "resident";
+
 const fieldSx = {
   "& .MuiOutlinedInput-root": {
     minHeight: 54,
@@ -153,17 +157,21 @@ export default function ResidentLoginPage({
             </Button>
           </Stack>
 
-          <Divider sx={{ my: 2.5 }} />
+          {!IS_RESIDENT_APP && (
+            <>
+              <Divider sx={{ my: 2.5 }} />
 
-          <Button
-            variant="text"
-            fullWidth
-            startIcon={<ArrowBackRoundedIcon />}
-            onClick={onCollaboratorAccess}
-            sx={{ minHeight: 44, borderRadius: 2.5, textTransform: "none", color: "text.secondary", fontWeight: 700 }}
-          >
-            Acesso da portaria e secretaria
-          </Button>
+              <Button
+                variant="text"
+                fullWidth
+                startIcon={<ArrowBackRoundedIcon />}
+                onClick={onCollaboratorAccess}
+                sx={{ minHeight: 44, borderRadius: 2.5, textTransform: "none", color: "text.secondary", fontWeight: 700 }}
+              >
+                Acesso da portaria e secretaria
+              </Button>
+            </>
+          )}
 
           <Typography
             component="a"
